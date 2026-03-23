@@ -180,8 +180,10 @@ async function initCanvas(width: number, height: number, background: "white" | "
   updateToolInfo();
   updateLayerInfo();
 
-  // Input handler
-  inputHandler = new InputHandler(canvasContainer, handleInput);
+  // Input handler — bind to the actual PixiJS canvas element, not the container,
+  // because the canvas element intercepts pointer events
+  const pixiCanvas = canvasManager.app.canvas as HTMLCanvasElement;
+  inputHandler = new InputHandler(pixiCanvas, handleInput);
 
   // Render loop
   canvasManager.app.ticker.add(() => {

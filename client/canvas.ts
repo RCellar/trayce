@@ -34,8 +34,18 @@ export class CanvasManager {
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
+      eventMode: "none",       // Disable PixiJS event system — we handle input ourselves
+      eventFeatures: {
+        move: false,
+        globalMove: false,
+        click: false,
+        wheel: false,
+      },
     });
     container.appendChild(app.canvas);
+
+    // Ensure the canvas element doesn't block pointer events from reaching our handler
+    (app.canvas as HTMLCanvasElement).style.touchAction = "none";
 
     return new CanvasManager(app, docWidth, docHeight);
   }
