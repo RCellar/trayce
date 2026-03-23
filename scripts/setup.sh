@@ -41,9 +41,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Determine config file path
+# Global MCP servers live in ~/.claude.json (top-level mcpServers key)
+# Project MCP servers live in .mcp.json (project root)
 if [ "$SCOPE" = "global" ]; then
-  MCP_FILE="$HOME/.claude/.mcp.json"
-  mkdir -p "$(dirname "$MCP_FILE")"
+  MCP_FILE="$HOME/.claude.json"
 else
   MCP_FILE=".mcp.json"
 fi
@@ -64,8 +65,9 @@ if [ "$UNINSTALL" = true ]; then
   exit 0
 fi
 
-# Check prerequisites
-if ! command -v bun &>/dev/null; then
+# Check prerequisites — resolve full path to bun for MCP config
+BUN_BIN="$(command -v bun 2>/dev/null || echo "")"
+if [ -z "$BUN_BIN" ]; then
   echo "Error: bun is required but not found."
   echo "Install: curl -fsSL https://bun.sh/install | bash"
   exit 1
@@ -99,7 +101,7 @@ fi
 if [ "$SCOPE" = "global" ]; then
   TRAYCE_ENTRY=$(cat <<JSONEOF
 {
-  "command": "bun",
+  "command": "$BUN_BIN",
   "args": ["run", "$BRIDGE_PATH"]
 }
 JSONEOF
@@ -107,7 +109,7 @@ JSONEOF
 else
   TRAYCE_ENTRY=$(cat <<JSONEOF
 {
-  "command": "bun",
+  "command": "$BUN_BIN",
   "args": ["run", "$BRIDGE_PATH"],
   "env": {
     "TRAYCE_LABEL": "$LABEL"
@@ -127,7 +129,12 @@ if command -v jq &>/dev/null; then
     echo "{\"mcpServers\":{\"trayce\":$TRAYCE_ENTRY}}" | jq . > "$MCP_FILE"
   fi
 else
-  # No jq — write config directly (will overwrite existing)
+  if [ "$SCOPE" = "global" ]; then
+    echo "Error: jq is required for global installs (to safely merge into ~/.claude.json)."
+    echo "Install jq and try again."
+    exit 1
+  fi
+  # No jq — write project config directly (will overwrite existing .mcp.json)
   cat > "$MCP_FILE" <<MCPEOF
 {
   "mcpServers": {
@@ -139,7 +146,11 @@ fi
 
 echo ""
 echo "✓ trayce configured in $MCP_FILE"
-echo "  Label: $LABEL"
+if [ "$SCOPE" = "global" ]; then
+  echo "  Label: (dynamic — based on project directory)"
+else
+  echo "  Label: $LABEL"
+fi
 echo "  Bridge: $BRIDGE_PATH"
 echo ""
 echo "Next steps:"
