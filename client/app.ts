@@ -133,7 +133,6 @@ function initResolutionSelector(): void {
 // -- Canvas Initialization --
 
 async function initCanvas(width: number, height: number, background: "white" | "transparent"): Promise<void> {
-  console.log("[trayce] initCanvas:", width, "x", height, background);
   // Clean up previous
   if (canvasManager) canvasManager.destroy();
   if (compositor) compositor.destroy();
@@ -202,16 +201,9 @@ async function initCanvas(width: number, height: number, background: "white" | "
 // -- Drawing --
 
 function handleInput(state: InputState, event: "start" | "move" | "end"): void {
-  console.log("[trayce] handleInput:", event, "points:", state.points.length, "brush:", activeBrush.name);
-  if (!layerManager || !canvasManager) {
-    console.warn("[trayce] handleInput: no layerManager or canvasManager");
-    return;
-  }
+  if (!layerManager || !canvasManager) return;
   const layer = layerManager.activeLayer;
-  if (layer.locked) {
-    console.warn("[trayce] handleInput: layer is locked");
-    return;
-  }
+  if (layer.locked) return;
 
   // Transform screen coords to doc coords
   const docPoints = state.points.map((p) => {
