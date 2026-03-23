@@ -1,0 +1,506 @@
+/* trayce — dark theme canvas app */
+
+:root {
+  --bg: #111;
+  --surface: #1a1a2e;
+  --border: #333;
+  --text: #c9d1d9;
+  --text-muted: #8b949e;
+  --accent: #4a9eff;
+  --accent-dim: rgba(74, 158, 255, 0.15);
+  --danger: #ff4444;
+  --success: #3fb950;
+  --warning: #d29922;
+  --toolbar-width: 48px;
+  --panel-width: 200px;
+  --topbar-height: 40px;
+  --bottombar-height: 36px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+body {
+  display: grid;
+  grid-template-rows: var(--topbar-height) 1fr var(--bottombar-height);
+}
+
+/* -- Top Bar -- */
+
+#top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+
+#top-bar .left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#top-bar .logo {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+#top-bar .info {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+#top-bar .right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.session-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+#session-select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: 120px;
+}
+
+#submit-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 16px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#submit-btn:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+/* -- Main Area -- */
+
+#main {
+  display: grid;
+  grid-template-columns: var(--toolbar-width) 1fr var(--panel-width);
+  overflow: hidden;
+}
+
+/* -- Left Toolbar -- */
+
+#toolbar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+#toolbar button {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#toolbar button:hover {
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+#toolbar button.active {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+#toolbar .separator {
+  width: 24px;
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+/* -- Canvas Container -- */
+
+#canvas-container {
+  background: #222;
+  overflow: hidden;
+  position: relative;
+}
+
+#canvas-container canvas {
+  display: block;
+}
+
+/* -- Right Panel -- */
+
+#right-panel {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+#brush-settings,
+#layers-panel {
+  padding: 12px;
+}
+
+#brush-settings {
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-label {
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.slider-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.slider-row span:last-child {
+  color: var(--accent);
+}
+
+.slider-track {
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.slider-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* -- Layers Panel -- */
+
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.layer-item:hover {
+  background: var(--accent-dim);
+}
+
+.layer-item.active {
+  background: rgba(74, 158, 255, 0.12);
+  border: 1px solid rgba(74, 158, 255, 0.25);
+}
+
+.layer-item .visibility {
+  cursor: pointer;
+}
+
+.layer-item .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-item .blend-mode {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+/* -- Bottom Bar -- */
+
+#bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 10;
+}
+
+#bottom-bar .left,
+#bottom-bar .right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#bottom-bar .center {
+  flex: 1;
+  margin: 0 12px;
+}
+
+#prompt-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+#prompt-input:focus {
+  border-color: var(--accent);
+}
+
+/* -- Connection Status -- */
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.status .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status.connected .dot { background: var(--success); }
+.status.disconnected .dot { background: var(--danger); }
+.status.reconnecting .dot { background: var(--warning); }
+
+.status .text {
+  color: var(--text-muted);
+}
+
+#tool-info, #layer-info {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* -- Dialog -- */
+
+dialog {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+dialog h2 {
+  margin-bottom: 16px;
+  font-size: 18px;
+}
+
+dialog .presets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+dialog .presets button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+dialog .presets button:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+dialog .custom-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+dialog .custom-size label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+dialog .custom-size input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  width: 80px;
+  font-size: 13px;
+}
+
+dialog .custom-size button {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+dialog .bg-choice {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+dialog .bg-choice label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+/* -- Toast -- */
+
+#toast-container {
+  position: fixed;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: auto;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* -- Responsive (tablet) -- */
+
+@media (max-width: 768px) {
+  #main {
+    grid-template-columns: 1fr;
+  }
+
+  #toolbar {
+    position: fixed;
+    bottom: var(--bottombar-height);
+    left: 0;
+    right: 0;
+    flex-direction: row;
+    justify-content: center;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    padding: 4px 8px;
+    z-index: 20;
+    overflow-x: auto;
+  }
+
+  #toolbar .separator {
+    width: 1px;
+    height: 24px;
+  }
+
+  #right-panel {
+    position: fixed;
+    top: var(--topbar-height);
+    right: -var(--panel-width);
+    bottom: var(--bottombar-height);
+    width: var(--panel-width);
+    transition: right 0.2s;
+    z-index: 20;
+    border-left: 1px solid var(--border);
+  }
+
+  #right-panel.open {
+    right: 0;
+  }
+
+  #toolbar button,
+  dialog .presets button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
