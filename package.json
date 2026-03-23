@@ -1,0 +1,24 @@
+{
+  "name": "trayce",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch server/index.ts",
+    "dev:client": "bun build client/app.ts --outdir dist/client --target browser --watch",
+    "build:client": "bun build client/app.ts --outdir dist/client --minify --target browser && cp client/index.html client/style.css dist/client/",
+    "start": "bun run server/index.ts",
+    "test": "bun test",
+    "build:image": "bash scripts/build-image.sh"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "perfect-freehand": "^1.2.3",
+    "pixi.js": "^8.17.1"
+  }
+}
