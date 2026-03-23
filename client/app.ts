@@ -1,3 +1,7 @@
+// Must be imported BEFORE any other pixi.js imports — patches PixiJS to work
+// without unsafe-eval (replaces new Function() with CSP-safe alternatives)
+import "pixi.js/unsafe-eval";
+
 import { CanvasManager } from "./canvas";
 import { LayerManager } from "./layers";
 import { Compositor } from "./compositor";
@@ -128,6 +132,7 @@ function getSelectedBackground(): "white" | "transparent" {
 // -- Canvas Initialization --
 
 async function initCanvas(width: number, height: number, background: "white" | "transparent"): Promise<void> {
+  console.log("[trayce] initCanvas:", width, "x", height, background);
   // Clean up previous
   if (canvasManager) canvasManager.destroy();
   if (compositor) compositor.destroy();
@@ -194,9 +199,16 @@ async function initCanvas(width: number, height: number, background: "white" | "
 // -- Drawing --
 
 function handleInput(state: InputState, event: "start" | "move" | "end"): void {
-  if (!layerManager || !canvasManager) return;
+  console.log("[trayce] handleInput:", event, "points:", state.points.length, "brush:", activeBrush.name);
+  if (!layerManager || !canvasManager) {
+    console.warn("[trayce] handleInput: no layerManager or canvasManager");
+    return;
+  }
   const layer = layerManager.activeLayer;
-  if (layer.locked) return;
+  if (layer.locked) {
+    console.warn("[trayce] handleInput: layer is locked");
+    return;
+  }
 
   // Transform screen coords to doc coords
   const docPoints = state.points.map((p) => {
