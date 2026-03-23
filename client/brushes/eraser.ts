@@ -8,9 +8,12 @@ export class EraserBrush implements Brush {
 
   beginStroke(ctx: OffscreenCanvasRenderingContext2D, _params: BrushParams): void {
     ctx.save();
-    ctx.globalCompositeOperation = "destination-out";
+    // Paint with white rather than destination-out so erasing is visible
+    // on the background layer (destination-out erases to transparent,
+    // which looks identical to white on a white background)
+    ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
-    ctx.fillStyle = "black";
+    ctx.fillStyle = "#ffffff";
   }
 
   drawStroke(

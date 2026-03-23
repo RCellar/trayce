@@ -13,12 +13,13 @@ const TOOLS: Array<{ id: ToolId; icon: string; group?: string }> = [
   { id: "watercolor", icon: "💧" },
   { id: "highlighter", icon: "▬" },
   { id: "eraser", icon: "◻", group: "separator" },
-  { id: "select", icon: "⬚" },
-  { id: "lasso", icon: "◠" },
-  { id: "shapes", icon: "▢", group: "separator" },
-  { id: "arrow", icon: "→" },
-  { id: "text", icon: "T" },
-  { id: "image", icon: "🖼" },
+  // Unimplemented tools hidden until ready:
+  // { id: "select", icon: "⬚" },
+  // { id: "lasso", icon: "◠" },
+  // { id: "shapes", icon: "▢", group: "separator" },
+  // { id: "arrow", icon: "→" },
+  // { id: "text", icon: "T" },
+  // { id: "image", icon: "🖼" },
 ];
 
 const ACTIONS: Array<{ id: ActionId; icon: string; title: string }> = [
