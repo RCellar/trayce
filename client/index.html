@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>trayce</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- New Document Dialog -->
+  <dialog id="new-doc-dialog">
+    <h2>New Canvas</h2>
+    <div class="presets">
+      <button data-w="1920" data-h="1080">1920 × 1080 (HD)</button>
+      <button data-w="2560" data-h="1440">2560 × 1440 (QHD)</button>
+      <button data-w="4096" data-h="4096">4096 × 4096 (Max)</button>
+    </div>
+    <div class="custom-size">
+      <label>Width <input type="number" id="custom-w" min="1" max="4096" value="1920"></label>
+      <label>Height <input type="number" id="custom-h" min="1" max="4096" value="1080"></label>
+      <button id="custom-create">Create</button>
+    </div>
+    <div class="bg-choice">
+      <label><input type="radio" name="bg" value="white" checked> White</label>
+      <label><input type="radio" name="bg" value="transparent"> Transparent</label>
+    </div>
+  </dialog>
+
+  <!-- Top Bar -->
+  <header id="top-bar">
+    <div class="left">
+      <span class="logo">trayce</span>
+      <span id="canvas-info" class="info"></span>
+    </div>
+    <div class="right">
+      <label class="session-label">Session:
+        <select id="session-select" disabled>
+          <option value="">No sessions</option>
+        </select>
+      </label>
+      <button id="submit-btn" disabled>Submit</button>
+    </div>
+  </header>
+
+  <!-- Main Area -->
+  <div id="main">
+    <!-- Left Toolbar -->
+    <aside id="toolbar"></aside>
+
+    <!-- Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Right Panel -->
+    <aside id="right-panel">
+      <section id="brush-settings"></section>
+      <section id="layers-panel"></section>
+    </aside>
+  </div>
+
+  <!-- Bottom Bar -->
+  <footer id="bottom-bar">
+    <div class="left">
+      <span id="connection-status" class="status disconnected">
+        <span class="dot"></span>
+        <span class="text">Disconnected</span>
+      </span>
+    </div>
+    <div class="center">
+      <input type="text" id="prompt-input" placeholder="Optional prompt text...">
+    </div>
+    <div class="right">
+      <span id="tool-info"></span>
+      <span id="layer-info"></span>
+    </div>
+  </footer>
+
+  <div id="toast-container"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
