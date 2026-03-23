@@ -1,0 +1,183 @@
+import { describe, expect, test } from "bun:test";
+import { LayerManager, type BlendMode } from "../../client/layers";
+
+// Mock OffscreenCanvas for Bun test environment
+globalThis.OffscreenCanvas = class MockOffscreenCanvas {
+  width: number;
+  height: number;
+  constructor(w: number, h: number) {
+    this.width = w;
+    this.height = h;
+  }
+  getContext() {
+    return {
+      clearRect: () => {},
+      drawImage: () => {},
+      getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+      putImageData: () => {},
+      save: () => {},
+      restore: () => {},
+      beginPath: () => {},
+      fill: () => {},
+      fillRect: () => {},
+      fillStyle: "",
+      globalCompositeOperation: "source-over",
+      globalAlpha: 1,
+    };
+  }
+  convertToBlob() {
+    return Promise.resolve(new Blob(["fake"], { type: "image/png" }));
+  }
+} as any;
+
+describe("LayerManager — creation", () => {
+  test("creates with background layer", () => {
+    const lm = new LayerManager(100, 100, "white");
+    expect(lm.layers.length).toBe(1);
+    expect(lm.layers[0].name).toBe("Background");
+    expect(lm.layers[0].deletable).toBe(false);
+    expect(lm.activeLayerIndex).toBe(0);
+  });
+
+  test("transparent background creates layer without fill", () => {
+    const lm = new LayerManager(100, 100, "transparent");
+    expect(lm.layers.length).toBe(1);
+    expect(lm.layers[0].name).toBe("Background");
+  });
+
+  test("activeLayer returns the current active layer", () => {
+    const lm = new LayerManager(100, 100, "white");
+    expect(lm.activeLayer.name).toBe("Background");
+  });
+});
+
+describe("LayerManager — add/delete", () => {
+  test("add layer", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("Sketch");
+    expect(lm.layers.length).toBe(2);
+    expect(lm.layers[1].name).toBe("Sketch");
+    expect(lm.activeLayerIndex).toBe(1);
+  });
+
+  test("added layer is deletable", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const layer = lm.addLayer("Sketch");
+    expect(layer.deletable).toBe(true);
+  });
+
+  test("added layer has default properties", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const layer = lm.addLayer("Sketch");
+    expect(layer.visible).toBe(true);
+    expect(layer.opacity).toBe(100);
+    expect(layer.blendMode).toBe("normal");
+    expect(layer.locked).toBe(false);
+  });
+
+  test("delete layer", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("Sketch");
+    lm.deleteLayer(1);
+    expect(lm.layers.length).toBe(1);
+  });
+
+  test("cannot delete background", () => {
+    const lm = new LayerManager(100, 100, "white");
+    expect(() => lm.deleteLayer(0)).toThrow();
+  });
+
+  test("delete adjusts activeLayerIndex", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("A");
+    lm.addLayer("B");
+    expect(lm.activeLayerIndex).toBe(2);
+    lm.deleteLayer(2);
+    expect(lm.activeLayerIndex).toBe(1);
+  });
+
+  test("max 20 layers", () => {
+    const lm = new LayerManager(100, 100, "white");
+    for (let i = 0; i < 19; i++) lm.addLayer(`L${i}`);
+    expect(lm.layers.length).toBe(20);
+    expect(() => lm.addLayer("overflow")).toThrow();
+  });
+});
+
+describe("LayerManager — reorder", () => {
+  test("move layer down", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("A");
+    lm.addLayer("B");
+    lm.moveLayer(2, 1);
+    expect(lm.layers[1].name).toBe("B");
+    expect(lm.layers[2].name).toBe("A");
+  });
+
+  test("move updates activeLayerIndex", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("A");
+    lm.addLayer("B");
+    lm.activeLayerIndex = 2;
+    lm.moveLayer(2, 1);
+    expect(lm.activeLayerIndex).toBe(1);
+  });
+
+  test("move same index is no-op", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("A");
+    lm.moveLayer(1, 1);
+    expect(lm.layers[1].name).toBe("A");
+  });
+});
+
+describe("LayerManager — duplicate", () => {
+  test("duplicate creates copy after source", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("Sketch");
+    lm.duplicateLayer(1);
+    expect(lm.layers.length).toBe(3);
+    expect(lm.layers[2].name).toBe("Sketch copy");
+    expect(lm.activeLayerIndex).toBe(2);
+  });
+
+  test("duplicate respects max layers", () => {
+    const lm = new LayerManager(100, 100, "white");
+    for (let i = 0; i < 19; i++) lm.addLayer(`L${i}`);
+    expect(() => lm.duplicateLayer(1)).toThrow();
+  });
+});
+
+describe("LayerManager — merge down", () => {
+  test("merge down removes upper layer", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("Sketch");
+    lm.mergeDown(1);
+    expect(lm.layers.length).toBe(1);
+  });
+
+  test("merge at index 0 is no-op", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.mergeDown(0);
+    expect(lm.layers.length).toBe(1);
+  });
+});
+
+describe("LayerManager — blendToComposite", () => {
+  test("maps all blend modes", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const modes: BlendMode[] = [
+      "normal", "multiply", "screen", "overlay",
+      "soft-light", "hard-light", "darken", "lighten",
+      "color-dodge", "color-burn",
+    ];
+    for (const mode of modes) {
+      expect(typeof lm.blendToComposite(mode)).toBe("string");
+    }
+  });
+
+  test("normal maps to source-over", () => {
+    const lm = new LayerManager(100, 100, "white");
+    expect(lm.blendToComposite("normal")).toBe("source-over");
+  });
+});
