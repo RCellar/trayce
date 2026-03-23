@@ -95,7 +95,17 @@ if [ -z "$LABEL" ]; then
 fi
 
 # Build the MCP config entry
-TRAYCE_ENTRY=$(cat <<JSONEOF
+# Global installs omit TRAYCE_LABEL so each session auto-labels from its cwd
+if [ "$SCOPE" = "global" ]; then
+  TRAYCE_ENTRY=$(cat <<JSONEOF
+{
+  "command": "bun",
+  "args": ["run", "$BRIDGE_PATH"]
+}
+JSONEOF
+)
+else
+  TRAYCE_ENTRY=$(cat <<JSONEOF
 {
   "command": "bun",
   "args": ["run", "$BRIDGE_PATH"],
@@ -105,6 +115,7 @@ TRAYCE_ENTRY=$(cat <<JSONEOF
 }
 JSONEOF
 )
+fi
 
 # Write or merge into MCP config
 if command -v jq &>/dev/null; then
