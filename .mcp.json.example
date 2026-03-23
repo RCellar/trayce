@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "trayce": {
+      "command": "bun",
+      "args": ["run", "/path/to/trayce/bridge/index.ts"],
+      "env": {
+        "TRAYCE_HOST": "localhost",
+        "TRAYCE_PORT": "9740",
+        "TRAYCE_LABEL": "my-project"
+      }
+    }
+  }
+}
