@@ -33,6 +33,8 @@ export class Compositor {
 
   update(): void {
     if (!this.dirty) return;
+    // Don't update if the WebGL context isn't ready yet
+    if (!this.app.renderer || !this.app.renderer.gl) return;
     this.dirty = false;
 
     // Remove sprites for deleted layers

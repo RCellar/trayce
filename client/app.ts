@@ -145,9 +145,11 @@ async function initCanvas(width: number, height: number, background: "white" | "
   // Add compositor container to stage
   canvasManager.stage.addChild(compositor.getContainer());
 
-  // Initial composite
-  compositor.markDirty();
-  compositor.update();
+  // Defer initial composite to next frame so WebGL context is ready
+  requestAnimationFrame(() => {
+    compositor?.markDirty();
+    compositor?.update();
+  });
 
   // Layers UI
   const layersPanelEl = document.getElementById("layers-panel")!;
