@@ -16,7 +16,7 @@ import type { Brush, BrushParams } from "./brushes/types";
 import { Connection, buildWsUrl, type ServerMessage } from "./connection";
 import { flattenToPng, blobToBase64 } from "./export";
 import { showToast } from "./toast";
-import { Toolbar, type ToolId } from "./toolbar";
+import { Toolbar, type ToolId, type ActionId } from "./toolbar";
 import { BrushSettingsUI } from "./brush-settings-ui";
 import { LayersUI } from "./layers-ui";
 import { ColorPicker } from "./color-picker";
@@ -77,6 +77,11 @@ function initUIComponents(): void {
       if (brushes[toolId]) {
         activeBrush = brushes[toolId];
         updateToolInfo();
+      }
+    },
+    onAction: (actionId: ActionId) => {
+      if (actionId === "clear") {
+        clearCanvas();
       }
     },
   });
@@ -351,6 +356,23 @@ document.addEventListener("keydown", (e) => {
 });
 
 // -- Info Updates --
+
+function clearCanvas(): void {
+  if (!layerManager || !compositor) return;
+  if (!confirm("Clear the entire canvas? This cannot be undone.")) return;
+
+  for (const layer of layerManager.layers) {
+    layer.ctx.clearRect(0, 0, layerManager.docWidth, layerManager.docHeight);
+  }
+
+  // Refill background if it was white
+  const bg = layerManager.layers[0];
+  bg.ctx.fillStyle = "#ffffff";
+  bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
+
+  compositor.markDirty();
+  showToast("Canvas cleared");
+}
 
 function updateToolInfo(): void {
   toolInfo.textContent = `${activeBrush.name} · ${brushParams.size}px`;
