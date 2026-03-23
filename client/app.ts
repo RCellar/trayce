@@ -98,35 +98,36 @@ function initUIComponents(): void {
   });
 }
 
-// -- New Document Dialog --
+// -- Resolution Selector --
 
-function showNewDocDialog(): void {
-  dialog.showModal();
+const RESOLUTIONS = [
+  { label: "1920 × 1080 (HD)", w: 1920, h: 1080 },
+  { label: "2560 × 1440 (QHD)", w: 2560, h: 1440 },
+  { label: "3840 × 2160 (4K)", w: 3840, h: 2160 },
+  { label: "4096 × 4096 (Max)", w: 4096, h: 4096 },
+];
 
-  // Preset buttons
-  dialog.querySelectorAll(".presets button").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const w = parseInt((btn as HTMLElement).dataset.w!);
-      const h = parseInt((btn as HTMLElement).dataset.h!);
-      const bg = getSelectedBackground();
-      dialog.close();
-      initCanvas(w, h, bg);
-    });
+function initResolutionSelector(): void {
+  const select = document.createElement("select");
+  select.id = "resolution-select";
+  select.style.cssText = "background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;margin-left:8px;";
+
+  for (const res of RESOLUTIONS) {
+    const opt = document.createElement("option");
+    opt.value = `${res.w}x${res.h}`;
+    opt.textContent = res.label;
+    select.appendChild(opt);
+  }
+
+  select.value = "1920x1080";
+
+  select.addEventListener("change", () => {
+    const [w, h] = select.value.split("x").map(Number);
+    initCanvas(w, h, "white");
   });
 
-  // Custom create
-  document.getElementById("custom-create")!.addEventListener("click", () => {
-    const w = Math.min(4096, Math.max(1, parseInt((document.getElementById("custom-w") as HTMLInputElement).value)));
-    const h = Math.min(4096, Math.max(1, parseInt((document.getElementById("custom-h") as HTMLInputElement).value)));
-    const bg = getSelectedBackground();
-    dialog.close();
-    initCanvas(w, h, bg);
-  });
-}
-
-function getSelectedBackground(): "white" | "transparent" {
-  const checked = dialog.querySelector('input[name="bg"]:checked') as HTMLInputElement;
-  return (checked?.value === "transparent") ? "transparent" : "white";
+  // Insert after canvas-info in the top bar
+  canvasInfo.parentElement!.appendChild(select);
 }
 
 // -- Canvas Initialization --
@@ -439,5 +440,6 @@ canvasContainer.addEventListener("wheel", (e) => {
 // -- Init --
 
 initUIComponents();
-showNewDocDialog();
+initResolutionSelector();
+initCanvas(1920, 1080, "white");
 initConnection();
