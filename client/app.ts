@@ -3,11 +3,19 @@ import { LayerManager } from "./layers";
 import { Compositor } from "./compositor";
 import { InputHandler, type InputState } from "./input";
 import { PenBrush } from "./brushes/pen";
+import { PencilBrush } from "./brushes/pencil";
+import { MarkerBrush } from "./brushes/marker";
+import { WatercolorBrush } from "./brushes/watercolor";
+import { HighlighterBrush } from "./brushes/highlighter";
 import { EraserBrush } from "./brushes/eraser";
 import type { Brush, BrushParams } from "./brushes/types";
 import { Connection, buildWsUrl, type ServerMessage } from "./connection";
 import { flattenToPng, blobToBase64 } from "./export";
 import { showToast } from "./toast";
+import { Toolbar, type ToolId } from "./toolbar";
+import { BrushSettingsUI } from "./brush-settings-ui";
+import { LayersUI } from "./layers-ui";
+import { ColorPicker } from "./color-picker";
 
 // -- State --
 
@@ -19,6 +27,10 @@ let connection: Connection | null = null;
 
 const brushes: Record<string, Brush> = {
   pen: new PenBrush(),
+  pencil: new PencilBrush(),
+  marker: new MarkerBrush(),
+  watercolor: new WatercolorBrush(),
+  highlighter: new HighlighterBrush(),
   eraser: new EraserBrush(),
 };
 
@@ -45,6 +57,42 @@ const promptInput = document.getElementById("prompt-input") as HTMLInputElement;
 const connectionStatus = document.getElementById("connection-status")!;
 const toolInfo = document.getElementById("tool-info")!;
 const layerInfo = document.getElementById("layer-info")!;
+
+let toolbar: Toolbar | null = null;
+let brushSettingsUI: BrushSettingsUI | null = null;
+let layersUI: LayersUI | null = null;
+let colorPicker: ColorPicker | null = null;
+
+// -- Initialize UI Components --
+
+function initUIComponents(): void {
+  // Toolbar
+  const toolbarEl = document.getElementById("toolbar")!;
+  toolbar = new Toolbar(toolbarEl, {
+    onToolChange: (toolId: ToolId) => {
+      if (brushes[toolId]) {
+        activeBrush = brushes[toolId];
+        updateToolInfo();
+      }
+    },
+  });
+
+  // Brush settings
+  const brushSettingsEl = document.getElementById("brush-settings")!;
+  brushSettingsUI = new BrushSettingsUI(brushSettingsEl, brushParams, {
+    onParamsChange: (params) => {
+      brushParams = params;
+      updateToolInfo();
+    },
+  });
+
+  // Color picker (append to toolbar bottom)
+  colorPicker = new ColorPicker(toolbarEl, {
+    onColorChange: (color) => {
+      brushParams.color = color;
+    },
+  });
+}
 
 // -- New Document Dialog --
 
@@ -95,6 +143,37 @@ async function initCanvas(width: number, height: number, background: "white" | "
   // Initial composite
   compositor.markDirty();
   compositor.update();
+
+  // Layers UI
+  const layersPanelEl = document.getElementById("layers-panel")!;
+  layersUI = new LayersUI(layersPanelEl, layerManager, {
+    onActiveChange: (index) => {
+      layerManager!.activeLayerIndex = index;
+      layersUI?.render();
+      updateLayerInfo();
+    },
+    onVisibilityToggle: (index) => {
+      layerManager!.layers[index].visible = !layerManager!.layers[index].visible;
+      compositor?.markDirty();
+      layersUI?.render();
+    },
+    onAddLayer: () => {
+      layerManager!.addLayer("Layer " + (layerManager!.layers.length));
+      compositor?.markDirty();
+      layersUI?.render();
+      updateLayerInfo();
+    },
+    onDeleteLayer: (index) => {
+      try {
+        layerManager!.deleteLayer(index);
+        compositor?.markDirty();
+        layersUI?.render();
+        updateLayerInfo();
+      } catch (e) {
+        showToast("Cannot delete this layer");
+      }
+    },
+  });
 
   // Update info
   canvasInfo.textContent = canvasManager.getCanvasInfo();
@@ -282,10 +361,32 @@ document.addEventListener("keydown", (e) => {
   switch (e.key.toLowerCase()) {
     case "b":
       activeBrush = brushes.pen;
+      toolbar?.setActive("pen");
+      updateToolInfo();
+      break;
+    case "n":
+      activeBrush = brushes.pencil;
+      toolbar?.setActive("pencil");
+      updateToolInfo();
+      break;
+    case "m":
+      activeBrush = brushes.marker;
+      toolbar?.setActive("marker");
+      updateToolInfo();
+      break;
+    case "w":
+      activeBrush = brushes.watercolor;
+      toolbar?.setActive("watercolor");
+      updateToolInfo();
+      break;
+    case "h":
+      activeBrush = brushes.highlighter;
+      toolbar?.setActive("highlighter");
       updateToolInfo();
       break;
     case "e":
       activeBrush = brushes.eraser;
+      toolbar?.setActive("eraser");
       updateToolInfo();
       break;
     case "[":
@@ -321,5 +422,6 @@ canvasContainer.addEventListener("wheel", (e) => {
 
 // -- Init --
 
+initUIComponents();
 showNewDocDialog();
 initConnection();
