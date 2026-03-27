@@ -289,6 +289,77 @@ body {
   color: #e94560;
 }
 
+/* -- Usage Tab -- */
+
+.usage-section {
+  margin-bottom: 16px;
+}
+
+.usage-heading {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.usage-cost {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.usage-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+}
+
+.usage-label {
+  color: var(--text-muted);
+}
+
+.usage-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-bar-container {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+
+.usage-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.usage-detail {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.usage-model-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.usage-model-name {
+  text-transform: capitalize;
+}
+
+.usage-model-stat {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* -- Bottom Bar -- */
 
 #bottom-bar {
