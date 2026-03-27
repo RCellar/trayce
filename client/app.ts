@@ -24,6 +24,7 @@ import { SidePanel } from "./side-panel";
 import { ResponseTab } from "./response-tab";
 import { TranscriptTab } from "./transcript-tab";
 import { UsageTab } from "./usage-tab";
+import { ThemeManager } from "./theme";
 
 // -- State --
 
@@ -160,6 +161,11 @@ function initUIComponents(): void {
     usageTab.mount(usageContainer);
     usageContainer.dataset.mounted = "true";
   }
+
+  // Theme
+  const themeManager = new ThemeManager();
+  const gearContainer = document.getElementById("gear-container");
+  if (gearContainer) themeManager.attachGearIcon(gearContainer);
 }
 
 // -- Resolution Selector --
