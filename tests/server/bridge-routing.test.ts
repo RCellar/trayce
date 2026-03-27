@@ -90,8 +90,9 @@ describe("watch-session", () => {
 
     await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
 
-    // No error, no response expected — just silently registers the watch
-    expect(browser.sent.length).toBe(0);
+    // Only a usage-snapshot is sent (no errors, no other responses)
+    expect(browser.sent.length).toBe(1);
+    expect(JSON.parse(browser.sent[0]).type).toBe("usage-snapshot");
   });
 
   it("ignores watch-session with missing sessionId", async () => {

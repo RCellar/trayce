@@ -740,3 +740,99 @@ describe("transcript buffering", () => {
     expect((msgs[0].entry as any).content).toBe("from-s2");
   });
 });
+
+// -- Usage routing --
+
+describe("usage routing", () => {
+  it("accumulates usage-update and sends snapshot on watch-session", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "usage-update",
+      usage: { inputTokens: 10, outputTokens: 50, cacheReadTokens: 200, cacheWriteTokens: 30, model: "claude-opus-4-6", timestamp: 1000 },
+    }));
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "usage-update",
+      usage: { inputTokens: 20, outputTokens: 30, cacheReadTokens: 100, cacheWriteTokens: 10, model: "claude-opus-4-6", timestamp: 2000 },
+    }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const snapshots = allSentOfType(browser, "usage-snapshot");
+    expect(snapshots).toHaveLength(1);
+    const usage = snapshots[0].usage as any;
+    expect(usage.inputTokens).toBe(30);
+    expect(usage.outputTokens).toBe(80);
+    expect(usage.cacheReadTokens).toBe(300);
+    expect(usage.requestCount).toBe(2);
+  });
+
+  it("forwards live usage-update to watching browsers", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    const browser = browserWs();
+    hub.addBridge(bridge as any);
+    hub.addBrowser(browser as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    browser.sent.length = 0;
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "usage-update",
+      usage: { inputTokens: 5, outputTokens: 25, cacheReadTokens: 50, cacheWriteTokens: 0, model: "claude-opus-4-6", timestamp: 3000 },
+    }));
+
+    const updates = allSentOfType(browser, "usage-update");
+    expect(updates).toHaveLength(1);
+    expect((updates[0].usage as any).outputTokens).toBe(25);
+  });
+
+  it("cleans up usage when bridge disconnects", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "usage-update",
+      usage: { inputTokens: 10, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, model: "claude-opus-4-6", timestamp: 1000 },
+    }));
+
+    hub.removeBridge(bridge as any);
+
+    const bridge2 = bridgeWs();
+    hub.addBridge(bridge2 as any);
+    await hub.handleMessage(bridge2 as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const snapshots = allSentOfType(browser, "usage-snapshot");
+    expect(snapshots).toHaveLength(1);
+    expect((snapshots[0].usage as any).requestCount).toBe(0);
+  });
+
+  it("sends empty snapshot when no usage data exists", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const snapshots = allSentOfType(browser, "usage-snapshot");
+    expect(snapshots).toHaveLength(1);
+    expect((snapshots[0].usage as any).requestCount).toBe(0);
+  });
+});

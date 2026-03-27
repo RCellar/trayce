@@ -2,6 +2,7 @@ import type { ServerWebSocket } from "bun";
 import type { SessionRegistry } from "./sessions";
 import type { SubmissionStore } from "./submissions";
 import type { Config } from "./config";
+import { SessionUsage } from "./usage";
 
 export interface WsMessage {
   type: string;
@@ -33,6 +34,7 @@ export class WebSocketHub {
   private readonly rateBuckets = new Map<string, number[]>();
   private readonly browserWatchSession = new Map<string, string>();
   private readonly sessionBuffers = new Map<string, string[]>();
+  private readonly sessionUsage = new Map<string, SessionUsage>();
   private static readonly BUFFERED_TYPES = new Set(["transcript-entry", "response", "transcript-status"]);
 
   constructor(
@@ -82,6 +84,7 @@ export class WebSocketHub {
         this.sessionToBridgeId.delete(sessionId);
         this.registry.remove(sessionId);
         this.sessionBuffers.delete(sessionId);
+        this.sessionUsage.delete(sessionId);
         this.broadcastSessions();
       }
     }
@@ -121,15 +124,37 @@ export class WebSocketHub {
             safeSend(ws, payload);
           }
         }
+
+        // Send current usage snapshot
+        const usage = this.sessionUsage.get(sid) ?? new SessionUsage();
+        safeSend(ws, usage.toJSON());
       }
       return;
     }
 
-    const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status"];
+    const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status", "usage-update"];
     if (ws.data.kind === "bridge" && BRIDGE_ROUTED_TYPES.includes(msg.type)) {
       const sessionId = ws.data.sessionId;
       if (!sessionId) return;
       const payload = JSON.stringify({ ...msg, sessionId });
+
+      // Accumulate usage data
+      if (msg.type === "usage-update" && msg.usage) {
+        let usage = this.sessionUsage.get(sessionId);
+        if (!usage) {
+          usage = new SessionUsage();
+          this.sessionUsage.set(sessionId, usage);
+        }
+        const u = msg.usage as any;
+        usage.add({
+          inputTokens: u.inputTokens ?? 0,
+          outputTokens: u.outputTokens ?? 0,
+          cacheReadTokens: u.cacheReadTokens ?? 0,
+          cacheWriteTokens: u.cacheWriteTokens ?? 0,
+          model: u.model ?? "unknown",
+          timestamp: u.timestamp ?? Date.now(),
+        });
+      }
 
       // Buffer transcript-related messages for replay on watch-session
       if (WebSocketHub.BUFFERED_TYPES.has(msg.type)) {
@@ -165,6 +190,7 @@ export class WebSocketHub {
       this.sessionToBridgeId.delete(ws.data.sessionId);
       this.registry.remove(ws.data.sessionId);
       this.sessionBuffers.delete(ws.data.sessionId);
+      this.sessionUsage.delete(ws.data.sessionId);
     }
 
     // If another bridge holds this sessionId, evict it
@@ -179,6 +205,7 @@ export class WebSocketHub {
       this.sessionToBridgeId.delete(sessionId);
       this.registry.remove(sessionId);
       this.sessionBuffers.delete(sessionId);
+      this.sessionUsage.delete(sessionId);
     }
 
     ws.data.sessionId = sessionId;
