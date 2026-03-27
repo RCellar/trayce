@@ -239,4 +239,54 @@ describe("TranscriptWatcher", () => {
     expect(() => watcher.start()).not.toThrow();
     expect(() => watcher.stop()).not.toThrow();
   });
+
+  test("emits usage callback for assistant entries with usage data", () => {
+    const assistantWithUsage = JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        model: "claude-opus-4-6",
+        content: [{ type: "text", text: "Hello" }],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 50,
+          cache_read_input_tokens: 200,
+          cache_creation_input_tokens: 30,
+        },
+      },
+      timestamp: "2026-03-27T19:00:00.000Z",
+    });
+    writeFileSync(TEST_FILE, assistantWithUsage + "\n");
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(TEST_FILE, () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    expect(usageUpdates).toHaveLength(1);
+    expect(usageUpdates[0].inputTokens).toBe(10);
+    expect(usageUpdates[0].outputTokens).toBe(50);
+    expect(usageUpdates[0].cacheReadTokens).toBe(200);
+    expect(usageUpdates[0].cacheWriteTokens).toBe(30);
+    expect(usageUpdates[0].model).toBe("claude-opus-4-6");
+  });
+
+  test("does not emit usage callback for entries without usage data", () => {
+    writeFileSync(TEST_FILE, USER_MSG + "\n");
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(TEST_FILE, () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    expect(usageUpdates).toHaveLength(0);
+  });
+
+  test("usage callback is optional (backwards compatible)", () => {
+    writeFileSync(TEST_FILE, ASSISTANT_MSG + "\n");
+
+    const entries: TranscriptEntry[] = [];
+    const watcher = new TranscriptWatcher(TEST_FILE, (entry) => entries.push(entry));
+    watcher.readNewEntries();
+
+    expect(entries).toHaveLength(1);
+  });
 });

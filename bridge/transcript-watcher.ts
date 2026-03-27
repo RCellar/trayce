@@ -20,6 +20,15 @@ export interface TranscriptEntry {
   toolUseId?: string;
 }
 
+export interface UsageData {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  model: string;
+  timestamp: number;
+}
+
 type ContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
@@ -36,13 +45,15 @@ interface ClaudeCodeLine {
 export class TranscriptWatcher {
   private filePath: string;
   private onEntry: (entry: TranscriptEntry) => void;
+  private onUsage?: (usage: UsageData) => void;
   private offset: number = 0;
   private fsWatcher: ReturnType<typeof watch> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(filePath: string, onEntry: (entry: TranscriptEntry) => void) {
+  constructor(filePath: string, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
     this.filePath = filePath;
     this.onEntry = onEntry;
+    this.onUsage = onUsage;
   }
 
   start(): void {
@@ -180,6 +191,22 @@ export class TranscriptWatcher {
           content: rawContent.length > 500 ? rawContent.slice(0, 500) : rawContent,
           timestamp,
           toolUseId: resultBlock.tool_use_id,
+        });
+      }
+    }
+
+    // Emit usage data for assistant messages
+    if (this.onUsage && raw.type === "assistant") {
+      const usage = (msg as any).usage;
+      const model = (msg as any).model;
+      if (usage && typeof usage.output_tokens === "number") {
+        this.onUsage({
+          inputTokens: usage.input_tokens ?? 0,
+          outputTokens: usage.output_tokens ?? 0,
+          cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+          cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+          model: typeof model === "string" ? model : "unknown",
+          timestamp,
         });
       }
     }
