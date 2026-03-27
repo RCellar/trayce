@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { readFileSync, existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
-import { TranscriptWatcher, discoverTranscriptPath, type TranscriptEntry } from "./transcript-watcher";
+import { TranscriptWatcher, discoverTranscriptPath, type TranscriptEntry, type UsageData } from "./transcript-watcher";
 
 // Zod schema for the claude/channel notification (required by MCP SDK ≥1.27)
 const ChannelNotificationSchema = z.object({
@@ -74,19 +74,26 @@ function startTranscriptWatcher(ws: WebSocket): void {
 
   ws.send(JSON.stringify({ type: "transcript-status", available: true }));
 
-  transcriptWatcher = new TranscriptWatcher(transcriptPath, (entry: TranscriptEntry) => {
-    if (ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "transcript-entry", entry }));
-    if (entry.type === "response") {
-      ws.send(JSON.stringify({
-        type: "response",
-        content: entry.content,
-        timestamp: entry.timestamp,
-        format: "markdown",
-        final: true,
-      }));
-    }
-  });
+  transcriptWatcher = new TranscriptWatcher(
+    transcriptPath,
+    (entry: TranscriptEntry) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: "transcript-entry", entry }));
+      if (entry.type === "response") {
+        ws.send(JSON.stringify({
+          type: "response",
+          content: entry.content,
+          timestamp: entry.timestamp,
+          format: "markdown",
+          final: true,
+        }));
+      }
+    },
+    (usage: UsageData) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+      ws.send(JSON.stringify({ type: "usage-update", usage }));
+    },
+  );
 
   transcriptWatcher.start();
 }
