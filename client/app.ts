@@ -14,7 +14,7 @@ import { HighlighterBrush } from "./brushes/highlighter";
 import { EraserBrush } from "./brushes/eraser";
 import type { Brush, BrushParams } from "./brushes/types";
 import { Connection, buildWsUrl, type ServerMessage } from "./connection";
-import { flattenToPng, blobToBase64 } from "./export";
+import { flattenToPng, blobToBase64, isCanvasBlank } from "./export";
 import { showToast } from "./toast";
 import { Toolbar, type ToolId, type ActionId } from "./toolbar";
 import { BrushSettingsUI } from "./brush-settings-ui";
@@ -135,6 +135,18 @@ function initUIComponents(): void {
 
   responseTab = new ResponseTab();
   transcriptTab = new TranscriptTab();
+
+  // Mount tabs eagerly so buffered transcript entries aren't lost
+  const responseContainer = sidePanel.getResponseContainer();
+  const transcriptContainer = sidePanel.getTranscriptContainer();
+  if (responseContainer) {
+    responseTab.mount(responseContainer);
+    responseContainer.dataset.mounted = "true";
+  }
+  if (transcriptContainer) {
+    transcriptTab.mount(transcriptContainer);
+    transcriptContainer.dataset.mounted = "true";
+  }
 }
 
 // -- Resolution Selector --
@@ -309,7 +321,7 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "error") {
     showToast(`Error: ${msg.message}`);
   } else if (msg.type === "response") {
-    responseTab?.addResponse(msg.content as string);
+    responseTab?.addResponse(msg.content as string, msg.timestamp as number | undefined);
   } else if (msg.type === "transcript-entry") {
     transcriptTab?.addEntry(msg.entry as any);
   } else if (msg.type === "canvas-push") {
@@ -404,21 +416,30 @@ sessionSelect.addEventListener("change", () => {
 submitBtn.addEventListener("click", async () => {
   if (!layerManager || !connection?.isConnected || !selectedSessionId) return;
 
+  const prompt = promptInput.value.trim();
+  const blank = isCanvasBlank(layerManager);
+
+  if (blank && !prompt) {
+    showToast("Nothing to submit — draw something or enter a prompt");
+    return;
+  }
+
   submitBtn.disabled = true;
   submitBtn.textContent = "Sending...";
 
   try {
-    const blob = await flattenToPng(layerManager);
-    const base64 = await blobToBase64(blob);
-    const prompt = promptInput.value.trim();
-
-    connection.send({
+    const msg: Record<string, unknown> = {
       type: "submit",
       targetSessionId: selectedSessionId,
-      image: base64,
       prompt,
-    });
+    };
 
+    if (!blank) {
+      const blob = await flattenToPng(layerManager);
+      msg.image = await blobToBase64(blob);
+    }
+
+    connection.send(msg);
     promptInput.value = "";
   } catch (err) {
     showToast("Failed to submit");

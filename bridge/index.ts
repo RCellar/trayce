@@ -81,6 +81,7 @@ function startTranscriptWatcher(ws: WebSocket): void {
       ws.send(JSON.stringify({
         type: "response",
         content: entry.content,
+        timestamp: entry.timestamp,
         format: "markdown",
         final: true,
       }));
@@ -116,15 +117,16 @@ function connect() {
     try {
       const msg = JSON.parse(String(event.data));
       if (msg.type === "submission") {
+        const meta: Record<string, unknown> = { submission_id: msg.id };
+        if (msg.pngPath) meta.image_path = msg.pngPath;
+
+        const content = msg.pngPath
+          ? (msg.prompt || "[sketch submitted — see attached image]")
+          : msg.prompt;
+
         mcpServer.notification({
           method: "notifications/claude/channel",
-          params: {
-            content: msg.prompt || "[sketch submitted — see attached image]",
-            meta: {
-              image_path: msg.pngPath,
-              submission_id: msg.id,
-            },
-          },
+          params: { content, meta },
         });
       }
     } catch {
