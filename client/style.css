@@ -14,7 +14,6 @@
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --canvas-bg: #222;
   --toolbar-width: 48px;
-  --panel-width: 200px;
   --topbar-height: 40px;
   --bottombar-height: 64px;
 }
@@ -167,7 +166,7 @@ body {
 
 #main {
   display: grid;
-  grid-template-columns: var(--toolbar-width) 1fr var(--panel-width) auto;
+  grid-template-columns: var(--toolbar-width) 1fr auto;
   overflow: hidden;
 }
 
@@ -226,25 +225,6 @@ body {
 
 #canvas-container canvas {
   display: block;
-}
-
-/* -- Right Panel -- */
-
-#right-panel {
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-
-#brush-settings,
-#layers-panel {
-  padding: 12px;
-}
-
-#brush-settings {
-  border-bottom: 1px solid var(--border);
 }
 
 .panel-label {
@@ -340,6 +320,70 @@ body {
 .layer-item .layer-delete:hover {
   opacity: 1;
   color: #e94560;
+}
+
+/* -- Floating Panel -- */
+
+.floating-panel {
+  position: absolute;
+  width: 280px;
+  background: rgba(26, 26, 46, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 30;
+  backdrop-filter: blur(8px);
+}
+
+.fp-tabbar {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
+}
+
+.fp-tabbar:active {
+  cursor: grabbing;
+}
+
+.fp-tab {
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fp-tab:hover {
+  color: var(--text);
+}
+
+.fp-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.fp-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 10px;
+}
+
+.fp-close:hover {
+  color: var(--text);
+}
+
+.fp-content {
+  padding: 10px;
+  max-height: 400px;
+  overflow-y: auto;
 }
 
 /* -- Usage Tab -- */
@@ -678,21 +722,6 @@ dialog .bg-choice label {
   #toolbar .separator {
     width: 1px;
     height: 24px;
-  }
-
-  #right-panel {
-    position: fixed;
-    top: var(--topbar-height);
-    right: -var(--panel-width);
-    bottom: var(--bottombar-height);
-    width: var(--panel-width);
-    transition: right 0.2s;
-    z-index: 20;
-    border-left: 1px solid var(--border);
-  }
-
-  #right-panel.open {
-    right: 0;
   }
 
   #toolbar button,
