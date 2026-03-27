@@ -2,7 +2,14 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFileSync, existsSync } from "node:fs";
 import { basename } from "node:path";
+import { z } from "zod";
 import { TranscriptWatcher, discoverTranscriptPath, type TranscriptEntry } from "./transcript-watcher";
+
+// Zod schema for the claude/channel notification (required by MCP SDK ≥1.27)
+const ChannelNotificationSchema = z.object({
+  method: z.literal("notifications/claude/channel"),
+  params: z.object({}).passthrough().optional(),
+}).passthrough();
 
 // Discover connection info from env or state.json
 const stateFile = process.env.TRAYCE_STATE_FILE ?? "/tmp/trayce/state.json";
@@ -43,7 +50,7 @@ let currentWs: WebSocket | null = null;
 let transcriptWatcher: TranscriptWatcher | null = null;
 
 // MCP reverse notification handler — receives canvas-push from Claude, forwards to server
-mcpServer.setNotificationHandler("notifications/claude/channel", async (params: any) => {
+mcpServer.setNotificationHandler(ChannelNotificationSchema, async (params: any) => {
   const meta = params?.params?.meta;
   if (meta?.type === "canvas-push" && typeof meta.image === "string" && currentWs?.readyState === WebSocket.OPEN) {
     const imageSize = Math.ceil(meta.image.length * 3 / 4);
