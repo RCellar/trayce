@@ -68,18 +68,39 @@ export class BrushSettingsUI {
     track.className = "slider-track";
     const fill = document.createElement("div");
     fill.className = "slider-fill";
-    fill.style.width = `${((value - min) / (max - min)) * 100}%`;
+    const thumb = document.createElement("div");
+    thumb.className = "slider-thumb";
+
+    const pctInitial = ((value - min) / (max - min)) * 100;
+    fill.style.width = `${pctInitial}%`;
+    thumb.style.left = `${pctInitial}%`;
+
     track.appendChild(fill);
+    track.appendChild(thumb);
     this.container.appendChild(track);
 
-    // Click on track to set value
-    track.addEventListener("click", (e) => {
+    const updateFromEvent = (e: MouseEvent) => {
       const rect = track.getBoundingClientRect();
       const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       const newValue = Math.round(min + pct * (max - min));
-      fill.style.width = `${((newValue - min) / (max - min)) * 100}%`;
+      const pctNew = ((newValue - min) / (max - min)) * 100;
+      fill.style.width = `${pctNew}%`;
+      thumb.style.left = `${pctNew}%`;
       valueSpan.textContent = `${newValue}${unit}`;
       onChange(newValue);
+    };
+
+    // Click and drag support
+    track.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      updateFromEvent(e);
+      const onMove = (ev: MouseEvent) => updateFromEvent(ev);
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      };
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
     });
   }
 
