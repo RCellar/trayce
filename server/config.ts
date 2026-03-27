@@ -11,6 +11,7 @@ export interface Config {
   heartbeatIntervalMs: number;
   heartbeatTimeoutMs: number;
   rateLimitPerMinute: number;
+  transcriptBufferSize: number;
   noAuth: boolean;
 }
 
@@ -27,6 +28,7 @@ const DEFAULTS: Config = {
   heartbeatIntervalMs: 10 * 1000,         // 10 seconds
   heartbeatTimeoutMs: 30 * 1000,          // 30 seconds
   rateLimitPerMinute: 10,
+  transcriptBufferSize: 500,
   noAuth: false,
 };
 
@@ -66,5 +68,6 @@ export function getConfig(env: Record<string, string | undefined>): Config {
     heartbeatIntervalMs: DEFAULTS.heartbeatIntervalMs,
     heartbeatTimeoutMs: DEFAULTS.heartbeatTimeoutMs,
     rateLimitPerMinute: DEFAULTS.rateLimitPerMinute,
+    transcriptBufferSize: DEFAULTS.transcriptBufferSize,
   };
 }

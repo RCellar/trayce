@@ -367,13 +367,35 @@ describe("submit — validation", () => {
     expect(lastSent(ws).code).toBe("INVALID_TARGET");
   });
 
-  it("rejects missing image", async () => {
+  it("rejects empty submission (no image and no prompt)", async () => {
     const { hub } = makeFixture();
     const ws = browserWs();
     hub.addBrowser(ws as any);
     ws.sent.length = 0;
     await hub.handleMessage(ws as any, JSON.stringify({ type: "submit", targetSessionId: "s1" }));
-    expect(lastSent(ws).code).toBe("INVALID_IMAGE");
+    expect(lastSent(ws).code).toBe("EMPTY_SUBMISSION");
+  });
+
+  it("accepts text-only submission without image", async () => {
+    const { hub, registry } = makeFixture();
+    registry.add("s1", "test");
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "test" }));
+    browser.sent.length = 0;
+    bridge.sent.length = 0;
+
+    await hub.handleMessage(browser as any, JSON.stringify({
+      type: "submit", targetSessionId: "s1", prompt: "Hello from text-only",
+    }));
+
+    expect(lastSent(browser).type).toBe("ack");
+    const bridgeMsg = lastSent(bridge);
+    expect(bridgeMsg.type).toBe("submission");
+    expect(bridgeMsg.prompt).toBe("Hello from text-only");
+    expect(bridgeMsg.pngPath).toBeUndefined();
   });
 
   it("rejects oversized submission", async () => {
@@ -541,5 +563,180 @@ describe("malformed input", () => {
     ws.sent.length = 0;
     await hub.handleMessage(ws as any, JSON.stringify({ type: "unknown" }));
     expect(ws.sent.length).toBe(0);
+  });
+});
+
+// -- Transcript buffering --
+
+describe("transcript buffering", () => {
+  it("buffers transcript-entry messages from bridge", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "message", role: "user", content: "Hello" },
+    }));
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "response", role: "assistant", content: "Hi there" },
+    }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const transcriptMsgs = allSentOfType(browser, "transcript-entry");
+    expect(transcriptMsgs).toHaveLength(2);
+    expect((transcriptMsgs[0].entry as any).content).toBe("Hello");
+    expect((transcriptMsgs[1].entry as any).content).toBe("Hi there");
+  });
+
+  it("buffers response messages from bridge", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "response", content: "Here is my answer", format: "markdown",
+    }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const responseMsgs = allSentOfType(browser, "response");
+    expect(responseMsgs).toHaveLength(1);
+    expect(responseMsgs[0].content).toBe("Here is my answer");
+  });
+
+  it("replays buffer on watch-session, then routes live entries normally", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "message", role: "user", content: "buffered" },
+    }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const beforeLive = allSentOfType(browser, "transcript-entry");
+    expect(beforeLive).toHaveLength(1);
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "response", role: "assistant", content: "live" },
+    }));
+
+    const afterLive = allSentOfType(browser, "transcript-entry");
+    expect(afterLive).toHaveLength(2);
+    expect((afterLive[1].entry as any).content).toBe("live");
+  });
+
+  it("caps buffer at transcriptBufferSize, dropping oldest entries", async () => {
+    const { hub } = makeFixture({ transcriptBufferSize: 3 });
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    for (let i = 1; i <= 5; i++) {
+      await hub.handleMessage(bridge as any, JSON.stringify({
+        type: "transcript-entry", entry: { type: "message", role: "user", content: `msg-${i}` },
+      }));
+    }
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const msgs = allSentOfType(browser, "transcript-entry");
+    expect(msgs).toHaveLength(3);
+    expect((msgs[0].entry as any).content).toBe("msg-3");
+    expect((msgs[1].entry as any).content).toBe("msg-4");
+    expect((msgs[2].entry as any).content).toBe("msg-5");
+  });
+
+  it("cleans up buffer when bridge disconnects and session is removed", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "message", role: "user", content: "old" },
+    }));
+
+    hub.removeBridge(bridge as any);
+
+    const bridge2 = bridgeWs();
+    hub.addBridge(bridge2 as any);
+    await hub.handleMessage(bridge2 as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const msgs = allSentOfType(browser, "transcript-entry");
+    expect(msgs).toHaveLength(0);
+  });
+
+  it("does not buffer canvas-push messages", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "canvas-push", image: "abc123", label: "test-image",
+    }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+
+    const pushMsgs = allSentOfType(browser, "canvas-push");
+    expect(pushMsgs).toHaveLength(0);
+  });
+
+  it("replays correct buffer when browser switches sessions", async () => {
+    const { hub } = makeFixture();
+    const bridge1 = bridgeWs();
+    const bridge2 = bridgeWs();
+    hub.addBridge(bridge1 as any);
+    hub.addBridge(bridge2 as any);
+    await hub.handleMessage(bridge1 as any, JSON.stringify({ type: "register", sessionId: "s1", label: "session-1" }));
+    await hub.handleMessage(bridge2 as any, JSON.stringify({ type: "register", sessionId: "s2", label: "session-2" }));
+
+    await hub.handleMessage(bridge1 as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "message", role: "user", content: "from-s1" },
+    }));
+    await hub.handleMessage(bridge2 as any, JSON.stringify({
+      type: "transcript-entry", entry: { type: "message", role: "user", content: "from-s2" },
+    }));
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    let msgs = allSentOfType(browser, "transcript-entry");
+    expect(msgs).toHaveLength(1);
+    expect((msgs[0].entry as any).content).toBe("from-s1");
+
+    browser.sent.length = 0;
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s2" }));
+    msgs = allSentOfType(browser, "transcript-entry");
+    expect(msgs).toHaveLength(1);
+    expect((msgs[0].entry as any).content).toBe("from-s2");
   });
 });
