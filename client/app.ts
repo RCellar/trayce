@@ -505,7 +505,7 @@ function clearCanvas(): void {
 
   // Refill background if it was white
   const bg = layerManager.layers[0];
-  bg.ctx.fillStyle = "#ffffff";
+  bg.ctx.fillStyle = "#f0f0f0";
   bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
 
   compositor.markDirty();
