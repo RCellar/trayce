@@ -32,6 +32,8 @@ export class WebSocketHub {
   private readonly sessionToBridgeId = new Map<string, string>();
   private readonly rateBuckets = new Map<string, number[]>();
   private readonly browserWatchSession = new Map<string, string>();
+  private readonly sessionBuffers = new Map<string, string[]>();
+  private static readonly BUFFERED_TYPES = new Set(["transcript-entry", "response", "transcript-status"]);
 
   constructor(
     private readonly registry: SessionRegistry,
@@ -79,6 +81,7 @@ export class WebSocketHub {
         this.bridges.delete(sessionId);
         this.sessionToBridgeId.delete(sessionId);
         this.registry.remove(sessionId);
+        this.sessionBuffers.delete(sessionId);
         this.broadcastSessions();
       }
     }
@@ -110,6 +113,14 @@ export class WebSocketHub {
       const sid = msg.sessionId;
       if (typeof sid === "string") {
         this.browserWatchSession.set(ws.data.id, sid);
+
+        // Replay buffered transcript entries for this session
+        const buffer = this.sessionBuffers.get(sid);
+        if (buffer) {
+          for (const payload of buffer) {
+            safeSend(ws, payload);
+          }
+        }
       }
       return;
     }
@@ -119,6 +130,20 @@ export class WebSocketHub {
       const sessionId = ws.data.sessionId;
       if (!sessionId) return;
       const payload = JSON.stringify({ ...msg, sessionId });
+
+      // Buffer transcript-related messages for replay on watch-session
+      if (WebSocketHub.BUFFERED_TYPES.has(msg.type)) {
+        let buffer = this.sessionBuffers.get(sessionId);
+        if (!buffer) {
+          buffer = [];
+          this.sessionBuffers.set(sessionId, buffer);
+        }
+        buffer.push(payload);
+        if (buffer.length > this.config.transcriptBufferSize) {
+          buffer.splice(0, buffer.length - this.config.transcriptBufferSize);
+        }
+      }
+
       for (const [browserId, browser] of this.browsers) {
         if (this.browserWatchSession.get(browserId) === sessionId) {
           safeSend(browser, payload);
@@ -139,6 +164,7 @@ export class WebSocketHub {
       this.bridges.delete(ws.data.sessionId);
       this.sessionToBridgeId.delete(ws.data.sessionId);
       this.registry.remove(ws.data.sessionId);
+      this.sessionBuffers.delete(ws.data.sessionId);
     }
 
     // If another bridge holds this sessionId, evict it
@@ -152,6 +178,7 @@ export class WebSocketHub {
       this.bridges.delete(sessionId);
       this.sessionToBridgeId.delete(sessionId);
       this.registry.remove(sessionId);
+      this.sessionBuffers.delete(sessionId);
     }
 
     ws.data.sessionId = sessionId;
@@ -173,7 +200,7 @@ export class WebSocketHub {
     }
 
     const targetSessionId = msg.targetSessionId;
-    const image = msg.image;
+    const image = typeof msg.image === "string" && msg.image.length > 0 ? msg.image : null;
     const prompt = typeof msg.prompt === "string" ? msg.prompt : "";
 
     if (typeof targetSessionId !== "string" || targetSessionId.length === 0) {
@@ -183,35 +210,45 @@ export class WebSocketHub {
       return;
     }
 
-    if (typeof image !== "string" || image.length === 0) {
+    if (!image && !prompt) {
       safeSend(ws, JSON.stringify({
-        type: "error", code: "INVALID_IMAGE", message: "Missing image data.",
+        type: "error", code: "EMPTY_SUBMISSION", message: "Submission must include an image or prompt text.",
       }));
       return;
     }
 
-    // Save submission
-    let submission;
-    try {
-      submission = await this.submissions.save(image, prompt);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to save submission.";
-      safeSend(ws, JSON.stringify({ type: "error", code: "SUBMISSION_FAILED", message }));
-      return;
+    // Save image to disk if present
+    let submission: { id: string; pngPath: string | null; prompt: string; timestamp: number };
+    if (image) {
+      try {
+        submission = await this.submissions.save(image, prompt);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to save submission.";
+        safeSend(ws, JSON.stringify({ type: "error", code: "SUBMISSION_FAILED", message }));
+        return;
+      }
+    } else {
+      submission = {
+        id: `sub-${Date.now()}-text`,
+        pngPath: null,
+        prompt,
+        timestamp: Date.now(),
+      };
     }
 
     // Route to bridge (check it's still connected post-await)
     const bridge = this.bridges.get(targetSessionId);
     if (bridge) {
-      safeSend(bridge, JSON.stringify({
+      const bridgeMsg: Record<string, unknown> = {
         type: "submission",
         id: submission.id,
-        pngPath: submission.pngPath,
         prompt: submission.prompt,
-      }));
+      };
+      if (submission.pngPath) bridgeMsg.pngPath = submission.pngPath;
+      safeSend(bridge, JSON.stringify(bridgeMsg));
     }
 
-    // Always ack the browser — PNG is saved on disk regardless
+    // Ack the browser
     safeSend(ws, JSON.stringify({
       type: "ack",
       submissionId: submission.id,
