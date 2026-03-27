@@ -43,12 +43,8 @@
       <span id="canvas-info" class="info"></span>
     </div>
     <div class="right">
-      <label class="session-label">Session:
-        <select id="session-select" disabled>
-          <option value="">No sessions</option>
-        </select>
-      </label>
-      <button id="submit-btn" disabled>Submit</button>
+      <span id="tool-info"></span>
+      <span id="layer-info"></span>
       <span id="gear-container"></span>
     </div>
   </header>
@@ -73,18 +69,22 @@
 
   <!-- Bottom Bar -->
   <footer id="bottom-bar">
-    <div class="left">
+    <div class="bar-row bar-status">
       <span id="connection-status" class="status disconnected">
         <span class="dot"></span>
         <span class="text">Disconnected</span>
       </span>
+      <label class="session-label">
+        <select id="session-select" disabled>
+          <option value="">No sessions</option>
+        </select>
+      </label>
     </div>
-    <div class="center">
-      <input type="text" id="prompt-input" placeholder="Optional prompt text...">
-    </div>
-    <div class="right">
-      <span id="tool-info"></span>
-      <span id="layer-info"></span>
+    <div class="bar-row bar-prompt">
+      <div class="prompt-container">
+        <input type="text" id="prompt-input" placeholder="Describe what you want...">
+        <button id="submit-btn" disabled>Send</button>
+      </div>
     </div>
   </footer>
 

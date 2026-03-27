@@ -163,44 +163,6 @@ body {
   margin-top: 2px;
 }
 
-.session-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-#session-select {
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  min-width: 120px;
-}
-
-#submit-btn {
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 6px 16px;
-  font-weight: 600;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-#submit-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-#submit-btn:not(:disabled):hover {
-  filter: brightness(1.1);
-}
-
 /* -- Main Area -- */
 
 #main {
@@ -455,39 +417,88 @@ body {
 
 #bottom-bar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 12px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 12px;
   background: var(--surface);
   border-top: 1px solid var(--border);
   z-index: 10;
+  gap: 4px;
 }
 
-#bottom-bar .left,
-#bottom-bar .right {
+.bar-row {
   display: flex;
   align-items: center;
-  gap: 8px;
 }
 
-#bottom-bar .center {
+.bar-status {
+  justify-content: space-between;
+}
+
+.bar-prompt {
   flex: 1;
-  margin: 0 12px;
+}
+
+.prompt-container {
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.prompt-container:focus-within {
+  border-color: var(--accent);
 }
 
 #prompt-input {
-  width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px 8px;
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
   color: var(--text);
   font-size: 12px;
   outline: none;
 }
 
-#prompt-input:focus {
-  border-color: var(--accent);
+#submit-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 6px 20px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#submit-btn:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+.session-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+#session-select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  min-width: 120px;
 }
 
 /* -- Connection Status -- */
