@@ -1,9 +1,11 @@
 export type ToolId = "pen" | "pencil" | "marker" | "watercolor" | "highlighter" | "eraser" | "select" | "lasso" | "shapes" | "arrow" | "text" | "image";
 export type ActionId = "clear";
+export type PanelId = "response" | "transcript";
 
 export interface ToolbarConfig {
   onToolChange: (toolId: ToolId) => void;
   onAction: (actionId: ActionId) => void;
+  onPanelToggle?: (panelId: PanelId) => void;
 }
 
 const TOOLS: Array<{ id: ToolId; icon: string; group?: string }> = [
@@ -26,10 +28,16 @@ const ACTIONS: Array<{ id: ActionId; icon: string; title: string }> = [
   { id: "clear", icon: "🗑", title: "Clear Canvas" },
 ];
 
+const PANEL_BUTTONS: Array<{ id: PanelId; icon: string; title: string }> = [
+  { id: "response", icon: "\uD83D\uDCAC", title: "Response Panel" },
+  { id: "transcript", icon: "\uD83D\uDCDC", title: "Transcript Panel" },
+];
+
 export class Toolbar {
   private container: HTMLElement;
   private activeId: ToolId = "pen";
   private buttons = new Map<ToolId, HTMLButtonElement>();
+  private panelButtons = new Map<PanelId, HTMLButtonElement>();
 
   constructor(container: HTMLElement, private config: ToolbarConfig) {
     this.container = container;
@@ -73,6 +81,28 @@ export class Toolbar {
       btn.title = action.title;
       btn.addEventListener("click", () => this.config.onAction(action.id));
       this.container.appendChild(btn);
+    }
+
+    // Panel toggle buttons
+    const panelSep = document.createElement("div");
+    panelSep.className = "separator";
+    this.container.appendChild(panelSep);
+
+    for (const panel of PANEL_BUTTONS) {
+      const btn = document.createElement("button");
+      btn.textContent = panel.icon;
+      btn.title = panel.title;
+      btn.className = "panel-toggle";
+      btn.dataset.panel = panel.id;
+      btn.addEventListener("click", () => this.config.onPanelToggle?.(panel.id));
+      this.container.appendChild(btn);
+      this.panelButtons.set(panel.id, btn);
+    }
+  }
+
+  setPanelActive(id: PanelId | null): void {
+    for (const [pid, btn] of this.panelButtons) {
+      btn.classList.toggle("active", pid === id);
     }
   }
 
