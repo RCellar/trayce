@@ -469,7 +469,7 @@ submitBtn.addEventListener("click", async () => {
     showToast("Failed to submit");
     console.error("[trayce] Submit error:", err);
   } finally {
-    submitBtn.textContent = "Submit";
+    submitBtn.textContent = "Send";
     submitBtn.disabled = !connection?.isConnected || !selectedSessionId;
   }
 });
