@@ -20,6 +20,9 @@ import { Toolbar, type ToolId, type ActionId } from "./toolbar";
 import { BrushSettingsUI } from "./brush-settings-ui";
 import { LayersUI } from "./layers-ui";
 import { ColorPicker } from "./color-picker";
+import { SidePanel } from "./side-panel";
+import { ResponseTab } from "./response-tab";
+import { TranscriptTab } from "./transcript-tab";
 
 // -- State --
 
@@ -49,6 +52,10 @@ let brushParams: BrushParams = {
 
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
+
+let sidePanel: SidePanel | null = null;
+let responseTab: ResponseTab | null = null;
+let transcriptTab: TranscriptTab | null = null;
 
 // -- DOM Elements --
 
@@ -84,6 +91,23 @@ function initUIComponents(): void {
         clearCanvas();
       }
     },
+    onPanelToggle: (panelId) => {
+      sidePanel?.toggle(panelId);
+      toolbar?.setPanelActive(sidePanel?.isOpen ? sidePanel.activeTab : null);
+
+      if (sidePanel?.isOpen) {
+        const responseContainer = sidePanel.getResponseContainer();
+        const transcriptContainer = sidePanel.getTranscriptContainer();
+        if (responseContainer && responseTab && !responseContainer.dataset.mounted) {
+          responseTab.mount(responseContainer);
+          responseContainer.dataset.mounted = "true";
+        }
+        if (transcriptContainer && transcriptTab && !transcriptContainer.dataset.mounted) {
+          transcriptTab.mount(transcriptContainer);
+          transcriptContainer.dataset.mounted = "true";
+        }
+      }
+    },
   });
 
   // Brush settings
@@ -101,6 +125,16 @@ function initUIComponents(): void {
       brushParams.color = color;
     },
   });
+
+  // Side panel
+  const sidePanelEl = document.getElementById("side-panel")!;
+  sidePanel = new SidePanel();
+  sidePanel.mount(sidePanelEl, () => {
+    canvasManager?.resize();
+  });
+
+  responseTab = new ResponseTab();
+  transcriptTab = new TranscriptTab();
 }
 
 // -- Resolution Selector --
@@ -274,6 +308,45 @@ function handleServerMessage(msg: ServerMessage): void {
     showToast("Submitted!");
   } else if (msg.type === "error") {
     showToast(`Error: ${msg.message}`);
+  } else if (msg.type === "response") {
+    responseTab?.addResponse(msg.content as string);
+  } else if (msg.type === "transcript-entry") {
+    transcriptTab?.addEntry(msg.entry as any);
+  } else if (msg.type === "canvas-push") {
+    handleCanvasPush(msg);
+  } else if (msg.type === "transcript-status") {
+    if (!(msg as any).available) {
+      responseTab?.showUnavailable();
+      transcriptTab?.showUnavailable();
+    }
+  }
+}
+
+function handleCanvasPush(msg: ServerMessage): void {
+  if (!layerManager || !compositor) return;
+
+  const image = msg.image as string;
+  const label = (msg.label as string) || `Claude: ${new Date().toLocaleTimeString()}`;
+
+  try {
+    const layer = layerManager.addLayer(label);
+    layer.visible = false;
+
+    const imgElement = new Image();
+    imgElement.onload = () => {
+      const sw = Math.min(imgElement.width, layerManager!.docWidth);
+      const sh = Math.min(imgElement.height, layerManager!.docHeight);
+      layer.ctx.drawImage(imgElement, 0, 0, sw, sh);
+      compositor?.markDirty();
+      layersUI?.render();
+      updateLayerInfo();
+    };
+    imgElement.src = `data:image/png;base64,${image}`;
+
+    responseTab?.addCanvasPushNotification(image, label);
+    showToast(`Image received as hidden layer "${label}"`);
+  } catch {
+    showToast("Failed to add image layer");
   }
 }
 
@@ -309,6 +382,10 @@ function updateSessionSelect(): void {
     }
   }
 
+  if (selectedSessionId) {
+    connection?.send({ type: "watch-session", sessionId: selectedSessionId });
+  }
+
   handleConnectionStatus(connection?.isConnected ? "connected" : "disconnected");
 }
 
@@ -316,6 +393,10 @@ sessionSelect.addEventListener("change", () => {
   selectedSessionId = sessionSelect.value;
   localStorage.setItem("trayce-session", selectedSessionId);
   submitBtn.disabled = !connection?.isConnected || !selectedSessionId;
+  // Tell server which session to watch for transcript/response data
+  connection?.send({ type: "watch-session", sessionId: selectedSessionId });
+  responseTab?.clear();
+  transcriptTab?.clear();
 });
 
 // -- Submit --
