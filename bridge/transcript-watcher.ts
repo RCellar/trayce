@@ -23,12 +23,14 @@ export interface TranscriptEntry {
 type ContentBlock =
   | { type: "text"; text: string }
   | { type: "tool_use"; id: string; name: string; input: unknown }
-  | { type: "tool_result"; tool_use_id: string; content: string }
+  | { type: "tool_result"; tool_use_id: string; content: string | ContentBlock[] }
   | { type: string; [key: string]: unknown };
 
-interface TranscriptLine {
-  role: "user" | "assistant";
-  content: ContentBlock[];
+// Claude Code JSONL envelope: { type: "user"|"assistant", message: { role, content }, timestamp, ... }
+interface ClaudeCodeLine {
+  type: string;
+  message?: { role: "user" | "assistant"; content: string | ContentBlock[] };
+  timestamp?: string;
 }
 
 export class TranscriptWatcher {
@@ -50,8 +52,9 @@ export class TranscriptWatcher {
     // Watch parent directory for changes (more reliable than watching the file directly)
     const dir = dirname(this.filePath);
     try {
+      const watchFile = this.filePath.split("/").pop() ?? "";
       this.fsWatcher = watch(dir, (_event, filename) => {
-        if (!filename || filename === "transcript.jsonl" || this.filePath.endsWith(filename)) {
+        if (!filename || filename === watchFile) {
           this.readNewEntries();
         }
       });
@@ -113,103 +116,152 @@ export class TranscriptWatcher {
   }
 
   private parseLine(line: string): void {
-    let parsed: TranscriptLine;
+    let raw: ClaudeCodeLine;
     try {
-      parsed = JSON.parse(line) as TranscriptLine;
+      raw = JSON.parse(line) as ClaudeCodeLine;
     } catch {
-      return; // Skip malformed lines
+      return;
     }
 
-    if (!parsed || !parsed.role || !Array.isArray(parsed.content)) return;
+    // Only process user/assistant message entries
+    if (!raw || (raw.type !== "user" && raw.type !== "assistant")) return;
+    const msg = raw.message;
+    if (!msg || !msg.role) return;
 
-    const timestamp = Date.now();
-    const role = parsed.role;
+    // Content can be a plain string (user text) or array of blocks
+    const blocks: ContentBlock[] =
+      typeof msg.content === "string"
+        ? [{ type: "text", text: msg.content }]
+        : Array.isArray(msg.content)
+          ? msg.content
+          : [];
 
-    for (const block of parsed.content) {
+    const timestamp = raw.timestamp ? new Date(raw.timestamp).getTime() : Date.now();
+    const role = msg.role;
+
+    for (const block of blocks) {
       if (block.type === "text") {
         const textBlock = block as { type: "text"; text: string };
-        const entry: TranscriptEntry = {
+        this.onEntry({
           type: role === "user" ? "message" : "response",
           role,
           content: textBlock.text,
           timestamp,
-        };
-        this.onEntry(entry);
+        });
       } else if (block.type === "tool_use") {
         const toolBlock = block as { type: "tool_use"; id: string; name: string; input: unknown };
         const rawInput = JSON.stringify(toolBlock.input);
-        const truncatedInput = rawInput.length > 200 ? rawInput.slice(0, 200) : rawInput;
-        const entry: TranscriptEntry = {
+        this.onEntry({
           type: "tool-call",
           role: "assistant",
           content: toolBlock.name,
           timestamp,
           toolName: toolBlock.name,
-          toolInput: truncatedInput,
+          toolInput: rawInput.length > 200 ? rawInput.slice(0, 200) : rawInput,
           toolUseId: toolBlock.id,
-        };
-        this.onEntry(entry);
+        });
       } else if (block.type === "tool_result") {
-        const resultBlock = block as { type: "tool_result"; tool_use_id: string; content: string };
-        const rawContent = resultBlock.content ?? "";
-        const truncatedContent =
-          rawContent.length > 500 ? rawContent.slice(0, 500) : rawContent;
-        const entry: TranscriptEntry = {
+        const resultBlock = block as { type: "tool_result"; tool_use_id: string; content: string | ContentBlock[] };
+        // tool_result content can be a string or an array of blocks
+        let rawContent: string;
+        if (typeof resultBlock.content === "string") {
+          rawContent = resultBlock.content;
+        } else if (Array.isArray(resultBlock.content)) {
+          rawContent = resultBlock.content
+            .filter((b): b is { type: "text"; text: string } => b.type === "text")
+            .map((b) => b.text)
+            .join("\n");
+        } else {
+          rawContent = "";
+        }
+        this.onEntry({
           type: "tool-result",
           role: "user",
-          content: truncatedContent,
+          content: rawContent.length > 500 ? rawContent.slice(0, 500) : rawContent,
           timestamp,
           toolUseId: resultBlock.tool_use_id,
-        };
-        this.onEntry(entry);
+        });
       }
     }
   }
 }
 
 /**
- * Discover the most relevant Claude transcript JSONL file.
- * 1. Check CLAUDE_TRANSCRIPT env var — if set and file exists, return it
- * 2. Look in ~/.claude/projects/ for most recently modified transcript.jsonl
- * 3. Return null if not found
+ * Discover the most relevant Claude Code conversation JSONL file.
+ *
+ * Claude Code stores conversations as {session-uuid}.jsonl inside
+ * ~/.claude/projects/{encoded-cwd}/. The directory name is the cwd
+ * with path separators replaced by dashes.
+ *
+ * 1. Check CLAUDE_TRANSCRIPT env var
+ * 2. Find the matching project dir for cwd, pick the most recent .jsonl
+ * 3. Fall back to the most recent .jsonl across all project dirs
  */
 export function discoverTranscriptPath(cwd: string): string | null {
-  // 1. Explicit env override
   const envPath = process.env.CLAUDE_TRANSCRIPT;
   if (envPath && existsSync(envPath)) {
     return envPath;
   }
 
-  // 2. Scan ~/.claude/projects/ for most recently modified transcript.jsonl
   const claudeProjectsDir = join(homedir(), ".claude", "projects");
   if (!existsSync(claudeProjectsDir)) return null;
 
+  // Claude Code encodes the cwd as a directory name by replacing / with -
+  const encodedCwd = cwd.replace(/\//g, "-").replace(/^-/, "-");
+
+  // Try matching project dir first, then fall back to most recent across all
+  const projectDirs = safeReaddir(claudeProjectsDir);
+  const matchingDir = projectDirs.find((d) => d === encodedCwd);
+
+  if (matchingDir) {
+    const found = mostRecentJsonl(join(claudeProjectsDir, matchingDir));
+    if (found) return found;
+  }
+
+  // Fallback: most recently modified .jsonl across all project dirs
   let bestPath: string | null = null;
   let bestMtime = 0;
 
-  try {
-    const projectDirs = readdirSync(claudeProjectsDir);
-    for (const projectDir of projectDirs) {
-      const transcriptPath = join(claudeProjectsDir, projectDir, "transcript.jsonl");
-      if (existsSync(transcriptPath)) {
-        try {
-          const stat = statSync(transcriptPath);
-          if (stat.mtimeMs > bestMtime) {
-            bestMtime = stat.mtimeMs;
-            bestPath = transcriptPath;
-          }
-        } catch {
-          // Skip unreadable files
+  for (const dir of projectDirs) {
+    const found = mostRecentJsonl(join(claudeProjectsDir, dir));
+    if (found) {
+      try {
+        const mt = statSync(found).mtimeMs;
+        if (mt > bestMtime) {
+          bestMtime = mt;
+          bestPath = found;
         }
-      }
+      } catch {}
     }
-  } catch {
-    // Unable to read projects directory
-    return null;
   }
 
-  // Suppress unused parameter warning — cwd is available for future use
-  void cwd;
-
   return bestPath;
+}
+
+function safeReaddir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+}
+
+function mostRecentJsonl(dir: string): string | null {
+  const entries = safeReaddir(dir);
+  let best: string | null = null;
+  let bestMtime = 0;
+
+  for (const entry of entries) {
+    if (!entry.endsWith(".jsonl")) continue;
+    const full = join(dir, entry);
+    try {
+      const mt = statSync(full).mtimeMs;
+      if (mt > bestMtime) {
+        bestMtime = mt;
+        best = full;
+      }
+    } catch {}
+  }
+
+  return best;
 }

@@ -17,29 +17,43 @@ import type { TranscriptEntry } from "../../bridge/transcript-watcher";
 const TEST_DIR = "/tmp/trayce-test-transcript";
 const TEST_FILE = `${TEST_DIR}/transcript.jsonl`;
 
+// Claude Code envelope format: { type, message: { role, content }, timestamp, ... }
 const USER_MSG = JSON.stringify({
-  role: "user",
-  content: [{ type: "text", text: "Hello Claude" }],
+  type: "user",
+  message: { role: "user", content: "Hello Claude" },
+  timestamp: "2026-03-27T19:00:00.000Z",
 });
 
 const ASSISTANT_MSG = JSON.stringify({
-  role: "assistant",
-  content: [{ type: "text", text: "Hi! How can I help?" }],
+  type: "assistant",
+  message: {
+    role: "assistant",
+    content: [{ type: "text", text: "Hi! How can I help?" }],
+  },
+  timestamp: "2026-03-27T19:00:01.000Z",
 });
 
 const TOOL_USE_MSG = JSON.stringify({
-  role: "assistant",
-  content: [
-    { type: "text", text: "Let me read that file." },
-    { type: "tool_use", id: "tu_123", name: "Read", input: { file_path: "/src/main.ts" } },
-  ],
+  type: "assistant",
+  message: {
+    role: "assistant",
+    content: [
+      { type: "text", text: "Let me read that file." },
+      { type: "tool_use", id: "tu_123", name: "Read", input: { file_path: "/src/main.ts" } },
+    ],
+  },
+  timestamp: "2026-03-27T19:00:02.000Z",
 });
 
 const TOOL_RESULT_MSG = JSON.stringify({
-  role: "user",
-  content: [
-    { type: "tool_result", tool_use_id: "tu_123", content: "file contents here" },
-  ],
+  type: "user",
+  message: {
+    role: "user",
+    content: [
+      { type: "tool_result", tool_use_id: "tu_123", content: "file contents here" },
+    ],
+  },
+  timestamp: "2026-03-27T19:00:03.000Z",
 });
 
 beforeEach(() => {
@@ -149,10 +163,13 @@ describe("TranscriptWatcher", () => {
   test("truncates toolInput to 200 chars", () => {
     const longInput = { data: "x".repeat(300) };
     const msg = JSON.stringify({
-      role: "assistant",
-      content: [
-        { type: "tool_use", id: "tu_long", name: "Write", input: longInput },
-      ],
+      type: "assistant",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "tu_long", name: "Write", input: longInput },
+        ],
+      },
     });
     writeFileSync(TEST_FILE, msg + "\n");
 
@@ -168,10 +185,13 @@ describe("TranscriptWatcher", () => {
   test("truncates tool_result content to 500 chars", () => {
     const longContent = "y".repeat(600);
     const msg = JSON.stringify({
-      role: "user",
-      content: [
-        { type: "tool_result", tool_use_id: "tu_long", content: longContent },
-      ],
+      type: "user",
+      message: {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "tu_long", content: longContent },
+        ],
+      },
     });
     writeFileSync(TEST_FILE, msg + "\n");
 
@@ -198,6 +218,17 @@ describe("TranscriptWatcher", () => {
     const watcher = new TranscriptWatcher(TEST_FILE, (entry) => entries.push(entry));
 
     expect(() => watcher.readNewEntries()).not.toThrow();
+    expect(entries).toHaveLength(1);
+    expect(entries[0].content).toBe("Hello Claude");
+  });
+
+  test("ignores non-message types like file-history-snapshot", () => {
+    const snapshot = JSON.stringify({ type: "file-history-snapshot", snapshot: {} });
+    writeFileSync(TEST_FILE, snapshot + "\n" + USER_MSG + "\n");
+    const entries: TranscriptEntry[] = [];
+    const watcher = new TranscriptWatcher(TEST_FILE, (entry) => entries.push(entry));
+    watcher.readNewEntries();
+
     expect(entries).toHaveLength(1);
     expect(entries[0].content).toBe("Hello Claude");
   });
