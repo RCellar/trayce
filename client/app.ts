@@ -23,6 +23,7 @@ import { ColorPicker } from "./color-picker";
 import { SidePanel } from "./side-panel";
 import { ResponseTab } from "./response-tab";
 import { TranscriptTab } from "./transcript-tab";
+import { UsageTab } from "./usage-tab";
 
 // -- State --
 
@@ -56,6 +57,7 @@ let selectedSessionId = "";
 let sidePanel: SidePanel | null = null;
 let responseTab: ResponseTab | null = null;
 let transcriptTab: TranscriptTab | null = null;
+let usageTab: UsageTab | null = null;
 
 // -- DOM Elements --
 
@@ -106,6 +108,11 @@ function initUIComponents(): void {
           transcriptTab.mount(transcriptContainer);
           transcriptContainer.dataset.mounted = "true";
         }
+        const usageContainer = sidePanel.getUsageContainer();
+        if (usageContainer && usageTab && !usageContainer.dataset.mounted) {
+          usageTab.mount(usageContainer);
+          usageContainer.dataset.mounted = "true";
+        }
       }
     },
   });
@@ -135,6 +142,7 @@ function initUIComponents(): void {
 
   responseTab = new ResponseTab();
   transcriptTab = new TranscriptTab();
+  usageTab = new UsageTab();
 
   // Mount tabs eagerly so buffered transcript entries aren't lost
   const responseContainer = sidePanel.getResponseContainer();
@@ -146,6 +154,11 @@ function initUIComponents(): void {
   if (transcriptContainer) {
     transcriptTab.mount(transcriptContainer);
     transcriptContainer.dataset.mounted = "true";
+  }
+  const usageContainer = sidePanel.getUsageContainer();
+  if (usageContainer) {
+    usageTab.mount(usageContainer);
+    usageContainer.dataset.mounted = "true";
   }
 }
 
@@ -331,6 +344,10 @@ function handleServerMessage(msg: ServerMessage): void {
       responseTab?.showUnavailable();
       transcriptTab?.showUnavailable();
     }
+  } else if (msg.type === "usage-snapshot") {
+    usageTab?.setSnapshot(msg.usage as any);
+  } else if (msg.type === "usage-update") {
+    usageTab?.addUpdate(msg.usage as any);
   }
 }
 
@@ -409,6 +426,7 @@ sessionSelect.addEventListener("change", () => {
   connection?.send({ type: "watch-session", sessionId: selectedSessionId });
   responseTab?.clear();
   transcriptTab?.clear();
+  usageTab?.clear();
 });
 
 // -- Submit --
