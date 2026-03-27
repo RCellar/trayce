@@ -1,4 +1,4 @@
-export type PanelTab = "response" | "transcript";
+export type PanelTab = "response" | "transcript" | "usage";
 
 export class SidePanel {
   isOpen = false;
@@ -8,6 +8,7 @@ export class SidePanel {
   private tabBar: HTMLElement | null = null;
   private responseContent: HTMLElement | null = null;
   private transcriptContent: HTMLElement | null = null;
+  private usageContent: HTMLElement | null = null;
   private resizeHandle: HTMLElement | null = null;
   private width = 340;
   private minWidth = 240;
@@ -38,6 +39,12 @@ export class SidePanel {
     transcriptBtn.textContent = "Transcript";
     transcriptBtn.addEventListener("click", () => this.toggle("transcript"));
 
+    const usageBtn = document.createElement("button");
+    usageBtn.className = "panel-tab";
+    usageBtn.dataset.tab = "usage";
+    usageBtn.textContent = "Usage";
+    usageBtn.addEventListener("click", () => this.toggle("usage"));
+
     const closeBtn = document.createElement("button");
     closeBtn.className = "panel-close";
     closeBtn.textContent = "✕";
@@ -47,6 +54,7 @@ export class SidePanel {
 
     this.tabBar.appendChild(responseBtn);
     this.tabBar.appendChild(transcriptBtn);
+    this.tabBar.appendChild(usageBtn);
     this.tabBar.appendChild(closeBtn);
     container.appendChild(this.tabBar);
 
@@ -59,6 +67,11 @@ export class SidePanel {
     this.transcriptContent = document.createElement("div");
     this.transcriptContent.className = "panel-content transcript-content";
     container.appendChild(this.transcriptContent);
+
+    // Usage content area
+    this.usageContent = document.createElement("div");
+    this.usageContent.className = "panel-content usage-content";
+    container.appendChild(this.usageContent);
 
     this.setupResize();
     this.updateDOM();
@@ -93,6 +106,10 @@ export class SidePanel {
     return this.transcriptContent;
   }
 
+  getUsageContainer(): HTMLElement | null {
+    return this.usageContent;
+  }
+
   private updateDOM(): void {
     if (!this.container) return;
 
@@ -124,6 +141,10 @@ export class SidePanel {
     if (this.transcriptContent) {
       this.transcriptContent.style.display =
         this.isOpen && this.activeTab === "transcript" ? "" : "none";
+    }
+    if (this.usageContent) {
+      this.usageContent.style.display =
+        this.isOpen && this.activeTab === "usage" ? "" : "none";
     }
   }
 
