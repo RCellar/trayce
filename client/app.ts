@@ -25,6 +25,7 @@ import { ResponseTab } from "./response-tab";
 import { TranscriptTab } from "./transcript-tab";
 import { UsageTab } from "./usage-tab";
 import { ThemeManager } from "./theme";
+import { FloatingPanel } from "./floating-panel";
 
 // -- State --
 
@@ -76,6 +77,7 @@ let toolbar: Toolbar | null = null;
 let brushSettingsUI: BrushSettingsUI | null = null;
 let layersUI: LayersUI | null = null;
 let colorPicker: ColorPicker | null = null;
+let floatingPanel: FloatingPanel | null = null;
 
 // -- Initialize UI Components --
 
@@ -95,6 +97,11 @@ function initUIComponents(): void {
       }
     },
     onPanelToggle: (panelId) => {
+      if (panelId === "floating") {
+        floatingPanel?.toggle();
+        toolbar?.setPanelActive(floatingPanel?.visible ? "floating" : null);
+        return;
+      }
       sidePanel?.toggle(panelId);
       toolbar?.setPanelActive(sidePanel?.isOpen ? sidePanel.activeTab : null);
 
@@ -118,21 +125,25 @@ function initUIComponents(): void {
     },
   });
 
-  // Brush settings
-  const brushSettingsEl = document.getElementById("brush-settings")!;
-  brushSettingsUI = new BrushSettingsUI(brushSettingsEl, brushParams, {
-    onParamsChange: (params) => {
-      brushParams = params;
-      updateToolInfo();
-    },
-  });
+  // Floating panel (brush + layers)
+  floatingPanel = new FloatingPanel({ defaultX: 20, defaultY: 20 });
+  floatingPanel.mount(canvasContainer);
 
-  // Color picker (append to toolbar bottom)
-  colorPicker = new ColorPicker(toolbarEl, {
-    onColorChange: (color) => {
-      brushParams.color = color;
-    },
-  });
+  const brushContainer = floatingPanel.getBrushContainer();
+  if (brushContainer) {
+    brushSettingsUI = new BrushSettingsUI(brushContainer, brushParams, {
+      onParamsChange: (params) => {
+        brushParams = params;
+        updateToolInfo();
+      },
+    });
+
+    colorPicker = new ColorPicker(brushContainer, {
+      onColorChange: (color) => {
+        brushParams.color = color;
+      },
+    });
+  }
 
   // Side panel
   const sidePanelEl = document.getElementById("side-panel")!;
@@ -222,8 +233,9 @@ async function initCanvas(width: number, height: number, background: "white" | "
   });
 
   // Layers UI
-  const layersPanelEl = document.getElementById("layers-panel")!;
-  layersUI = new LayersUI(layersPanelEl, layerManager, {
+  const layersContainer = floatingPanel?.getLayersContainer();
+  if (!layersContainer) return;
+  layersUI = new LayersUI(layersContainer, layerManager, {
     onActiveChange: (index) => {
       layerManager!.activeLayerIndex = index;
       layersUI?.render();

@@ -1,6 +1,6 @@
 export type ToolId = "pen" | "pencil" | "marker" | "watercolor" | "highlighter" | "eraser" | "select" | "lasso" | "shapes" | "arrow" | "text" | "image";
 export type ActionId = "clear";
-export type PanelId = "response" | "transcript" | "usage";
+export type PanelId = "floating" | "response" | "transcript" | "usage";
 
 export interface ToolbarConfig {
   onToolChange: (toolId: ToolId) => void;
@@ -29,6 +29,7 @@ const ACTIONS: Array<{ id: ActionId; icon: string; title: string }> = [
 ];
 
 const PANEL_BUTTONS: Array<{ id: PanelId; icon: string; title: string }> = [
+  { id: "floating", icon: "\uD83D\uDD27", title: "Brush & Layers" },
   { id: "response", icon: "\uD83D\uDCAC", title: "Response Panel" },
   { id: "transcript", icon: "\uD83D\uDCDC", title: "Transcript Panel" },
   { id: "usage", icon: "\uD83D\uDCC8", title: "Usage Panel" },
