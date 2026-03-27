@@ -31,6 +31,7 @@ export class WebSocketHub {
   private readonly pendingBridges = new Map<string, Ws>();
   private readonly sessionToBridgeId = new Map<string, string>();
   private readonly rateBuckets = new Map<string, number[]>();
+  private readonly browserWatchSession = new Map<string, string>();
 
   constructor(
     private readonly registry: SessionRegistry,
@@ -62,6 +63,7 @@ export class WebSocketHub {
   removeBrowser(ws: Ws): void {
     this.browsers.delete(ws.data.id);
     this.rateBuckets.delete(ws.data.id);
+    this.browserWatchSession.delete(ws.data.id);
   }
 
   addBridge(ws: Ws): void {
@@ -101,6 +103,27 @@ export class WebSocketHub {
 
     if (ws.data.kind === "browser" && msg.type === "submit") {
       await this.handleSubmit(ws, msg);
+      return;
+    }
+
+    if (ws.data.kind === "browser" && msg.type === "watch-session") {
+      const sid = msg.sessionId;
+      if (typeof sid === "string") {
+        this.browserWatchSession.set(ws.data.id, sid);
+      }
+      return;
+    }
+
+    const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status"];
+    if (ws.data.kind === "bridge" && BRIDGE_ROUTED_TYPES.includes(msg.type)) {
+      const sessionId = ws.data.sessionId;
+      if (!sessionId) return;
+      const payload = JSON.stringify({ ...msg, sessionId });
+      for (const [browserId, browser] of this.browsers) {
+        if (this.browserWatchSession.get(browserId) === sessionId) {
+          safeSend(browser, payload);
+        }
+      }
       return;
     }
   }
