@@ -1,19 +1,49 @@
 import { renderMarkdown } from "./markdown";
 
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
 export class ResponseTab {
   private container: HTMLElement | null = null;
   private autoScroll = true;
+  private autoScrollBtn: HTMLButtonElement | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
 
     container.addEventListener("scroll", () => {
       const { scrollHeight, scrollTop, clientHeight } = container;
-      this.autoScroll = scrollHeight - scrollTop - clientHeight < 30;
+      const atBottom = scrollHeight - scrollTop - clientHeight < 30;
+      if (this.autoScroll && !atBottom) {
+        this.autoScroll = false;
+        this.updateAutoScrollBtn();
+      } else if (!this.autoScroll && atBottom) {
+        this.autoScroll = true;
+        this.updateAutoScrollBtn();
+      }
     });
+
+    this.autoScrollBtn = document.createElement("button");
+    this.autoScrollBtn.className = "autoscroll-btn active";
+    this.autoScrollBtn.textContent = "Auto-scroll";
+    this.autoScrollBtn.addEventListener("click", () => {
+      this.autoScroll = !this.autoScroll;
+      this.updateAutoScrollBtn();
+      if (this.autoScroll) {
+        this.container!.scrollTop = this.container!.scrollHeight;
+      }
+    });
+    container.appendChild(this.autoScrollBtn);
   }
 
-  addResponse(content: string): void {
+  private updateAutoScrollBtn(): void {
+    if (!this.autoScrollBtn) return;
+    this.autoScrollBtn.classList.toggle("active", this.autoScroll);
+  }
+
+  addResponse(content: string, timestamp?: number): void {
     if (!this.container) return;
 
     const block = document.createElement("div");
@@ -22,6 +52,13 @@ export class ResponseTab {
     const label = document.createElement("div");
     label.className = "msg-label";
     label.textContent = "Claude";
+
+    if (timestamp) {
+      const time = document.createElement("span");
+      time.className = "entry-time";
+      time.textContent = formatTime(timestamp);
+      label.appendChild(time);
+    }
 
     const body = document.createElement("div");
     body.className = "msg-body";
@@ -71,8 +108,14 @@ export class ResponseTab {
     this.container.textContent = "";
   }
 
+  private scrollRAF: number | null = null;
+
   private scrollToBottomIfEnabled(): void {
     if (!this.container || !this.autoScroll) return;
-    this.container.scrollTop = this.container.scrollHeight;
+    if (this.scrollRAF) cancelAnimationFrame(this.scrollRAF);
+    this.scrollRAF = requestAnimationFrame(() => {
+      if (this.container) this.container.scrollTop = this.container.scrollHeight;
+      this.scrollRAF = null;
+    });
   }
 }

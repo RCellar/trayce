@@ -51,7 +51,9 @@ export class LayersUI {
       // Visibility toggle
       const vis = document.createElement("span");
       vis.className = "visibility";
-      vis.textContent = layer.visible ? "👁" : "👁‍🗨";
+      vis.textContent = layer.visible ? "\u25C9" : "\u25CE";
+      vis.title = layer.visible ? "Hide layer" : "Show layer";
+      vis.style.opacity = layer.visible ? "1" : "0.4";
       vis.addEventListener("click", (e) => {
         e.stopPropagation();
         this.config.onVisibilityToggle(i);
@@ -61,15 +63,32 @@ export class LayersUI {
       const name = document.createElement("span");
       name.className = "name";
       name.textContent = layer.name;
+      if (!layer.visible) name.style.opacity = "0.4";
 
       // Blend mode
       const blend = document.createElement("span");
       blend.className = "blend-mode";
       blend.textContent = layer.blendMode === "normal" ? "" : layer.blendMode;
 
+      // Delete button (only for deletable layers)
+      const actions = document.createElement("span");
+      actions.className = "layer-actions";
+      if (layer.deletable) {
+        const delBtn = document.createElement("span");
+        delBtn.className = "layer-delete";
+        delBtn.textContent = "\u00D7";
+        delBtn.title = "Delete layer";
+        delBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.config.onDeleteLayer(i);
+        });
+        actions.appendChild(delBtn);
+      }
+
       item.appendChild(vis);
       item.appendChild(name);
       item.appendChild(blend);
+      item.appendChild(actions);
 
       item.addEventListener("click", () => this.config.onActiveChange(i));
 

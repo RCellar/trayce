@@ -10,9 +10,15 @@ export interface TranscriptEntry {
   toolUseId?: string;
 }
 
+function formatTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
 export class TranscriptTab {
   private container: HTMLElement | null = null;
   private autoScroll = true;
+  private autoScrollBtn: HTMLButtonElement | null = null;
   private toolCallElements = new Map<string, HTMLElement>();
 
   mount(container: HTMLElement): void {
@@ -20,15 +26,39 @@ export class TranscriptTab {
 
     container.addEventListener("scroll", () => {
       const { scrollHeight, scrollTop, clientHeight } = container;
-      this.autoScroll = scrollHeight - scrollTop - clientHeight < 30;
+      const atBottom = scrollHeight - scrollTop - clientHeight < 30;
+      if (this.autoScroll && !atBottom) {
+        this.autoScroll = false;
+        this.updateAutoScrollBtn();
+      } else if (!this.autoScroll && atBottom) {
+        this.autoScroll = true;
+        this.updateAutoScrollBtn();
+      }
     });
+
+    this.autoScrollBtn = document.createElement("button");
+    this.autoScrollBtn.className = "autoscroll-btn active";
+    this.autoScrollBtn.textContent = "Auto-scroll";
+    this.autoScrollBtn.addEventListener("click", () => {
+      this.autoScroll = !this.autoScroll;
+      this.updateAutoScrollBtn();
+      if (this.autoScroll) {
+        this.container!.scrollTop = this.container!.scrollHeight;
+      }
+    });
+    container.appendChild(this.autoScrollBtn);
+  }
+
+  private updateAutoScrollBtn(): void {
+    if (!this.autoScrollBtn) return;
+    this.autoScrollBtn.classList.toggle("active", this.autoScroll);
   }
 
   addEntry(entry: TranscriptEntry): void {
     if (!this.container) return;
 
     if (entry.type === "message" || entry.type === "response") {
-      this.addMessage(entry.role, entry.content);
+      this.addMessage(entry.role, entry.content, entry.timestamp);
     } else if (entry.type === "tool-call") {
       this.addToolCall(entry);
     } else if (entry.type === "tool-result") {
@@ -52,7 +82,7 @@ export class TranscriptTab {
     this.toolCallElements.clear();
   }
 
-  private addMessage(role: "user" | "assistant", content: string): void {
+  private addMessage(role: "user" | "assistant", content: string, timestamp?: number): void {
     if (!this.container) return;
 
     const entry = document.createElement("div");
@@ -61,6 +91,13 @@ export class TranscriptTab {
     const label = document.createElement("div");
     label.className = `entry-label ${role}`;
     label.textContent = role === "user" ? "You" : "Claude";
+
+    if (timestamp) {
+      const time = document.createElement("span");
+      time.className = "entry-time";
+      time.textContent = formatTime(timestamp);
+      label.appendChild(time);
+    }
 
     const body = document.createElement("div");
     body.className = "entry-body";
@@ -93,6 +130,13 @@ export class TranscriptTab {
     const nameSpan = document.createElement("span");
     nameSpan.className = "tool-name";
     nameSpan.textContent = toolName;
+
+    if (entry.timestamp) {
+      const time = document.createElement("span");
+      time.className = "entry-time";
+      time.textContent = formatTime(entry.timestamp);
+      summary.appendChild(time);
+    }
 
     const summarySpan = document.createElement("span");
     summarySpan.className = "tool-summary";
@@ -183,8 +227,14 @@ export class TranscriptTab {
     }
   }
 
+  private scrollRAF: number | null = null;
+
   private scrollToBottomIfEnabled(): void {
     if (!this.container || !this.autoScroll) return;
-    this.container.scrollTop = this.container.scrollHeight;
+    if (this.scrollRAF) cancelAnimationFrame(this.scrollRAF);
+    this.scrollRAF = requestAnimationFrame(() => {
+      if (this.container) this.container.scrollTop = this.container.scrollHeight;
+      this.scrollRAF = null;
+    });
   }
 }
