@@ -28,7 +28,7 @@ export class LayerManager {
   ) {
     const bg = this.createLayer("Background", false);
     if (background === "white") {
-      bg.ctx.fillStyle = "#ffffff";
+      bg.ctx.fillStyle = "#f0f0f0";
       bg.ctx.fillRect(0, 0, docWidth, docHeight);
     }
     this.layers.push(bg);
