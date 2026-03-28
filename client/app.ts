@@ -26,6 +26,7 @@ import { TranscriptTab } from "./transcript-tab";
 import { UsageTab } from "./usage-tab";
 import { ThemeManager } from "./theme";
 import { FloatingPanel } from "./floating-panel";
+import { ImageTool } from "./tools/image";
 
 // -- State --
 
@@ -53,6 +54,8 @@ let brushParams: BrushParams = {
   color: "#000000",
 };
 
+let imageTool: ImageTool | null = null;
+
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
 
@@ -60,6 +63,12 @@ let sidePanel: SidePanel | null = null;
 let responseTab: ResponseTab | null = null;
 let transcriptTab: TranscriptTab | null = null;
 let usageTab: UsageTab | null = null;
+
+import { formatTabTitle } from "./tab-title";
+
+function updateTabTitle(): void {
+  document.title = formatTabTitle(sessions, selectedSessionId);
+}
 
 // -- DOM Elements --
 
@@ -86,6 +95,13 @@ function initUIComponents(): void {
   const toolbarEl = document.getElementById("toolbar")!;
   toolbar = new Toolbar(toolbarEl, {
     onToolChange: (toolId: ToolId) => {
+      if (toolId === "image") {
+        imageTool?.openFilePicker();
+        // Revert toolbar highlight to the current brush — image is an instant action
+        const currentBrushId = Object.entries(brushes).find(([, b]) => b === activeBrush)?.[0];
+        if (currentBrushId) toolbar?.setActive(currentBrushId as ToolId);
+        return;
+      }
       if (brushes[toolId]) {
         activeBrush = brushes[toolId];
         updateToolInfo();
@@ -124,6 +140,13 @@ function initUIComponents(): void {
       }
     },
   });
+
+  // Image import tool — paste and drop are always-on, file picker via toolbar/shortcut
+  imageTool = new ImageTool({
+    onImport: (bitmap, name) => handleImageImport(bitmap, name),
+  });
+  imageTool.setupPasteHandler();
+  imageTool.setupDropHandler(canvasContainer);
 
   // Floating panel (brush + layers)
   floatingPanel = new FloatingPanel({ defaultX: 20, defaultY: 20 });
@@ -223,8 +246,11 @@ async function initCanvas(width: number, height: number, background: "white" | "
   layerManager = new LayerManager(width, height, background);
   compositor = new Compositor(canvasManager.app, layerManager);
 
-  // Add compositor container to stage
+  // Add compositor container to stage (inside zoom/pan)
   canvasManager.stage.addChild(compositor.getContainer());
+
+  // Add overlay to app.stage directly (screen-space, above everything)
+  canvasManager.app.stage.addChild(compositor.getOverlay());
 
   // Defer initial composite to next frame so WebGL context is ready
   requestAnimationFrame(() => {
@@ -240,6 +266,7 @@ async function initCanvas(width: number, height: number, background: "white" | "
       layerManager!.activeLayerIndex = index;
       layersUI?.render();
       updateLayerInfo();
+      updateTransformOverlay();
     },
     onVisibilityToggle: (index) => {
       layerManager!.layers[index].visible = !layerManager!.layers[index].visible;
@@ -252,15 +279,30 @@ async function initCanvas(width: number, height: number, background: "white" | "
       layersUI?.render();
       updateLayerInfo();
     },
+    onMoveLayer: (from, to) => {
+      layerManager!.moveLayer(from, to);
+      compositor?.markDirty();
+      layersUI?.render();
+      updateLayerInfo();
+      updateTransformOverlay();
+    },
     onDeleteLayer: (index) => {
       try {
         layerManager!.deleteLayer(index);
         compositor?.markDirty();
         layersUI?.render();
         updateLayerInfo();
+        updateTransformOverlay();
       } catch (e) {
         showToast("Cannot delete this layer");
       }
+    },
+    onRasterize: (index) => {
+      layerManager!.rasterizeLayer(index);
+      compositor?.markDirty();
+      layersUI?.render();
+      updateTransformOverlay();
+      showToast("Layer rasterized");
     },
   });
 
@@ -277,7 +319,55 @@ async function initCanvas(width: number, height: number, background: "white" | "
   // Render loop
   canvasManager.app.ticker.add(() => {
     compositor?.update();
+    updateTransformOverlay();
   });
+}
+
+// -- Transform interaction state --
+
+type HandleId = "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
+type DragMode = { type: "move"; offsetX: number; offsetY: number }
+  | { type: "resize"; handle: HandleId; anchorX: number; anchorY: number; startW: number; startH: number };
+
+let transformDrag: DragMode | null = null;
+let transformSnapshot: { x: number; y: number; width: number; height: number } | null = null;
+
+const HANDLE_RADIUS_SCREEN = 6; // pixels in screen space
+
+function getHandleAtPoint(t: { x: number; y: number; width: number; height: number }, docX: number, docY: number, zoom: number): HandleId | null {
+  const r = HANDLE_RADIUS_SCREEN / zoom; // convert screen hit radius to doc space
+  const handles: Array<{ id: HandleId; hx: number; hy: number }> = [
+    { id: "nw", hx: t.x, hy: t.y },
+    { id: "n", hx: t.x + t.width / 2, hy: t.y },
+    { id: "ne", hx: t.x + t.width, hy: t.y },
+    { id: "w", hx: t.x, hy: t.y + t.height / 2 },
+    { id: "e", hx: t.x + t.width, hy: t.y + t.height / 2 },
+    { id: "sw", hx: t.x, hy: t.y + t.height },
+    { id: "s", hx: t.x + t.width / 2, hy: t.y + t.height },
+    { id: "se", hx: t.x + t.width, hy: t.y + t.height },
+  ];
+  for (const h of handles) {
+    if (Math.abs(docX - h.hx) <= r && Math.abs(docY - h.hy) <= r) return h.id;
+  }
+  return null;
+}
+
+function hitTestTransformBounds(t: { x: number; y: number; width: number; height: number }, docX: number, docY: number): boolean {
+  return docX >= t.x && docX <= t.x + t.width && docY >= t.y && docY <= t.y + t.height;
+}
+
+function updateTransformOverlay(): void {
+  if (!compositor || !canvasManager || !layerManager) {
+    compositor?.clearOverlay();
+    return;
+  }
+  const layer = layerManager.activeLayer;
+  if (!layer.transform) {
+    compositor.clearOverlay();
+    return;
+  }
+  const stagePos = canvasManager.stage.position;
+  compositor.drawTransformOverlay(stagePos.x, stagePos.y, canvasManager.viewport.zoom, layer.transform);
 }
 
 // -- Drawing --
@@ -287,10 +377,20 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
   const layer = layerManager.activeLayer;
   if (layer.locked) return;
 
+  // Get current doc-space point
+  const lastPt = state.points[state.points.length - 1];
+  const doc = canvasManager.screenToDoc(lastPt.x, lastPt.y);
+
+  // If active layer has a transform, handle move/resize instead of drawing
+  if (layer.transform) {
+    handleTransformInput(layer.transform, doc.x, doc.y, event);
+    return;
+  }
+
   // Transform screen coords to doc coords
   const docPoints = state.points.map((p) => {
-    const doc = canvasManager!.screenToDoc(p.x, p.y);
-    return { x: doc.x, y: doc.y, pressure: p.pressure };
+    const d = canvasManager!.screenToDoc(p.x, p.y);
+    return { x: d.x, y: d.y, pressure: p.pressure };
   });
 
   if (event === "start") {
@@ -306,6 +406,99 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
     activeBrush.endStroke(layer.ctx, brushParams);
     compositor?.markDirty();
   }
+}
+
+function handleTransformInput(t: import("./layers").LayerTransform, docX: number, docY: number, event: "start" | "move" | "end"): void {
+  if (event === "start") {
+    const zoom = canvasManager!.viewport.zoom;
+
+    // Save snapshot for undo
+    transformSnapshot = { x: t.x, y: t.y, width: t.width, height: t.height };
+
+    // Check handles first (higher priority than move)
+    const handle = getHandleAtPoint(t, docX, docY, zoom);
+    if (handle) {
+      // Anchor is the corner opposite to the dragged handle
+      const ax = handle.includes("e") ? t.x : handle.includes("w") ? t.x + t.width : t.x;
+      const ay = handle.includes("s") ? t.y : handle.includes("n") ? t.y + t.height : t.y;
+      transformDrag = { type: "resize", handle, anchorX: ax, anchorY: ay, startW: t.width, startH: t.height };
+      return;
+    }
+
+    // Check body hit for move
+    if (hitTestTransformBounds(t, docX, docY)) {
+      transformDrag = { type: "move", offsetX: docX - t.x, offsetY: docY - t.y };
+      return;
+    }
+
+    // Clicked outside — no interaction
+    transformDrag = null;
+    transformSnapshot = null;
+  }
+
+  if (event === "move" && transformDrag) {
+    if (transformDrag.type === "move") {
+      t.x = docX - transformDrag.offsetX;
+      t.y = docY - transformDrag.offsetY;
+    } else {
+      applyResize(t, transformDrag, docX, docY);
+    }
+    compositor?.markDirty();
+    updateTransformOverlay();
+  }
+
+  if (event === "end" && transformDrag) {
+    transformDrag = null;
+    // transformSnapshot remains for undo (not yet integrated)
+  }
+}
+
+function applyResize(
+  t: import("./layers").LayerTransform,
+  drag: Extract<DragMode, { type: "resize" }>,
+  docX: number, docY: number,
+): void {
+  const MIN_SIZE = 10;
+  const { handle, anchorX, anchorY, startW, startH } = drag;
+  const aspect = startW / startH;
+
+  let newX = t.x, newY = t.y, newW = t.width, newH = t.height;
+
+  // Horizontal component
+  if (handle.includes("e")) {
+    newW = Math.max(MIN_SIZE, docX - anchorX);
+    newX = anchorX;
+  } else if (handle.includes("w")) {
+    newW = Math.max(MIN_SIZE, anchorX - docX);
+    newX = anchorX - newW;
+  }
+
+  // Vertical component
+  if (handle.includes("s")) {
+    newH = Math.max(MIN_SIZE, docY - anchorY);
+    newY = anchorY;
+  } else if (handle.includes("n")) {
+    newH = Math.max(MIN_SIZE, anchorY - docY);
+    newY = anchorY - newH;
+  }
+
+  // Corner handles: preserve aspect ratio (default behavior)
+  if (handle.length === 2) {
+    // Fit to the smaller dimension
+    if (newW / newH > aspect) {
+      newW = newH * aspect;
+    } else {
+      newH = newW / aspect;
+    }
+    // Re-anchor after ratio adjustment
+    if (handle.includes("w")) newX = anchorX - newW;
+    if (handle.includes("n")) newY = anchorY - newH;
+  }
+
+  t.x = Math.round(newX);
+  t.y = Math.round(newY);
+  t.width = Math.round(newW);
+  t.height = Math.round(newH);
 }
 
 // -- Connection --
@@ -488,17 +681,38 @@ function handleCanvasPush(msg: ServerMessage): void {
   const label = (msg.label as string) || `Claude: ${new Date().toLocaleTimeString()}`;
 
   try {
-    const layer = layerManager.addLayer(label);
-    layer.visible = false;
-
     const imgElement = new Image();
     imgElement.onload = () => {
-      const sw = Math.min(imgElement.width, layerManager!.docWidth);
-      const sh = Math.min(imgElement.height, layerManager!.docHeight);
-      layer.ctx.drawImage(imgElement, 0, 0, sw, sh);
+      const sw = imgElement.width;
+      const sh = imgElement.height;
+      const cw = layerManager!.docWidth;
+      const ch = layerManager!.docHeight;
+
+      // Calculate display size — scale down to fit, no upscaling
+      let dw = sw, dh = sh;
+      if (dw > cw || dh > ch) {
+        const scale = Math.min(cw / dw, ch / dh);
+        dw = Math.round(dw * scale);
+        dh = Math.round(dh * scale);
+      }
+
+      // Create transform layer with canvas sized to source image
+      const layer = layerManager!.addLayer(label, { canvasWidth: sw, canvasHeight: sh });
+      layer.visible = false;
+      layer.ctx.drawImage(imgElement, 0, 0);
+      layer.transform = {
+        x: Math.round((cw - dw) / 2),
+        y: Math.round((ch - dh) / 2),
+        width: dw,
+        height: dh,
+        sourceWidth: sw,
+        sourceHeight: sh,
+      };
+
       compositor?.markDirty();
       layersUI?.render();
       updateLayerInfo();
+      updateTransformOverlay();
     };
     imgElement.src = `data:image/png;base64,${image}`;
 
@@ -507,6 +721,44 @@ function handleCanvasPush(msg: ServerMessage): void {
   } catch {
     showToast("Failed to add image layer");
   }
+}
+
+function handleImageImport(bitmap: ImageBitmap, name: string): void {
+  if (!layerManager || !compositor) return;
+
+  const cw = layerManager.docWidth;
+  const ch = layerManager.docHeight;
+  const sw = bitmap.width;
+  const sh = bitmap.height;
+
+  // Calculate display size — scale down to fit, no upscaling
+  let dw = sw;
+  let dh = sh;
+  if (dw > cw || dh > ch) {
+    const scale = Math.min(cw / dw, ch / dh);
+    dw = Math.round(dw * scale);
+    dh = Math.round(dh * scale);
+  }
+
+  // Create a transform layer with canvas sized to the source image
+  const layer = layerManager.addLayer(name, { canvasWidth: sw, canvasHeight: sh });
+  layer.ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+
+  layer.transform = {
+    x: Math.round((cw - dw) / 2),
+    y: Math.round((ch - dh) / 2),
+    width: dw,
+    height: dh,
+    sourceWidth: sw,
+    sourceHeight: sh,
+  };
+
+  compositor.markDirty();
+  layersUI?.render();
+  updateLayerInfo();
+  updateTransformOverlay();
+  showToast(`Image added as "${name}"`);
 }
 
 // -- Session Selector --
@@ -546,6 +798,7 @@ function updateSessionSelect(): void {
   }
 
   handleConnectionStatus(connection?.isConnected ? "connected" : "disconnected");
+  updateTabTitle();
 }
 
 sessionSelect.addEventListener("change", () => {
@@ -557,6 +810,7 @@ sessionSelect.addEventListener("change", () => {
   responseTab?.clear();
   transcriptTab?.clear();
   usageTab?.clear();
+  updateTabTitle();
 });
 
 // -- Submit --
@@ -669,6 +923,9 @@ document.addEventListener("keydown", (e) => {
       activeBrush = brushes.eraser;
       toolbar?.setActive("eraser");
       updateToolInfo();
+      break;
+    case "i":
+      imageTool?.openFilePicker();
       break;
     case "[":
       brushParams.size = Math.max(1, brushParams.size - 2);
