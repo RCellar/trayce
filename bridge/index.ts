@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { readFileSync, readlinkSync, existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
-import { TranscriptWatcher, discoverTranscriptPath, type TranscriptEntry, type UsageData } from "./transcript-watcher";
+import { TranscriptWatcher, discoverTranscriptPath, discoverTranscriptByBirthtime, type TranscriptEntry, type UsageData } from "./transcript-watcher";
 
 // Zod schemas for MCP SDK ≥1.27 (requires method literal)
 const ChannelNotificationSchema = z.object({
@@ -54,7 +54,9 @@ if (existsSync(stateFile)) {
 if (!host) host = "localhost";
 if (!port) port = "9740";
 
-const label = process.env.TRAYCE_LABEL ?? basename(resolveProjectDir());
+const projectDir = resolveProjectDir();
+const bridgeStartTime = Date.now();
+const label = process.env.TRAYCE_LABEL ?? basename(projectDir);
 const sessionId = crypto.randomUUID();
 
 // MCP Channel server
@@ -105,19 +107,26 @@ mcpServer.setNotificationHandler(PermissionRequestSchema, async ({ params }) => 
 });
 
 function startTranscriptWatcher(ws: WebSocket): void {
-  const projectDir = resolveProjectDir();
-  const transcriptPath = discoverTranscriptPath(projectDir);
+  // Primary: birthtime correlation (cwd-independent). Fallback: cwd-based lookup.
+  const transcriptPath = discoverTranscriptByBirthtime(bridgeStartTime)
+    ?? discoverTranscriptPath(projectDir);
   console.error(`[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"}`);
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
     return;
   }
 
-  ws.send(JSON.stringify({ type: "transcript-status", available: true }));
+  ws.send(JSON.stringify({
+    type: "transcript-status",
+    available: true,
+    transcriptPath,
+    projectDir,
+  }));
 
   transcriptWatcher = new TranscriptWatcher(
     transcriptPath,
     projectDir,
+    bridgeStartTime,
     (entry: TranscriptEntry) => {
       if (ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: "transcript-entry", entry }));
