@@ -738,6 +738,107 @@ dialog .bg-choice label {
   transform: translateY(0);
 }
 
+/* -- Permission Prompt -- */
+
+.permission-prompt {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--warning);
+  border-radius: 8px;
+  padding: 12px 16px;
+  min-width: 320px;
+  max-width: 420px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.permission-prompt.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.perm-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--warning);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.perm-tool {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.perm-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.perm-preview {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin-bottom: 10px;
+  max-height: 80px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.perm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.perm-allow {
+  background: var(--success);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 20px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.perm-allow:hover {
+  filter: brightness(1.1);
+}
+
+.perm-deny {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 20px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.perm-deny:hover {
+  filter: brightness(1.1);
+}
+
+.perm-stale {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* -- Responsive (tablet) -- */
 
 @media (max-width: 768px) {
