@@ -117,6 +117,39 @@ const FONT_OPTIONS = [
   { name: "Sans Serif", value: '"Inter", "Helvetica Neue", Arial, sans-serif' },
 ];
 
+/** Build an SVG favicon string using the given theme colors. */
+export function buildFaviconSvg(
+  bg = "#111",
+  accent = "#4a9eff",
+  text = "#c9d1d9",
+): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="${bg}" stroke="${text}" stroke-width="1" stroke-opacity="0.3"/>
+  <path d="M9 23 L14 7 L17 7 L20 19 L22 11 L25 11" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+}
+
+let currentBlobUrl: string | null = null;
+
+/** Apply an SVG string as the page favicon via blob URL. */
+export function applyFavicon(svg: string): void {
+  if (currentBlobUrl) {
+    URL.revokeObjectURL(currentBlobUrl);
+  }
+
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  currentBlobUrl = URL.createObjectURL(blob);
+
+  let link = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    link.type = "image/svg+xml";
+    document.head.appendChild(link);
+  }
+  link.href = currentBlobUrl;
+}
+
 interface SavedTheme {
   preset: string;
   accentName: string;
