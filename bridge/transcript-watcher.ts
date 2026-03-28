@@ -45,6 +45,7 @@ interface ClaudeCodeLine {
 export class TranscriptWatcher {
   private filePath: string;
   private cwd: string;
+  private startTime: number;
   private onEntry: (entry: TranscriptEntry) => void;
   private onUsage?: (usage: UsageData) => void;
   private offset: number = 0;
@@ -52,9 +53,10 @@ export class TranscriptWatcher {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private rediscoverTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(filePath: string, cwd: string, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
+  constructor(filePath: string, cwd: string, startTime: number, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
     this.filePath = filePath;
     this.cwd = cwd;
+    this.startTime = startTime;
     this.onEntry = onEntry;
     this.onUsage = onUsage;
   }
@@ -112,7 +114,13 @@ export class TranscriptWatcher {
   }
 
   private rediscover(): void {
-    const newPath = discoverTranscriptPath(this.cwd);
+    // Primary: find transcript created around the same time as this bridge.
+    // If birthtime returns the file we're already watching (or null), fall
+    // back to cwd-based discovery which picks the newest by mtime.
+    const byBirthtime = discoverTranscriptByBirthtime(this.startTime);
+    const newPath = (byBirthtime && byBirthtime !== this.filePath)
+      ? byBirthtime
+      : discoverTranscriptPath(this.cwd);
     if (!newPath || newPath === this.filePath) return;
 
     console.error(`[trayce watcher] switching transcript: ${this.filePath} -> ${newPath}`);
@@ -246,15 +254,43 @@ export class TranscriptWatcher {
 }
 
 /**
- * Discover the most relevant Claude Code conversation JSONL file.
+ * Find the transcript file created closest to the given timestamp.
+ * Scans ALL project directories — does not depend on cwd.
+ * Returns null if no file was created within 60 seconds of startTime.
+ */
+export function discoverTranscriptByBirthtime(startTime: number): string | null {
+  const claudeProjectsDir = join(homedir(), ".claude", "projects");
+  if (!existsSync(claudeProjectsDir)) return null;
+
+  const MAX_DRIFT_MS = 60_000;
+  let bestPath: string | null = null;
+  let bestDrift = MAX_DRIFT_MS;
+
+  for (const dir of safeReaddir(claudeProjectsDir)) {
+    const projectDir = join(claudeProjectsDir, dir);
+    for (const entry of safeReaddir(projectDir)) {
+      if (!entry.endsWith(".jsonl")) continue;
+      const full = join(projectDir, entry);
+      try {
+        const stat = statSync(full);
+        const drift = Math.abs(stat.birthtimeMs - startTime);
+        if (drift < bestDrift) {
+          bestDrift = drift;
+          bestPath = full;
+        }
+      } catch {}
+    }
+  }
+
+  return bestPath;
+}
+
+/**
+ * Discover Claude Code conversation JSONL by matching cwd to project directory.
  *
  * Claude Code stores conversations as {session-uuid}.jsonl inside
  * ~/.claude/projects/{encoded-cwd}/. The directory name is the cwd
  * with path separators replaced by dashes.
- *
- * 1. Check CLAUDE_TRANSCRIPT env var
- * 2. Find the matching project dir for cwd, pick the most recent .jsonl
- * 3. Fall back to the most recent .jsonl across all project dirs
  */
 export function discoverTranscriptPath(cwd: string): string | null {
   const envPath = process.env.CLAUDE_TRANSCRIPT;
