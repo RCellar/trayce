@@ -52,6 +52,8 @@ export class TranscriptWatcher {
   private fsWatcher: ReturnType<typeof watch> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private rediscoverTimer: ReturnType<typeof setInterval> | null = null;
+  private subagentDir: string | null = null;
+  private subagentOffsets = new Map<string, number>();
 
   constructor(filePath: string, cwd: string, startTime: number, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
     this.filePath = filePath;
@@ -114,55 +116,118 @@ export class TranscriptWatcher {
   }
 
   private rediscover(): void {
-    // Primary: find transcript created around the same time as this bridge.
-    // If birthtime returns the file we're already watching (or null), fall
-    // back to cwd-based discovery which picks the newest by mtime.
-    const byBirthtime = discoverTranscriptByBirthtime(this.startTime);
-    const newPath = (byBirthtime && byBirthtime !== this.filePath)
-      ? byBirthtime
-      : discoverTranscriptPath(this.cwd);
+    // Birthtime correlation first; only fall through to cwd if birthtime
+    // found nothing. If birthtime returns the current file, that confirms
+    // we're watching the right one — do NOT fall through (avoids oscillation
+    // between birthtime's pick and cwd's pick).
+    const newPath = discoverTranscriptByBirthtime(this.startTime)
+      ?? discoverTranscriptPath(this.cwd);
     if (!newPath || newPath === this.filePath) return;
 
     console.error(`[trayce watcher] switching transcript: ${this.filePath} -> ${newPath}`);
     this.filePath = newPath;
     this.offset = 0;
+    this.subagentDir = null;
+    this.subagentOffsets.clear();
     this.startFileWatcher();
     this.readNewEntries();
   }
 
   readNewEntries(): void {
-    if (!existsSync(this.filePath)) return;
+    if (existsSync(this.filePath)) {
+      const fd = openSync(this.filePath, "r");
+      try {
+        // Read from current offset to end of file
+        const chunkSize = 65536; // 64KB chunks
+        const buffers: Buffer[] = [];
+        let totalRead = 0;
 
-    const fd = openSync(this.filePath, "r");
+        while (true) {
+          const buf = Buffer.allocUnsafe(chunkSize);
+          const bytesRead = readSync(fd, buf, 0, chunkSize, this.offset + totalRead);
+          if (bytesRead === 0) break;
+          buffers.push(buf.subarray(0, bytesRead));
+          totalRead += bytesRead;
+          if (bytesRead < chunkSize) break;
+        }
+
+        if (totalRead > 0) {
+          this.offset += totalRead;
+
+          const text = Buffer.concat(buffers).toString("utf-8");
+          const lines = text.split("\n");
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            this.parseLine(trimmed);
+          }
+        }
+      } finally {
+        closeSync(fd);
+      }
+    }
+
+    this.readSubagentEntries();
+  }
+
+  private computeSubagentDir(): string | null {
+    const base = this.filePath.replace(/\.jsonl$/, "");
+    const dir = join(base, "subagents");
+    return dir;
+  }
+
+  private readSubagentEntries(): void {
+    if (!this.subagentDir) {
+      this.subagentDir = this.computeSubagentDir();
+    }
+    if (!this.subagentDir || !existsSync(this.subagentDir)) return;
+
+    let files: string[];
     try {
-      // Read from current offset to end of file
-      const chunkSize = 65536; // 64KB chunks
-      const buffers: Buffer[] = [];
-      let totalRead = 0;
+      files = readdirSync(this.subagentDir).filter((f) => f.endsWith(".jsonl"));
+    } catch {
+      return;
+    }
 
-      while (true) {
-        const buf = Buffer.allocUnsafe(chunkSize);
-        const bytesRead = readSync(fd, buf, 0, chunkSize, this.offset + totalRead);
-        if (bytesRead === 0) break;
-        buffers.push(buf.subarray(0, bytesRead));
-        totalRead += bytesRead;
-        if (bytesRead < chunkSize) break;
+    for (const file of files) {
+      const fullPath = join(this.subagentDir, file);
+      const currentOffset = this.subagentOffsets.get(file) ?? 0;
+
+      let fd: number;
+      try {
+        fd = openSync(fullPath, "r");
+      } catch {
+        continue;
       }
 
-      if (totalRead === 0) return;
+      try {
+        const chunkSize = 65536;
+        const buffers: Buffer[] = [];
+        let totalRead = 0;
 
-      this.offset += totalRead;
+        while (true) {
+          const buf = Buffer.allocUnsafe(chunkSize);
+          const bytesRead = readSync(fd, buf, 0, chunkSize, currentOffset + totalRead);
+          if (bytesRead === 0) break;
+          buffers.push(buf.subarray(0, bytesRead));
+          totalRead += bytesRead;
+          if (bytesRead < chunkSize) break;
+        }
 
-      const text = Buffer.concat(buffers).toString("utf-8");
-      const lines = text.split("\n");
+        if (totalRead === 0) continue;
 
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        this.parseLine(trimmed);
+        this.subagentOffsets.set(file, currentOffset + totalRead);
+
+        const text = Buffer.concat(buffers).toString("utf-8");
+        for (const line of text.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          this.parseLine(trimmed);
+        }
+      } finally {
+        closeSync(fd);
       }
-    } finally {
-      closeSync(fd);
     }
   }
 

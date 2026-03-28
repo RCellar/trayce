@@ -10,6 +10,7 @@ import {
   mkdirSync,
   rmSync,
   appendFileSync,
+  existsSync,
 } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -326,10 +327,10 @@ describe("TranscriptWatcher rediscovery", () => {
   test("watcher switches to newer file when it appears", async () => {
     const oldFile = join(projectDir, "old-session.jsonl");
     writeFileSync(oldFile, USER_MSG + "\n");
-    // Push old file's mtime to the past so cwd-based discovery prefers the new file
-    const { utimesSync } = require("node:fs");
-    const past = new Date(Date.now() - 60_000);
-    utimesSync(oldFile, past, past);
+
+    // Ensure old file's birthtime is clearly before startTime so birthtime
+    // correlation picks the new file (created after startTime) instead.
+    await new Promise((resolve) => setTimeout(resolve, 250));
 
     const startTime = Date.now();
     const entries: TranscriptEntry[] = [];
@@ -341,7 +342,7 @@ describe("TranscriptWatcher rediscovery", () => {
     expect(entries[0].content).toBe("Hello Claude");
     const countAfterOld = entries.length;
 
-    // Simulate the current session's file appearing
+    // Simulate the current session's file appearing — birthtime ≈ startTime
     const newFile = join(projectDir, "current-session.jsonl");
     writeFileSync(newFile, ASSISTANT_MSG + "\n");
 
@@ -374,5 +375,140 @@ describe("TranscriptWatcher rediscovery", () => {
     const discovered = discoverTranscriptByBirthtime(Date.now() - 120_000);
     // The file was just created so its birthtime is ~now, drift is ~120s > 60s max
     expect(discovered).toBeNull();
+  });
+});
+
+describe("TranscriptWatcher subagent tracking", () => {
+  const SUBAGENT_DIR_BASE = "/tmp/trayce-test-transcript";
+  const MAIN_TRANSCRIPT = `${SUBAGENT_DIR_BASE}/session-uuid.jsonl`;
+  const SUBAGENTS_DIR = `${SUBAGENT_DIR_BASE}/session-uuid/subagents`;
+
+  const mkSubagentEntry = (model: string, input: number, output: number, cacheRead: number, cacheWrite: number) =>
+    JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        model,
+        content: [{ type: "text", text: "Done" }],
+        usage: {
+          input_tokens: input,
+          output_tokens: output,
+          cache_read_input_tokens: cacheRead,
+          cache_creation_input_tokens: cacheWrite,
+        },
+      },
+      timestamp: "2026-03-28T10:00:00.000Z",
+    });
+
+  beforeEach(() => {
+    mkdirSync(SUBAGENTS_DIR, { recursive: true });
+    writeFileSync(MAIN_TRANSCRIPT, USER_MSG + "\n");
+  });
+
+  afterEach(() => {
+    rmSync(SUBAGENT_DIR_BASE, { recursive: true, force: true });
+  });
+
+  test("picks up usage from subagent transcript files", () => {
+    const subFile = join(SUBAGENTS_DIR, "agent-001.jsonl");
+    writeFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    const sonnetUsage = usageUpdates.find((u) => u.model === "claude-sonnet-4-6");
+    expect(sonnetUsage).toBeDefined();
+    expect(sonnetUsage.inputTokens).toBe(100);
+    expect(sonnetUsage.outputTokens).toBe(500);
+    expect(sonnetUsage.cacheReadTokens).toBe(5000);
+    expect(sonnetUsage.cacheWriteTokens).toBe(200);
+  });
+
+  test("tracks multiple subagent files with different models", () => {
+    writeFileSync(join(SUBAGENTS_DIR, "agent-001.jsonl"), mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+    writeFileSync(join(SUBAGENTS_DIR, "agent-002.jsonl"), mkSubagentEntry("claude-haiku-3-5", 50, 200, 1000, 100) + "\n");
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    const models = usageUpdates.map((u) => u.model);
+    expect(models).toContain("claude-sonnet-4-6");
+    expect(models).toContain("claude-haiku-3-5");
+  });
+
+  test("reads subagent files incrementally across polls", () => {
+    const subFile = join(SUBAGENTS_DIR, "agent-001.jsonl");
+    writeFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    const countAfterFirst = usageUpdates.length;
+
+    // Append another entry to the same file
+    appendFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 200, 600, 3000, 100) + "\n");
+    watcher.readNewEntries();
+
+    // Should have picked up only the new entry (no duplicates)
+    const sonnetEntries = usageUpdates.filter((u) => u.model === "claude-sonnet-4-6");
+    expect(sonnetEntries).toHaveLength(2);
+    // Second entry has different token counts
+    expect(sonnetEntries[1].inputTokens).toBe(200);
+    expect(sonnetEntries[1].outputTokens).toBe(600);
+  });
+
+  test("discovers subagent files that appear after initial read", () => {
+    // Remove subagent files (dir exists but is empty)
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    const countBefore = usageUpdates.length;
+
+    // Now create a subagent file after initial read
+    writeFileSync(join(SUBAGENTS_DIR, "agent-late.jsonl"), mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+    watcher.readNewEntries();
+
+    expect(usageUpdates.length).toBeGreaterThan(countBefore);
+    expect(usageUpdates.some((u) => u.model === "claude-sonnet-4-6")).toBe(true);
+  });
+
+  test("handles missing subagents directory gracefully", () => {
+    // Remove the subagents directory entirely
+    rmSync(SUBAGENTS_DIR, { recursive: true, force: true });
+    // Also remove the session-uuid dir
+    rmSync(join(SUBAGENT_DIR_BASE, "session-uuid"), { recursive: true, force: true });
+
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {});
+    expect(() => watcher.readNewEntries()).not.toThrow();
+  });
+
+  test("ignores non-jsonl files in subagents directory", () => {
+    writeFileSync(join(SUBAGENTS_DIR, "agent-001.meta.json"), JSON.stringify({ some: "metadata" }));
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    // No subagent usage should be emitted (only main transcript usage, if any)
+    const subagentUsage = usageUpdates.filter((u) => u.model !== "claude-opus-4-6");
+    expect(subagentUsage).toHaveLength(0);
+  });
+
+  test("emits transcript entries from subagent files", () => {
+    const subFile = join(SUBAGENTS_DIR, "agent-001.jsonl");
+    writeFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+
+    const entries: TranscriptEntry[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), (entry) => entries.push(entry));
+    watcher.readNewEntries();
+
+    // Should have entries from both main transcript and subagent
+    const subagentEntry = entries.find((e) => e.content === "Done");
+    expect(subagentEntry).toBeDefined();
+    expect(subagentEntry!.type).toBe("response");
   });
 });
