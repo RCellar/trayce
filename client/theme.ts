@@ -166,6 +166,8 @@ export class ThemeManager {
 
   constructor() {
     this.load();
+    const vars = this.buildVars();
+    applyFavicon(buildFaviconSvg(vars["--bg"], vars["--accent"], vars["--text"]));
   }
 
   attachGearIcon(container: HTMLElement): void {
@@ -309,6 +311,7 @@ export class ThemeManager {
     const vars = this.buildVars();
     this.apply(vars);
     this.save(vars);
+    applyFavicon(buildFaviconSvg(vars["--bg"], vars["--accent"], vars["--text"]));
   }
 
   private save(vars: Record<string, string>): void {
