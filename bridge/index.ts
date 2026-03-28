@@ -1,15 +1,38 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, readlinkSync, existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
 import { TranscriptWatcher, discoverTranscriptPath, type TranscriptEntry, type UsageData } from "./transcript-watcher";
 
-// Zod schema for the claude/channel notification (required by MCP SDK ≥1.27)
+// Zod schemas for MCP SDK ≥1.27 (requires method literal)
 const ChannelNotificationSchema = z.object({
   method: z.literal("notifications/claude/channel"),
   params: z.object({}).passthrough().optional(),
 }).passthrough();
+
+const PermissionRequestSchema = z.object({
+  method: z.literal("notifications/claude/channel/permission_request"),
+  params: z.object({
+    request_id: z.string(),
+    tool_name: z.string(),
+    description: z.string(),
+    input_preview: z.string(),
+  }),
+}).passthrough();
+
+/** Resolve the project directory. The bridge is spawned as an MCP subprocess —
+ *  its own cwd may not match the project. On Linux, read the parent process
+ *  (Claude Code) cwd from /proc as the authoritative source. */
+function resolveProjectDir(): string {
+  try {
+    const parentCwd = readlinkSync(`/proc/${process.ppid}/cwd`);
+    if (parentCwd) return parentCwd;
+  } catch {
+    // Not on Linux or /proc unavailable — fall through
+  }
+  return process.cwd();
+}
 
 // Discover connection info from env or state.json
 const stateFile = process.env.TRAYCE_STATE_FILE ?? "/tmp/trayce/state.json";
@@ -31,7 +54,7 @@ if (existsSync(stateFile)) {
 if (!host) host = "localhost";
 if (!port) port = "9740";
 
-const label = process.env.TRAYCE_LABEL ?? basename(process.cwd());
+const label = process.env.TRAYCE_LABEL ?? basename(resolveProjectDir());
 const sessionId = crypto.randomUUID();
 
 // MCP Channel server
@@ -39,7 +62,10 @@ const mcpServer = new Server(
   { name: "trayce", version: "1.0.0" },
   {
     capabilities: {
-      experimental: { "claude/channel": {} },
+      experimental: {
+        "claude/channel": {},
+        "claude/channel/permission": {},
+      },
     },
     instructions: `When you receive a trayce channel notification, read the PNG image at the provided path using the Read tool. The image is a hand-drawn sketch from the user. Treat the accompanying prompt text as the user's request about or relating to the sketch.`,
   }
@@ -65,8 +91,23 @@ mcpServer.setNotificationHandler(ChannelNotificationSchema, async (params: any) 
   }
 });
 
+// Permission request handler — forwards from Claude Code to server/browser
+mcpServer.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
+  if (currentWs?.readyState === WebSocket.OPEN) {
+    currentWs.send(JSON.stringify({
+      type: "permission-request",
+      requestId: params.request_id,
+      toolName: params.tool_name,
+      description: params.description,
+      inputPreview: params.input_preview,
+    }));
+  }
+});
+
 function startTranscriptWatcher(ws: WebSocket): void {
-  const transcriptPath = discoverTranscriptPath(process.cwd());
+  const projectDir = resolveProjectDir();
+  const transcriptPath = discoverTranscriptPath(projectDir);
+  console.error(`[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"}`);
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
     return;
@@ -76,6 +117,7 @@ function startTranscriptWatcher(ws: WebSocket): void {
 
   transcriptWatcher = new TranscriptWatcher(
     transcriptPath,
+    projectDir,
     (entry: TranscriptEntry) => {
       if (ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: "transcript-entry", entry }));
@@ -123,6 +165,16 @@ function connect() {
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(String(event.data));
+      if (msg.type === "permission-verdict") {
+        mcpServer.notification({
+          method: "notifications/claude/channel/permission",
+          params: {
+            request_id: msg.requestId,
+            behavior: msg.behavior,
+          },
+        });
+        return;
+      }
       if (msg.type === "submission") {
         const meta: Record<string, unknown> = { submission_id: msg.id };
         if (msg.pngPath) meta.image_path = msg.pngPath;

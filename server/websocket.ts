@@ -132,7 +132,23 @@ export class WebSocketHub {
       return;
     }
 
-    const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status", "usage-update"];
+    // Route permission verdicts from browser to the session's bridge
+    if (ws.data.kind === "browser" && msg.type === "permission-verdict") {
+      const sid = this.browserWatchSession.get(ws.data.id);
+      if (sid) {
+        const bridge = this.bridges.get(sid);
+        if (bridge) {
+          safeSend(bridge, JSON.stringify({
+            type: "permission-verdict",
+            requestId: msg.requestId,
+            behavior: msg.behavior,
+          }));
+        }
+      }
+      return;
+    }
+
+    const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status", "usage-update", "permission-request"];
     if (ws.data.kind === "bridge" && BRIDGE_ROUTED_TYPES.includes(msg.type)) {
       const sessionId = ws.data.sessionId;
       if (!sessionId) return;

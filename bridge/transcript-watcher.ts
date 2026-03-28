@@ -44,14 +44,17 @@ interface ClaudeCodeLine {
 
 export class TranscriptWatcher {
   private filePath: string;
+  private cwd: string;
   private onEntry: (entry: TranscriptEntry) => void;
   private onUsage?: (usage: UsageData) => void;
   private offset: number = 0;
   private fsWatcher: ReturnType<typeof watch> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private rediscoverTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(filePath: string, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
+  constructor(filePath: string, cwd: string, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
     this.filePath = filePath;
+    this.cwd = cwd;
     this.onEntry = onEntry;
     this.onUsage = onUsage;
   }
@@ -60,23 +63,18 @@ export class TranscriptWatcher {
     // Read existing content first
     this.readNewEntries();
 
-    // Watch parent directory for changes (more reliable than watching the file directly)
-    const dir = dirname(this.filePath);
-    try {
-      const watchFile = this.filePath.split("/").pop() ?? "";
-      this.fsWatcher = watch(dir, (_event, filename) => {
-        if (!filename || filename === watchFile) {
-          this.readNewEntries();
-        }
-      });
-    } catch {
-      // fs.watch may not be available in all environments — fall through to polling
-    }
+    this.startFileWatcher();
 
     // 2-second polling fallback
     this.pollTimer = setInterval(() => {
       this.readNewEntries();
     }, 2000);
+
+    // Periodically re-discover transcript file — the current session's .jsonl
+    // may not exist yet when the bridge starts (Claude creates it on first message)
+    this.rediscoverTimer = setInterval(() => {
+      this.rediscover();
+    }, 3000);
   }
 
   stop(): void {
@@ -88,6 +86,40 @@ export class TranscriptWatcher {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
     }
+    if (this.rediscoverTimer) {
+      clearInterval(this.rediscoverTimer);
+      this.rediscoverTimer = null;
+    }
+  }
+
+  private startFileWatcher(): void {
+    if (this.fsWatcher) {
+      this.fsWatcher.close();
+      this.fsWatcher = null;
+    }
+
+    const dir = dirname(this.filePath);
+    try {
+      const watchFile = this.filePath.split("/").pop() ?? "";
+      this.fsWatcher = watch(dir, (_event, filename) => {
+        if (!filename || filename === watchFile) {
+          this.readNewEntries();
+        }
+      });
+    } catch {
+      // fs.watch may not be available in all environments — fall through to polling
+    }
+  }
+
+  private rediscover(): void {
+    const newPath = discoverTranscriptPath(this.cwd);
+    if (!newPath || newPath === this.filePath) return;
+
+    console.error(`[trayce watcher] switching transcript: ${this.filePath} -> ${newPath}`);
+    this.filePath = newPath;
+    this.offset = 0;
+    this.startFileWatcher();
+    this.readNewEntries();
   }
 
   readNewEntries(): void {
@@ -241,28 +273,10 @@ export function discoverTranscriptPath(cwd: string): string | null {
   const matchingDir = projectDirs.find((d) => d === encodedCwd);
 
   if (matchingDir) {
-    const found = mostRecentJsonl(join(claudeProjectsDir, matchingDir));
-    if (found) return found;
+    return mostRecentJsonl(join(claudeProjectsDir, matchingDir));
   }
 
-  // Fallback: most recently modified .jsonl across all project dirs
-  let bestPath: string | null = null;
-  let bestMtime = 0;
-
-  for (const dir of projectDirs) {
-    const found = mostRecentJsonl(join(claudeProjectsDir, dir));
-    if (found) {
-      try {
-        const mt = statSync(found).mtimeMs;
-        if (mt > bestMtime) {
-          bestMtime = mt;
-          bestPath = found;
-        }
-      } catch {}
-    }
-  }
-
-  return bestPath;
+  return null;
 }
 
 function safeReaddir(dir: string): string[] {

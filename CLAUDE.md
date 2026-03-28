@@ -30,7 +30,9 @@ Three independent processes cooperate via WebSocket:
 
 1. **Server** (`server/`) — Bun HTTP + WebSocket server (long-lived, port 9740). Serves the client SPA, manages WebSocket connections from both browsers and bridges, stores submissions as PNG files on disk (`/tmp/trayce/submissions/`), and writes a state file (`/tmp/trayce/state.json`) with PID/port/token.
 
-2. **Bridge** (`bridge/index.ts`) — Single-file MCP Channel bridge (~100 lines). Spawned per Claude Code session as an MCP server. Reads `state.json` to discover the server, connects via WebSocket, registers its session, and forwards submissions as `notifications/claude/channel` to Claude.
+2. **Bridge** (`bridge/`) — MCP Channel bridge, spawned per Claude Code session. Reads `state.json` to discover the server, connects via WebSocket, registers its session, and forwards submissions as `notifications/claude/channel` to Claude. Also watches the Claude session's transcript file for live updates and relays usage/cost data.
+   - `index.ts` — MCP server setup, WebSocket connection, message routing, permission request forwarding
+   - `transcript-watcher.ts` — Watches Claude's JSONL transcript for tool calls, responses, and usage data; emits parsed entries to the server
 
 3. **Client** (`client/`) — Browser painting app (PixiJS + perfect-freehand, vanilla TS). Bundled to `dist/client/` with `bun build`. No framework — DOM manipulation via class-based UI components.
 
@@ -50,7 +52,7 @@ Two WebSocket endpoints, both token-authenticated:
 - `/canvas` — browser connections (kind: "browser")
 - `/bridge` — bridge connections (kind: "bridge")
 
-Message types: `register` (bridge→server), `submit` (browser→server), `submission` (server→bridge), `sessions` (server→browser), `ack`/`error` (server→browser), `heartbeat` (bidirectional).
+Message types: `register` (bridge→server), `submit` (browser→server), `submission` (server→bridge), `sessions` (server→browser), `ack`/`error` (server→browser), `heartbeat` (bidirectional), `permission-request`/`permission-verdict` (permission flow between Claude↔bridge↔server↔browser), `transcript-entry`/`response`/`usage-snapshot`/`usage-update` (live session data).
 
 ### Server Internals
 
@@ -60,6 +62,7 @@ Message types: `register` (bridge→server), `submit` (browser→server), `submi
 - `submissions.ts` — Disk-backed PNG store with TTL cleanup (1h default)
 - `websocket.ts` — `WebSocketHub` handles all WS logic: routing, rate limiting (sliding window, 10/min), heartbeat timeouts (30s)
 - `http.ts` — Static file serving for the client SPA
+- `usage.ts` — Aggregates token usage and cost data from bridge transcript events
 
 ### Client Internals
 
@@ -70,6 +73,10 @@ Message types: `register` (bridge→server), `submit` (browser→server), `submi
 - `tools/` — Non-brush tools (select, lasso, shapes, arrow, text, image)
 - `connection.ts` — WebSocket client with auto-reconnect
 - `export.ts` — Flattens layers to PNG blob for submission
+- `floating-panel.ts` / `side-panel.ts` / `toolbar.ts` — UI chrome: draggable floating panel, collapsible side panel, bottom toolbar
+- `response-tab.ts` / `transcript-tab.ts` / `usage-tab.ts` — Side panel tabs showing Claude responses, live transcript, and token usage/cost
+- `theme.ts` — Theme presets and CSS variable management
+- `history.ts` / `persistence.ts` — Undo/redo stack and localStorage canvas persistence
 
 ## Testing
 
