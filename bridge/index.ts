@@ -238,6 +238,7 @@ function startTranscriptWatcher(ws: WebSocket): void {
 }
 
 // WebSocket connection to trayce server
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 let reconnectDelay = 1000;
 
 function connect() {
@@ -251,11 +252,11 @@ function connect() {
     ws.send(JSON.stringify({ type: "register", sessionId, label }));
     startTranscriptWatcher(ws);
 
-    const heartbeat = setInterval(() => {
+    // Clear any prior heartbeat
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "heartbeat" }));
-      } else {
-        clearInterval(heartbeat);
       }
     }, 10_000);
   };
@@ -293,6 +294,10 @@ function connect() {
 
   ws.onclose = () => {
     currentWs = null;
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
     if (transcriptWatcher) {
       transcriptWatcher.stop();
       transcriptWatcher = null;
