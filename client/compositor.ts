@@ -16,6 +16,7 @@ const BLEND_MAP: Record<BlendMode, string> = {
 
 export class Compositor {
   private sprites = new Map<string, Sprite>();
+  private spriteRevisions = new Map<string, number>();
   private container: Container;
   private overlay: Graphics;
   private dirty = true;
@@ -52,6 +53,7 @@ export class Compositor {
         this.container.removeChild(sprite);
         sprite.destroy(true);
         this.sprites.delete(id);
+        this.spriteRevisions.delete(id);
       }
     }
 
@@ -66,11 +68,15 @@ export class Compositor {
         this.container.addChild(sprite);
       }
 
-      // Create texture synchronously from the OffscreenCanvas
-      const source = new ImageSource({ resource: layer.canvas });
-      const oldTexture = sprite.texture;
-      sprite.texture = new Texture({ source });
-      if (oldTexture !== Texture.EMPTY) oldTexture.destroy(true);
+      // Only recreate texture if layer content changed
+      const lastRev = this.spriteRevisions.get(layer.id) ?? -1;
+      if (lastRev !== layer.revision) {
+        const source = new ImageSource({ resource: layer.canvas });
+        const oldTexture = sprite.texture;
+        sprite.texture = new Texture({ source });
+        if (oldTexture !== Texture.EMPTY) oldTexture.destroy(true);
+        this.spriteRevisions.set(layer.id, layer.revision);
+      }
 
       // Apply transform for image layers, reset for regular layers
       if (layer.transform) {
@@ -138,6 +144,7 @@ export class Compositor {
       sprite.destroy(true);
     }
     this.sprites.clear();
+    this.spriteRevisions.clear();
     this.overlay.destroy();
     this.container.destroy();
   }
