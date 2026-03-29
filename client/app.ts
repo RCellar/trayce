@@ -27,6 +27,7 @@ import { UsageTab } from "./usage-tab";
 import { ThemeManager } from "./theme";
 import { FloatingPanel } from "./floating-panel";
 import { ImageTool } from "./tools/image";
+import { History, type Command } from "./history";
 
 // -- State --
 
@@ -63,6 +64,7 @@ let sidePanel: SidePanel | null = null;
 let responseTab: ResponseTab | null = null;
 let transcriptTab: TranscriptTab | null = null;
 let usageTab: UsageTab | null = null;
+let history: History | null = null;
 
 import { formatTabTitle } from "./tab-title";
 
@@ -245,6 +247,7 @@ async function initCanvas(width: number, height: number, background: "white" | "
   canvasManager = await CanvasManager.create(canvasContainer, width, height);
   layerManager = new LayerManager(width, height, background);
   compositor = new Compositor(canvasManager.app, layerManager);
+  history = new History(50 * 1024 * 1024); // 50MB budget
 
   // Add compositor container to stage (inside zoom/pan)
   canvasManager.stage.addChild(compositor.getContainer());
@@ -400,11 +403,35 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
   if (event === "move" || event === "start") {
     activeBrush.drawStroke(layer.ctx, docPoints, brushParams);
     compositor?.markDirty();
+    layerManager.bumpRevision(layer.id);
   }
 
   if (event === "end") {
     activeBrush.endStroke(layer.ctx, brushParams);
     compositor?.markDirty();
+
+    if (history && layerManager) {
+      layerManager.bumpRevision(layer.id);
+      const shouldCP = history.shouldCheckpoint();
+      if (shouldCP) {
+        layer.canvas.convertToBlob().then(blob => {
+          history!.push({
+            type: "stroke",
+            layerId: layer.id,
+            data: null,
+            checkpoint: blob,
+            checkpointSize: blob.size,
+          });
+          history!.resetCheckpointCounter();
+        });
+      } else {
+        history.push({
+          type: "stroke",
+          layerId: layer.id,
+          data: null,
+        });
+      }
+    }
   }
 }
 
@@ -444,6 +471,7 @@ function handleTransformInput(t: import("./layers").LayerTransform, docX: number
       applyResize(t, transformDrag, docX, docY);
     }
     compositor?.markDirty();
+    if (layerManager) layerManager.bumpRevision(layerManager.activeLayer.id);
     updateTransformOverlay();
   }
 
@@ -937,12 +965,40 @@ document.addEventListener("keydown", (e) => {
       break;
     case "z":
       if (e.ctrlKey || e.metaKey) {
-        // Undo — will be wired when history module is ready
+        if (history?.canUndo()) {
+          const cmd = history.undo();
+          if (cmd?.checkpoint && layerManager) {
+            const layer = layerManager.layers.find(l => l.id === cmd.layerId);
+            if (layer) {
+              createImageBitmap(cmd.checkpoint).then(bitmap => {
+                layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+                layer.ctx.drawImage(bitmap, 0, 0);
+                layerManager!.bumpRevision(layer.id);
+                compositor?.markDirty();
+                layersUI?.render();
+              });
+            }
+          }
+        }
       }
       break;
     case "y":
       if (e.ctrlKey || e.metaKey) {
-        // Redo — will be wired when history module is ready
+        if (history?.canRedo()) {
+          const cmd = history.redo();
+          if (cmd?.checkpoint && layerManager) {
+            const layer = layerManager.layers.find(l => l.id === cmd.layerId);
+            if (layer) {
+              createImageBitmap(cmd.checkpoint).then(bitmap => {
+                layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
+                layer.ctx.drawImage(bitmap, 0, 0);
+                layerManager!.bumpRevision(layer.id);
+                compositor?.markDirty();
+                layersUI?.render();
+              });
+            }
+          }
+        }
       }
       break;
   }
