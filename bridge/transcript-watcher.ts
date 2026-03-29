@@ -335,15 +335,17 @@ export class TranscriptWatcher {
 /**
  * Find the transcript file created closest to the given timestamp.
  * Scans ALL project directories — does not depend on cwd.
- * Returns null if no file was created within 60 seconds of startTime.
+ * Only considers files created within a 2s grace period before startTime
+ * or up to 60s after startTime, to avoid matching files from previous sessions.
  */
 export function discoverTranscriptByBirthtime(startTime: number): string | null {
   const claudeProjectsDir = join(homedir(), ".claude", "projects");
   if (!existsSync(claudeProjectsDir)) return null;
 
-  const MAX_DRIFT_MS = 60_000;
+  const GRACE_MS = 2_000;
+  const MAX_AFTER_MS = 60_000;
   let bestPath: string | null = null;
-  let bestDrift = MAX_DRIFT_MS;
+  let bestDrift = Infinity;
 
   for (const dir of safeReaddir(claudeProjectsDir)) {
     const projectDir = join(claudeProjectsDir, dir);
@@ -352,7 +354,9 @@ export function discoverTranscriptByBirthtime(startTime: number): string | null 
       const full = join(projectDir, entry);
       try {
         const stat = statSync(full);
-        const drift = Math.abs(stat.birthtimeMs - startTime);
+        const born = stat.birthtimeMs;
+        if (born < startTime - GRACE_MS || born > startTime + MAX_AFTER_MS) continue;
+        const drift = Math.abs(born - startTime);
         if (drift < bestDrift) {
           bestDrift = drift;
           bestPath = full;
