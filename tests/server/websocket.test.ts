@@ -872,3 +872,46 @@ describe("usage routing", () => {
     expect((snapshots[0].usage as any).requestCount).toBe(0);
   });
 });
+
+// -- Submit ack status --
+
+describe("submit without bridge", () => {
+  it("returns queued status when no bridge is connected", async () => {
+    const { hub } = makeFixture();
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+
+    await hub.handleMessage(browser as any, JSON.stringify({
+      type: "submit",
+      targetSessionId: "nonexistent",
+      image: TINY_PNG_B64,
+      prompt: "test",
+    }));
+
+    const ack = lastSent(browser);
+    expect(ack.type).toBe("ack");
+    expect(ack.status).toBe("queued");
+  });
+
+  it("returns delivered status when bridge is connected", async () => {
+    const { hub } = makeFixture();
+    const browser = browserWs();
+    const bridge = bridgeWs();
+    hub.addBrowser(browser as any);
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "register", sessionId: "s1", label: "test",
+    }));
+
+    await hub.handleMessage(browser as any, JSON.stringify({
+      type: "submit",
+      targetSessionId: "s1",
+      image: TINY_PNG_B64,
+      prompt: "test",
+    }));
+
+    const msgs = browser.sent.map(s => JSON.parse(s));
+    const ack = msgs.find((m: any) => m.type === "ack");
+    expect(ack.status).toBe("delivered");
+  });
+});

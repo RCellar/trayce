@@ -284,6 +284,7 @@ export class WebSocketHub {
 
     // Route to bridge (check it's still connected post-await)
     const bridge = this.bridges.get(targetSessionId);
+    const delivered = !!bridge;
     if (bridge) {
       const bridgeMsg: Record<string, unknown> = {
         type: "submission",
@@ -294,11 +295,12 @@ export class WebSocketHub {
       safeSend(bridge, JSON.stringify(bridgeMsg));
     }
 
-    // Ack the browser
+    // Ack the browser with delivery status
     safeSend(ws, JSON.stringify({
       type: "ack",
       submissionId: submission.id,
       timestamp: submission.timestamp,
+      status: delivered ? "delivered" : "queued",
     }));
   }
 
