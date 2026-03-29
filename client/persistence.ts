@@ -27,6 +27,16 @@ export interface SavedLayer {
   opacity: number;
   blendMode: string;
   visible: boolean;
+  locked: boolean;
+  deletable: boolean;
+  transform?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    sourceWidth: number;
+    sourceHeight: number;
+  };
 }
 
 export async function saveLayers(tabId: string, layers: SavedLayer[]): Promise<void> {
