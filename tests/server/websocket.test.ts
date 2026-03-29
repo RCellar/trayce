@@ -741,6 +741,42 @@ describe("transcript buffering", () => {
   });
 });
 
+// -- Bridge rate limiting --
+
+describe("bridge rate limiting", () => {
+  it("rate-limits bridge-routed messages", async () => {
+    const { hub } = makeFixture({ rateLimitPerMinute: 3 });
+    const browser = browserWs();
+    const bridge = bridgeWs();
+    hub.addBrowser(browser as any);
+    hub.addBridge(bridge as any);
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "register", sessionId: "s1", label: "test",
+    }));
+
+    await hub.handleMessage(browser as any, JSON.stringify({
+      type: "watch-session", sessionId: "s1",
+    }));
+
+    // Send 3 transcript entries — should all arrive
+    for (let i = 0; i < 3; i++) {
+      await hub.handleMessage(bridge as any, JSON.stringify({
+        type: "transcript-entry", entry: { content: `msg ${i}` },
+      }));
+    }
+    const delivered = allSentOfType(browser, "transcript-entry");
+    expect(delivered.length).toBe(3);
+
+    // 4th should be dropped
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "transcript-entry", entry: { content: "blocked" },
+    }));
+    const afterLimit = allSentOfType(browser, "transcript-entry");
+    expect(afterLimit.length).toBe(3);
+  });
+});
+
 // -- Usage routing --
 
 describe("usage routing", () => {

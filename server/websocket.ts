@@ -72,9 +72,11 @@ export class WebSocketHub {
 
   addBridge(ws: Ws): void {
     this.pendingBridges.set(ws.data.id, ws);
+    this.rateBuckets.set(ws.data.id, []);
   }
 
   removeBridge(ws: Ws): void {
+    this.rateBuckets.delete(ws.data.id);
     this.pendingBridges.delete(ws.data.id);
     const sessionId = ws.data.sessionId;
     if (sessionId) {
@@ -150,6 +152,7 @@ export class WebSocketHub {
 
     const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status", "usage-update", "permission-request"];
     if (ws.data.kind === "bridge" && BRIDGE_ROUTED_TYPES.includes(msg.type)) {
+      if (!this.checkRateLimit(ws.data.id)) return;
       const sessionId = ws.data.sessionId;
       if (!sessionId) return;
       const payload = JSON.stringify({ ...msg, sessionId });
