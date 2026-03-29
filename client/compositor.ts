@@ -1,5 +1,5 @@
-import { Sprite, Texture, Container, ImageSource, type Application } from "pixi.js";
-import type { LayerManager, BlendMode } from "./layers";
+import { Sprite, Texture, Container, Graphics, ImageSource, type Application } from "pixi.js";
+import type { LayerManager, BlendMode, LayerTransform } from "./layers";
 
 const BLEND_MAP: Record<BlendMode, string> = {
   "normal": "normal",
@@ -17,14 +17,22 @@ const BLEND_MAP: Record<BlendMode, string> = {
 export class Compositor {
   private sprites = new Map<string, Sprite>();
   private container: Container;
+  private overlay: Graphics;
   private dirty = true;
 
   constructor(private app: Application, private layerManager: LayerManager) {
     this.container = new Container();
+    this.overlay = new Graphics();
+    // Overlay is added to app.stage directly so it draws in screen space
+    // (after the compositor container which is inside the zoom/pan stage)
   }
 
   getContainer(): Container {
     return this.container;
+  }
+
+  getOverlay(): Graphics {
+    return this.overlay;
   }
 
   markDirty(): void {
@@ -58,15 +66,23 @@ export class Compositor {
         this.container.addChild(sprite);
       }
 
-      // Use createImageBitmap (copies, does NOT clear the canvas)
-      createImageBitmap(layer.canvas).then((bitmap) => {
-        if (sprite) {
-          const source = new ImageSource({ resource: bitmap });
-          const oldTexture = sprite.texture;
-          sprite.texture = new Texture({ source });
-          if (oldTexture) oldTexture.destroy(true);
-        }
-      });
+      // Create texture synchronously from the OffscreenCanvas
+      const source = new ImageSource({ resource: layer.canvas });
+      const oldTexture = sprite.texture;
+      sprite.texture = new Texture({ source });
+      if (oldTexture !== Texture.EMPTY) oldTexture.destroy(true);
+
+      // Apply transform for image layers, reset for regular layers
+      if (layer.transform) {
+        sprite.position.set(layer.transform.x, layer.transform.y);
+        sprite.scale.set(
+          layer.transform.width / layer.transform.sourceWidth,
+          layer.transform.height / layer.transform.sourceHeight,
+        );
+      } else {
+        sprite.position.set(0, 0);
+        sprite.scale.set(1, 1);
+      }
 
       sprite.visible = layer.visible;
       sprite.alpha = layer.opacity / 100;
@@ -77,11 +93,52 @@ export class Compositor {
     }
   }
 
+  /** Draw bounding box and resize handles for the active transform layer.
+   *  Called from app.ts after update(), passing screen-space coordinates. */
+  drawTransformOverlay(
+    stageX: number, stageY: number, zoom: number,
+    t: LayerTransform,
+  ): void {
+    const g = this.overlay;
+    g.clear();
+
+    // Convert document coords to screen coords
+    const sx = stageX + t.x * zoom;
+    const sy = stageY + t.y * zoom;
+    const sw = t.width * zoom;
+    const sh = t.height * zoom;
+
+    // Bounding box — dashed look via two strokes
+    g.rect(sx, sy, sw, sh);
+    g.stroke({ width: 1, color: 0xffffff, alpha: 0.5 });
+    g.rect(sx, sy, sw, sh);
+    g.stroke({ width: 1, color: 0x4488ff, alpha: 0.8 });
+
+    // Handles — 8 points
+    const hs = 4; // half-size of handle
+    const handles = [
+      [sx, sy], [sx + sw / 2, sy], [sx + sw, sy],
+      [sx, sy + sh / 2], [sx + sw, sy + sh / 2],
+      [sx, sy + sh], [sx + sw / 2, sy + sh], [sx + sw, sy + sh],
+    ];
+    for (const [hx, hy] of handles) {
+      g.rect(hx - hs, hy - hs, hs * 2, hs * 2);
+      g.fill({ color: 0xffffff });
+      g.rect(hx - hs, hy - hs, hs * 2, hs * 2);
+      g.stroke({ width: 1, color: 0x4488ff });
+    }
+  }
+
+  clearOverlay(): void {
+    this.overlay.clear();
+  }
+
   destroy(): void {
     for (const sprite of this.sprites.values()) {
       sprite.destroy(true);
     }
     this.sprites.clear();
+    this.overlay.destroy();
     this.container.destroy();
   }
 }
