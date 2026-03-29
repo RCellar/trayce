@@ -294,6 +294,23 @@ describe("TranscriptWatcher", () => {
   });
 });
 
+describe("rediscovery bounds", () => {
+  test("stops rediscovering after confirming transcript", async () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    writeFileSync(TEST_FILE, USER_MSG + "\n");
+
+    const entries: TranscriptEntry[] = [];
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (e) => entries.push(e));
+    watcher.start();
+    await Bun.sleep(100);
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect((watcher as any).confirmed).toBe(true);
+
+    watcher.stop();
+  });
+});
+
 describe("partial line handling", () => {
   test("does not lose entries split across reads", async () => {
     mkdirSync(TEST_DIR, { recursive: true });
@@ -351,12 +368,11 @@ describe("TranscriptWatcher rediscovery", () => {
     expect(discovered).toBe(newFile);
   });
 
-  test("watcher switches to newer file when it appears", async () => {
+  test("watcher stays on confirmed file and does not switch after parsing entries", async () => {
     const oldFile = join(projectDir, "old-session.jsonl");
     writeFileSync(oldFile, USER_MSG + "\n");
 
-    // Ensure old file's birthtime is clearly before startTime so birthtime
-    // correlation picks the new file (created after startTime) instead.
+    // Ensure old file's birthtime is clearly before startTime
     await new Promise((resolve) => setTimeout(resolve, 250));
 
     const startTime = Date.now();
@@ -364,24 +380,23 @@ describe("TranscriptWatcher rediscovery", () => {
     const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) => entries.push(entry));
     watcher.start();
 
-    // Should have read the old file
+    // Should have read the old file and set confirmed = true
     expect(entries.length).toBeGreaterThanOrEqual(1);
     expect(entries[0].content).toBe("Hello Claude");
-    const countAfterOld = entries.length;
+    expect((watcher as any).confirmed).toBe(true);
 
-    // Simulate the current session's file appearing — birthtime ≈ startTime
+    // Simulate a new file appearing — birthtime ≈ startTime
     const newFile = join(projectDir, "current-session.jsonl");
     writeFileSync(newFile, ASSISTANT_MSG + "\n");
 
-    // Wait for rediscovery timer (3s) + a small buffer
+    // Wait longer than the rediscovery timer (3s) — watcher should NOT switch
     await new Promise((resolve) => setTimeout(resolve, 3500));
 
     watcher.stop();
 
-    // Should have picked up the new file's content
-    const newEntries = entries.slice(countAfterOld);
-    const hasNewContent = newEntries.some((e) => e.content === "Hi! How can I help?");
-    expect(hasNewContent).toBe(true);
+    // confirmed prevents rediscovery: new file content must NOT appear
+    const hasNewContent = entries.some((e) => e.content === "Hi! How can I help?");
+    expect(hasNewContent).toBe(false);
   });
 
   test("discoverTranscriptByBirthtime finds file created near given timestamp", () => {

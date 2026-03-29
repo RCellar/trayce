@@ -54,6 +54,7 @@ export class TranscriptWatcher {
   private rediscoverTimer: ReturnType<typeof setInterval> | null = null;
   private subagentDir: string | null = null;
   private subagentOffsets = new Map<string, number>();
+  private confirmed = false;
 
   constructor(filePath: string, cwd: string, startTime: number, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
     this.filePath = filePath;
@@ -116,6 +117,7 @@ export class TranscriptWatcher {
   }
 
   private rediscover(): void {
+    if (this.confirmed) return;
     // Birthtime correlation first; only fall through to cwd if birthtime
     // found nothing. If birthtime returns the current file, that confirms
     // we're watching the right one — do NOT fall through (avoids oscillation
@@ -167,6 +169,7 @@ export class TranscriptWatcher {
               if (!trimmed) continue;
               this.parseLine(trimmed);
             }
+            this.confirmed = true;
           }
         }
       } finally {
