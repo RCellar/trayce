@@ -148,6 +148,40 @@ describe("LayerManager — duplicate", () => {
   });
 });
 
+describe("duplicateLayer copies all properties", () => {
+  test("copies transform from image layer", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const layer = lm.addLayer("Image", { canvasWidth: 50, canvasHeight: 50 });
+    layer.transform = { x: 10, y: 20, width: 50, height: 50, sourceWidth: 50, sourceHeight: 50 };
+    layer.locked = true;
+    layer.visible = false;
+
+    const copy = lm.duplicateLayer(1);
+    expect(copy.transform).toEqual({ x: 10, y: 20, width: 50, height: 50, sourceWidth: 50, sourceHeight: 50 });
+    expect(copy.locked).toBe(true);
+    expect(copy.visible).toBe(false);
+  });
+
+  test("copy transform is independent from source", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const layer = lm.addLayer("Image", { canvasWidth: 50, canvasHeight: 50 });
+    layer.transform = { x: 10, y: 20, width: 50, height: 50, sourceWidth: 50, sourceHeight: 50 };
+
+    const copy = lm.duplicateLayer(1);
+    copy.transform!.x = 999;
+    expect(layer.transform.x).toBe(10);
+  });
+
+  test("copies canvas dimensions from source", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const layer = lm.addLayer("Image", { canvasWidth: 50, canvasHeight: 30 });
+
+    const copy = lm.duplicateLayer(1);
+    expect(copy.canvas.width).toBe(50);
+    expect(copy.canvas.height).toBe(30);
+  });
+});
+
 describe("LayerManager — merge down", () => {
   test("merge down removes upper layer", () => {
     const lm = new LayerManager(100, 100, "white");

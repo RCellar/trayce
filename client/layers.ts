@@ -76,10 +76,20 @@ export class LayerManager {
       throw new Error(`Maximum ${MAX_LAYERS} layers`);
     }
     const source = this.layers[index];
-    const copy = this.createLayer(`${source.name} copy`, true);
+    const copy = this.createLayer(
+      `${source.name} copy`,
+      true,
+      source.canvas.width,
+      source.canvas.height,
+    );
     copy.ctx.drawImage(source.canvas, 0, 0);
     copy.opacity = source.opacity;
     copy.blendMode = source.blendMode;
+    copy.visible = source.visible;
+    copy.locked = source.locked;
+    if (source.transform) {
+      copy.transform = { ...source.transform };
+    }
     this.layers.splice(index + 1, 0, copy);
     this.activeLayerIndex = index + 1;
     return copy;
