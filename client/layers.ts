@@ -3,6 +3,15 @@ export type BlendMode =
   | "soft-light" | "hard-light" | "darken" | "lighten"
   | "color-dodge" | "color-burn";
 
+export interface LayerTransform {
+  x: number;            // document-space X (top-left of bounding box)
+  y: number;            // document-space Y
+  width: number;        // display width in document pixels
+  height: number;       // display height in document pixels
+  sourceWidth: number;  // original image width
+  sourceHeight: number; // original image height
+}
+
 export interface Layer {
   id: string;
   name: string;
@@ -13,6 +22,9 @@ export interface Layer {
   blendMode: BlendMode;
   locked: boolean;
   deletable: boolean;
+  /** When set, layer is a positioned/scaled object rather than full-canvas pixels. */
+  transform?: LayerTransform;
+  revision: number;
 }
 
 const MAX_LAYERS = 20;
@@ -38,11 +50,11 @@ export class LayerManager {
     return this.layers[this.activeLayerIndex];
   }
 
-  addLayer(name: string): Layer {
+  addLayer(name: string, opts?: { canvasWidth?: number; canvasHeight?: number }): Layer {
     if (this.layers.length >= MAX_LAYERS) {
       throw new Error(`Maximum ${MAX_LAYERS} layers`);
     }
-    const layer = this.createLayer(name, true);
+    const layer = this.createLayer(name, true, opts?.canvasWidth, opts?.canvasHeight);
     this.layers.push(layer);
     this.activeLayerIndex = this.layers.length - 1;
     return layer;
@@ -97,8 +109,27 @@ export class LayerManager {
     }
   }
 
-  private createLayer(name: string, deletable: boolean): Layer {
+  rasterizeLayer(index: number): void {
+    const layer = this.layers[index];
+    if (!layer?.transform) return;
+
+    const t = layer.transform;
     const canvas = new OffscreenCanvas(this.docWidth, this.docHeight);
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(layer.canvas, t.x, t.y, t.width, t.height);
+
+    layer.canvas = canvas;
+    layer.ctx = ctx;
+    layer.transform = undefined;
+  }
+
+  bumpRevision(layerId: string): void {
+    const layer = this.layers.find(l => l.id === layerId);
+    if (layer) layer.revision++;
+  }
+
+  private createLayer(name: string, deletable: boolean, w?: number, h?: number): Layer {
+    const canvas = new OffscreenCanvas(w ?? this.docWidth, h ?? this.docHeight);
     const ctx = canvas.getContext("2d")!;
     return {
       id: crypto.randomUUID(),
@@ -110,6 +141,7 @@ export class LayerManager {
       blendMode: "normal",
       locked: false,
       deletable,
+      revision: 0,
     };
   }
 

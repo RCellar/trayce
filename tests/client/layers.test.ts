@@ -163,6 +163,27 @@ describe("LayerManager — merge down", () => {
   });
 });
 
+describe("revision tracking", () => {
+  test("new layers start at revision 0", () => {
+    const lm = new LayerManager(100, 100, "white");
+    expect(lm.layers[0].revision).toBe(0);
+  });
+
+  test("bumpRevision increments revision counter", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const layer = lm.addLayer("Test");
+    lm.bumpRevision(layer.id);
+    expect(layer.revision).toBe(1);
+    lm.bumpRevision(layer.id);
+    expect(layer.revision).toBe(2);
+  });
+
+  test("bumpRevision is no-op for unknown id", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.bumpRevision("nonexistent"); // should not throw
+  });
+});
+
 describe("LayerManager — blendToComposite", () => {
   test("maps all blend modes", () => {
     const lm = new LayerManager(100, 100, "white");
