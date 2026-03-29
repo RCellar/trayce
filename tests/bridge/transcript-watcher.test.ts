@@ -294,6 +294,33 @@ describe("TranscriptWatcher", () => {
   });
 });
 
+describe("partial line handling", () => {
+  test("does not lose entries split across reads", async () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    const entries: TranscriptEntry[] = [];
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (e) => entries.push(e));
+
+    // Write first half of a JSONL line (incomplete — no newline)
+    const fullLine = USER_MSG;
+    const half = fullLine.slice(0, Math.floor(fullLine.length / 2));
+    writeFileSync(TEST_FILE, half);
+
+    // Read — should get nothing (incomplete line)
+    watcher.readNewEntries();
+    expect(entries.length).toBe(0);
+
+    // Append the second half + newline
+    appendFileSync(TEST_FILE, fullLine.slice(Math.floor(fullLine.length / 2)) + "\n");
+
+    // Read again — now should get the complete entry
+    watcher.readNewEntries();
+    expect(entries.length).toBe(1);
+    expect(entries[0].content).toBe("Hello Claude");
+
+    watcher.stop();
+  });
+});
+
 describe("TranscriptWatcher rediscovery", () => {
   // Use a unique cwd so discoverTranscriptPath finds our test files
   // in ~/.claude/projects/{encoded-cwd}/
@@ -496,6 +523,32 @@ describe("TranscriptWatcher subagent tracking", () => {
     // No subagent usage should be emitted (only main transcript usage, if any)
     const subagentUsage = usageUpdates.filter((u) => u.model !== "claude-opus-4-6");
     expect(subagentUsage).toHaveLength(0);
+  });
+
+  test("does not lose subagent entries split across reads", async () => {
+    const subFile = join(SUBAGENTS_DIR, "agent-partial.jsonl");
+    const fullLine = mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200);
+    const half = fullLine.slice(0, Math.floor(fullLine.length / 2));
+
+    writeFileSync(subFile, half);
+
+    const usageUpdates: any[] = [];
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    watcher.readNewEntries();
+
+    // No complete line yet — should get nothing from the subagent file
+    const beforeCount = usageUpdates.filter((u) => u.model === "claude-sonnet-4-6").length;
+    expect(beforeCount).toBe(0);
+
+    // Append the second half + newline
+    appendFileSync(subFile, fullLine.slice(Math.floor(fullLine.length / 2)) + "\n");
+    watcher.readNewEntries();
+
+    // Now the complete entry should be emitted
+    const afterCount = usageUpdates.filter((u) => u.model === "claude-sonnet-4-6").length;
+    expect(afterCount).toBe(1);
+
+    watcher.stop();
   });
 
   test("emits transcript entries from subagent files", () => {
