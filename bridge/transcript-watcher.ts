@@ -152,15 +152,21 @@ export class TranscriptWatcher {
         }
 
         if (totalRead > 0) {
-          this.offset += totalRead;
-
           const text = Buffer.concat(buffers).toString("utf-8");
-          const lines = text.split("\n");
+          const lastNewline = text.lastIndexOf("\n");
 
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            this.parseLine(trimmed);
+          if (lastNewline === -1) {
+            // No complete line yet — don't advance offset, retry next poll
+          } else {
+            const completeBytes = Buffer.byteLength(text.slice(0, lastNewline + 1), "utf-8");
+            this.offset += completeBytes;
+
+            const completeText = text.slice(0, lastNewline + 1);
+            for (const line of completeText.split("\n")) {
+              const trimmed = line.trim();
+              if (!trimmed) continue;
+              this.parseLine(trimmed);
+            }
           }
         }
       } finally {
@@ -217,10 +223,18 @@ export class TranscriptWatcher {
 
         if (totalRead === 0) continue;
 
-        this.subagentOffsets.set(file, currentOffset + totalRead);
-
         const text = Buffer.concat(buffers).toString("utf-8");
-        for (const line of text.split("\n")) {
+        const lastNewline = text.lastIndexOf("\n");
+
+        if (lastNewline === -1) {
+          continue;
+        }
+
+        const completeBytes = Buffer.byteLength(text.slice(0, lastNewline + 1), "utf-8");
+        this.subagentOffsets.set(file, currentOffset + completeBytes);
+
+        const completeText = text.slice(0, lastNewline + 1);
+        for (const line of completeText.split("\n")) {
           const trimmed = line.trim();
           if (!trimmed) continue;
           this.parseLine(trimmed);
