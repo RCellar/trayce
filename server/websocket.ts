@@ -35,7 +35,7 @@ export class WebSocketHub {
   private readonly browserWatchSession = new Map<string, string>();
   private readonly sessionBuffers = new Map<string, string[]>();
   private readonly sessionUsage = new Map<string, SessionUsage>();
-  private static readonly BUFFERED_TYPES = new Set(["transcript-entry", "response", "transcript-status"]);
+  private static readonly BUFFERED_TYPES = new Set(["transcript-entry", "response", "transcript-status", "canvas-push"]);
 
   constructor(
     private readonly registry: SessionRegistry,

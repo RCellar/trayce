@@ -689,7 +689,7 @@ describe("transcript buffering", () => {
     expect(msgs).toHaveLength(0);
   });
 
-  it("does not buffer canvas-push messages", async () => {
+  it("buffers canvas-push messages", async () => {
     const { hub } = makeFixture();
     const bridge = bridgeWs();
     hub.addBridge(bridge as any);
@@ -705,7 +705,7 @@ describe("transcript buffering", () => {
     await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
 
     const pushMsgs = allSentOfType(browser, "canvas-push");
-    expect(pushMsgs).toHaveLength(0);
+    expect(pushMsgs).toHaveLength(1);
   });
 
   it("replays correct buffer when browser switches sessions", async () => {
@@ -913,5 +913,35 @@ describe("submit without bridge", () => {
     const msgs = browser.sent.map(s => JSON.parse(s));
     const ack = msgs.find((m: any) => m.type === "ack");
     expect(ack.status).toBe("delivered");
+  });
+});
+
+// -- canvas-push buffering --
+
+describe("canvas-push buffering", () => {
+  it("replays canvas-push to browsers that watch-session after the push", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    const browser = browserWs();
+    hub.addBridge(bridge as any);
+    hub.addBrowser(browser as any);
+
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "register", sessionId: "s1", label: "test",
+    }));
+
+    // Bridge sends canvas-push before browser watches
+    await hub.handleMessage(bridge as any, JSON.stringify({
+      type: "canvas-push", image: "base64data", label: "test-image",
+    }));
+
+    // Browser starts watching — should get the buffered push
+    await hub.handleMessage(browser as any, JSON.stringify({
+      type: "watch-session", sessionId: "s1",
+    }));
+
+    const pushMsgs = allSentOfType(browser, "canvas-push");
+    expect(pushMsgs.length).toBe(1);
+    expect(pushMsgs[0].label).toBe("test-image");
   });
 });
