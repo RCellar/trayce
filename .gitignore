@@ -2,6 +2,8 @@ node_modules/
 dist/
 .superpowers/
 .worktrees/
+.claude/
+docs-vault/
 /tmp/trayce/
 *.log
 .mcp.json
