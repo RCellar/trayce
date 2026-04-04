@@ -8,7 +8,7 @@ import { WebSocketHub, type WsData } from "./websocket";
 import { createHttpHandler } from "./http";
 
 const config = getConfig(Bun.env);
-const token = config.noAuth ? "" : generateToken();
+const token = config.noAuth ? "" : (config.token ?? generateToken());
 
 const registry = new SessionRegistry();
 const submissions = new SubmissionStore(config.submissionsDir, config.maxSubmissionBytes);
