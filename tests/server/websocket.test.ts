@@ -744,7 +744,7 @@ describe("transcript buffering", () => {
 // -- Bridge rate limiting --
 
 describe("bridge rate limiting", () => {
-  it("rate-limits bridge-routed messages", async () => {
+  it("rate-limits canvas-push messages but not transcript entries", async () => {
     const { hub } = makeFixture({ rateLimitPerMinute: 3 });
     const browser = browserWs();
     const bridge = bridgeWs();
@@ -759,20 +759,29 @@ describe("bridge rate limiting", () => {
       type: "watch-session", sessionId: "s1",
     }));
 
-    // Send 3 transcript entries — should all arrive
-    for (let i = 0; i < 3; i++) {
+    // Send 4 transcript entries — all should arrive (not rate-limited)
+    for (let i = 0; i < 4; i++) {
       await hub.handleMessage(bridge as any, JSON.stringify({
         type: "transcript-entry", entry: { content: `msg ${i}` },
       }));
     }
     const delivered = allSentOfType(browser, "transcript-entry");
-    expect(delivered.length).toBe(3);
+    expect(delivered.length).toBe(4);
 
-    // 4th should be dropped
+    // Send 3 canvas-push messages — should all arrive
+    for (let i = 0; i < 3; i++) {
+      await hub.handleMessage(bridge as any, JSON.stringify({
+        type: "canvas-push", image: "abc", label: `push ${i}`,
+      }));
+    }
+    const pushes = allSentOfType(browser, "canvas-push");
+    expect(pushes.length).toBe(3);
+
+    // 4th canvas-push should be dropped
     await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "transcript-entry", entry: { content: "blocked" },
+      type: "canvas-push", image: "abc", label: "blocked",
     }));
-    const afterLimit = allSentOfType(browser, "transcript-entry");
+    const afterLimit = allSentOfType(browser, "canvas-push");
     expect(afterLimit.length).toBe(3);
   });
 });

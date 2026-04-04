@@ -192,11 +192,16 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 function startTranscriptWatcher(ws: WebSocket): void {
   // On reconnect, reuse the previously discovered path if it still exists.
   // Otherwise: birthtime correlation (cwd-independent), then cwd-based fallback.
-  const transcriptPath =
-    (lastTranscriptPath && existsSync(lastTranscriptPath) ? lastTranscriptPath : null)
-    ?? discoverTranscriptByBirthtime(bridgeStartTime)
-    ?? discoverTranscriptPath(projectDir);
-  console.error(`[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"}`);
+  let discoveredByBirthtime = false;
+  let transcriptPath = lastTranscriptPath && existsSync(lastTranscriptPath) ? lastTranscriptPath : null;
+  if (!transcriptPath) {
+    transcriptPath = discoverTranscriptByBirthtime(bridgeStartTime);
+    if (transcriptPath) discoveredByBirthtime = true;
+  }
+  if (!transcriptPath) {
+    transcriptPath = discoverTranscriptPath(projectDir);
+  }
+  console.error(`[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"} birthtime=${discoveredByBirthtime}`);
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
     return;
@@ -232,6 +237,7 @@ function startTranscriptWatcher(ws: WebSocket): void {
       if (ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: "usage-update", usage }));
     },
+    discoveredByBirthtime,
   );
 
   transcriptWatcher.start();

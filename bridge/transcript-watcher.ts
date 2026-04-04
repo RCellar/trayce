@@ -55,13 +55,15 @@ export class TranscriptWatcher {
   private subagentDir: string | null = null;
   private subagentOffsets = new Map<string, number>();
   private confirmed = false;
+  private discoveredByBirthtime = false;
 
-  constructor(filePath: string, cwd: string, startTime: number, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void) {
+  constructor(filePath: string, cwd: string, startTime: number, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void, discoveredByBirthtime = false) {
     this.filePath = filePath;
     this.cwd = cwd;
     this.startTime = startTime;
     this.onEntry = onEntry;
     this.onUsage = onUsage;
+    this.discoveredByBirthtime = discoveredByBirthtime;
   }
 
   start(): void {
@@ -122,8 +124,14 @@ export class TranscriptWatcher {
     // found nothing. If birthtime returns the current file, that confirms
     // we're watching the right one — do NOT fall through (avoids oscillation
     // between birthtime's pick and cwd's pick).
-    const newPath = discoverTranscriptByBirthtime(this.startTime)
-      ?? discoverTranscriptPath(this.cwd);
+    const birthtimePath = discoverTranscriptByBirthtime(this.startTime);
+    if (birthtimePath && birthtimePath === this.filePath) {
+      // Birthtime confirms we're already watching the right file
+      this.discoveredByBirthtime = true;
+      this.confirmed = true;
+      return;
+    }
+    const newPath = birthtimePath ?? discoverTranscriptPath(this.cwd);
     if (!newPath || newPath === this.filePath) return;
 
     console.error(`[trayce watcher] switching transcript: ${this.filePath} -> ${newPath}`);
@@ -131,6 +139,7 @@ export class TranscriptWatcher {
     this.offset = 0;
     this.subagentDir = null;
     this.subagentOffsets.clear();
+    if (birthtimePath) this.discoveredByBirthtime = true;
     this.startFileWatcher();
     this.readNewEntries();
   }
@@ -169,7 +178,7 @@ export class TranscriptWatcher {
               if (!trimmed) continue;
               this.parseLine(trimmed);
             }
-            this.confirmed = true;
+            if (this.discoveredByBirthtime) this.confirmed = true;
           }
         }
       } finally {

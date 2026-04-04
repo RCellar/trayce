@@ -16,9 +16,12 @@ COPY --from=build /app/dist/client ./dist/client
 COPY server/ ./server/
 COPY package.json .
 
-ENV TRAYCE_HOST=0.0.0.0
-ENV TRAYCE_PORT=9740
+RUN mkdir -p /tmp/trayce/submissions && chown -R bun:bun /tmp/trayce
+
 EXPOSE 9740
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 --start-period=5s \
+  CMD bun --eval "fetch('http://localhost:9740').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 USER bun
 CMD ["bun", "run", "server/index.ts"]

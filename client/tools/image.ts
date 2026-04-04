@@ -1,5 +1,5 @@
 export interface ImageToolConfig {
-  onImport: (img: ImageBitmap) => void;
+  onImport: (img: ImageBitmap, name: string) => void;
 }
 
 export class ImageTool {
@@ -25,7 +25,7 @@ export class ImageTool {
 
     try {
       const bitmap = await createImageBitmap(file);
-      this.config.onImport(bitmap);
+      this.config.onImport(bitmap, `Image: ${file.name}`);
     } catch (err) {
       console.error("[trayce] Failed to load image:", err);
     }
@@ -46,7 +46,7 @@ export class ImageTool {
 
           try {
             const bitmap = await createImageBitmap(blob);
-            this.config.onImport(bitmap);
+            this.config.onImport(bitmap, "Pasted image");
           } catch (err) {
             console.error("[trayce] Failed to paste image:", err);
           }
@@ -69,7 +69,7 @@ export class ImageTool {
 
       try {
         const bitmap = await createImageBitmap(file);
-        this.config.onImport(bitmap);
+        this.config.onImport(bitmap, `Image: ${file.name}`);
       } catch (err) {
         console.error("[trayce] Failed to load dropped image:", err);
       }
