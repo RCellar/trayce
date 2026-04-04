@@ -18,11 +18,16 @@ bun test                       # Run all tests
 bun test tests/server/auth.test.ts  # Run a single test file
 bash scripts/start.sh          # Start server daemonized (reuses existing)
 bash scripts/stop.sh           # Stop daemonized server
+bash scripts/build-image.sh    # Build container image
 ```
 
 `build:client` bundles `client/app.ts` and copies `index.html` + `style.css` to `dist/client/`.
 
 Setup for a project: `bash scripts/setup.sh --label my-project` then launch Claude with `claude --dangerously-load-development-channels server:trayce`.
+
+## Plugin
+
+`plugin/` contains a Claude Code plugin with skills (`trayce`, `trayce-setup`, `trayce-stop`) that teach Claude how to use, set up, and stop the canvas. The plugin is distributed alongside the project and configured via `scripts/setup.sh`.
 
 ## Architecture
 
@@ -30,8 +35,8 @@ Three independent processes cooperate via WebSocket:
 
 1. **Server** (`server/`) — Bun HTTP + WebSocket server (long-lived, port 9740). Serves the client SPA, manages WebSocket connections from both browsers and bridges, stores submissions as PNG files on disk (`/tmp/trayce/submissions/`), and writes a state file (`/tmp/trayce/state.json`) with PID/port/token.
 
-2. **Bridge** (`bridge/`) — MCP Channel bridge, spawned per Claude Code session. Reads `state.json` to discover the server, connects via WebSocket, registers its session, and forwards submissions as `notifications/claude/channel` to Claude. Also watches the Claude session's transcript file for live updates and relays usage/cost data.
-   - `index.ts` — MCP server setup, WebSocket connection, message routing, permission request forwarding
+2. **Bridge** (`bridge/`) — MCP Channel bridge, spawned per Claude Code session. Reads `state.json` to discover the server, connects via WebSocket, registers its session, and forwards submissions as `notifications/claude/channel` to Claude. Also watches the Claude session's transcript file for live updates and relays usage/cost data. Exposes a `push_image` MCP tool that lets Claude send images (by file path or base64) back to the browser canvas as new layers.
+   - `index.ts` — MCP server setup, `push_image` tool, WebSocket connection, message routing, permission request forwarding
    - `transcript-watcher.ts` — Watches Claude's JSONL transcript for tool calls, responses, and usage data; emits parsed entries to the server
 
 3. **Client** (`client/`) — Browser painting app (PixiJS + perfect-freehand, vanilla TS). Bundled to `dist/client/` with `bun build`. No framework — DOM manipulation via class-based UI components.
@@ -86,6 +91,12 @@ Tests use Bun's built-in test runner. Test files mirror source structure under `
 - `tests/client/` — Client module tests (layers, stroke, connection, history, persistence)
 - `tests/e2e/` — End-to-end submission flow
 
-## Spec
+## Specs
 
-Full design document: `docs/superpowers/specs/2026-03-23-trayce-design.md`
+Design documents in `docs/superpowers/specs/`:
+- `2026-03-23-trayce-design.md` — Original full design document
+- `2026-03-27-bidirectional-and-panels-design.md` — Bidirectional communication and side panels
+- `2026-03-27-ui-redesign.md` — UI overhaul
+- `2026-03-27-image-import.md` — Image import tool
+- `2026-03-27-image-layer-transforms.md` — Image layer transform controls
+- `2026-03-27-trayce-skill.md` — Claude Code plugin/skill system
