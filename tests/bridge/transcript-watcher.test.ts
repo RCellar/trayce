@@ -295,17 +295,34 @@ describe("TranscriptWatcher", () => {
 });
 
 describe("rediscovery bounds", () => {
-  test("stops rediscovering after confirming transcript", async () => {
+  test("stops rediscovering after confirming transcript via birthtime", async () => {
     mkdirSync(TEST_DIR, { recursive: true });
     writeFileSync(TEST_FILE, USER_MSG + "\n");
 
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (e) => entries.push(e));
+    // Pass discoveredByBirthtime=true to simulate birthtime-confirmed discovery
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (e) => entries.push(e), undefined, true);
     watcher.start();
     await Bun.sleep(100);
 
     expect(entries.length).toBeGreaterThan(0);
     expect((watcher as any).confirmed).toBe(true);
+
+    watcher.stop();
+  });
+
+  test("does not confirm transcript discovered via cwd fallback", async () => {
+    mkdirSync(TEST_DIR, { recursive: true });
+    writeFileSync(TEST_FILE, USER_MSG + "\n");
+
+    const entries: TranscriptEntry[] = [];
+    // discoveredByBirthtime=false (default) — cwd fallback
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (e) => entries.push(e));
+    watcher.start();
+    await Bun.sleep(100);
+
+    expect(entries.length).toBeGreaterThan(0);
+    expect((watcher as any).confirmed).toBe(false);
 
     watcher.stop();
   });
@@ -368,7 +385,7 @@ describe("TranscriptWatcher rediscovery", () => {
     expect(discovered).toBe(newFile);
   });
 
-  test("watcher stays on confirmed file and does not switch after parsing entries", async () => {
+  test("watcher stays on birthtime-confirmed file and does not switch", async () => {
     const oldFile = join(projectDir, "old-session.jsonl");
     writeFileSync(oldFile, USER_MSG + "\n");
 
@@ -377,7 +394,8 @@ describe("TranscriptWatcher rediscovery", () => {
 
     const startTime = Date.now();
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) => entries.push(entry));
+    // discoveredByBirthtime=true — simulates birthtime-confirmed discovery
+    const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) => entries.push(entry), undefined, true);
     watcher.start();
 
     // Should have read the old file and set confirmed = true
@@ -397,6 +415,35 @@ describe("TranscriptWatcher rediscovery", () => {
     // confirmed prevents rediscovery: new file content must NOT appear
     const hasNewContent = entries.some((e) => e.content === "Hi! How can I help?");
     expect(hasNewContent).toBe(false);
+  });
+
+  test("watcher switches from cwd-fallback file to birthtime-matched file", async () => {
+    const oldFile = join(projectDir, "old-session.jsonl");
+    writeFileSync(oldFile, USER_MSG + "\n");
+
+    // Ensure old file's birthtime is clearly before startTime
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    const startTime = Date.now();
+    const entries: TranscriptEntry[] = [];
+    // discoveredByBirthtime=false — cwd fallback, should allow rediscovery
+    const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) => entries.push(entry));
+    watcher.start();
+
+    expect(entries.length).toBeGreaterThanOrEqual(1);
+    expect((watcher as any).confirmed).toBe(false);
+
+    // Simulate the real transcript appearing — birthtime ≈ startTime
+    const newFile = join(projectDir, "current-session.jsonl");
+    writeFileSync(newFile, ASSISTANT_MSG + "\n");
+
+    // Wait longer than the rediscovery timer (3s) — watcher SHOULD switch
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+
+    watcher.stop();
+
+    const hasNewContent = entries.some((e) => e.content === "Hi! How can I help?");
+    expect(hasNewContent).toBe(true);
   });
 
   test("discoverTranscriptByBirthtime finds file created near given timestamp", () => {

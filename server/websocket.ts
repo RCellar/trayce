@@ -151,8 +151,11 @@ export class WebSocketHub {
     }
 
     const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status", "usage-update", "permission-request"];
+    // Transcript/usage messages are high-volume and should not be rate-limited;
+    // only rate-limit actionable messages like canvas-push and permission-request.
+    const RATE_LIMITED_BRIDGE_TYPES = new Set(["canvas-push", "permission-request"]);
     if (ws.data.kind === "bridge" && BRIDGE_ROUTED_TYPES.includes(msg.type)) {
-      if (!this.checkRateLimit(ws.data.id)) return;
+      if (RATE_LIMITED_BRIDGE_TYPES.has(msg.type) && !this.checkRateLimit(ws.data.id)) return;
       const sessionId = ws.data.sessionId;
       if (!sessionId) return;
       const payload = JSON.stringify({ ...msg, sessionId });
