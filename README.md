@@ -189,6 +189,8 @@ Choose from presets (1920x1080, 2560x1440, 3840x2160, 4096x4096) via the resolut
 
 ## Server Management
 
+### Bare Metal
+
 ```bash
 # Start (daemonized, reuses existing instance if running)
 bash scripts/start.sh
@@ -202,29 +204,45 @@ bun run dev
 
 The server writes its state to `/tmp/trayce/state.json` (PID, port, token). The bridge reads this file automatically to discover the server — no manual token configuration needed.
 
+### Container Deployment
+
+The server + client SPA run inside a container managed by compose. Bridges remain on the host as MCP subprocesses. Auto-detects podman or docker.
+
+```bash
+# Start (builds image, waits for health check)
+bash scripts/container-start.sh
+
+# Start with token auth
+TRAYCE_TOKEN=mysecret bash scripts/container-start.sh
+
+# Stop
+bash scripts/container-stop.sh
+```
+
+Submissions are bind-mounted at `/tmp/trayce/submissions` on both host and container so PNG paths Claude receives are valid on the host.
+
+To connect bridges to the containerized server:
+
+```bash
+bash scripts/setup-bridge.sh --token mysecret
+# Or with custom host/port:
+bash scripts/setup-bridge.sh --host 10.0.0.5 --port 8080 --token mysecret
+```
+
+See `bash scripts/setup-bridge.sh --help` for all options.
+
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TRAYCE_HOST` | `0.0.0.0` | Bind address |
 | `TRAYCE_PORT` | `9740` | Server port |
-| `TRAYCE_NO_AUTH` | `false` | Disable token authentication |
+| `TRAYCE_TOKEN` | *(none)* | Auth token (if unset, auto-generated for bare metal; no auth for container) |
+| `TRAYCE_NO_AUTH` | `false` | Disable token authentication entirely |
 | `TRAYCE_SUBMISSIONS_DIR` | `/tmp/trayce/submissions` | Where PNGs are stored |
 | `TRAYCE_STATE_FILE` | `/tmp/trayce/state.json` | Server state file path |
 
-## Container Deployment
-
-Only the server runs in the container. The bridge must run on the host (Claude Code spawns it as a subprocess).
-
-```bash
-# Build image (auto-detects docker or podman)
-bash scripts/build-image.sh
-
-# Run with docker compose / podman-compose
-docker compose up -d
-```
-
-The volume mount `/tmp/trayce:/tmp/trayce` is required so that PNGs written by the containerized server are accessible to the host-side bridge and Claude.
+Token priority: `TRAYCE_NO_AUTH=true` (no auth) > `TRAYCE_TOKEN` (explicit token) > auto-generate.
 
 ## Development
 
@@ -245,7 +263,7 @@ trayce/
     brushes/       Brush implementations (pen, pencil, marker, watercolor, highlighter, eraser)
     tools/         Non-brush tools (select, lasso, shapes, arrow, text, image)
   tests/           Bun test runner (mirrors source structure)
-  scripts/         start.sh, stop.sh, setup.sh, build-image.sh
+  scripts/         start.sh, stop.sh, setup.sh, container-start.sh, container-stop.sh, setup-bridge.sh
   dist/client/     Built client output (gitignored)
 ```
 
@@ -281,8 +299,8 @@ Both directions also exchange `heartbeat` messages every 10 seconds. Connections
 
 ## Security
 
-- **Token auth** — random token generated on each server start, required for all WebSocket connections
-- **Token discovery** — browsers get the token from the URL; bridges read it from `state.json`
+- **Token auth** — random token generated on each server start (or set via `TRAYCE_TOKEN`), required for all WebSocket connections
+- **Token discovery** — browsers get the token from the URL; bridges read it from `state.json` or `TRAYCE_TOKEN` env var
 - **Rate limiting** — 10 submissions per minute per client
 - **Size limits** — 20 MB max per submission, 30 MB max WebSocket payload
 - **Submission cleanup** — PNGs are deleted after 1 hour; all submissions removed on shutdown

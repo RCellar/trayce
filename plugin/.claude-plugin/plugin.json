@@ -1,0 +1,9 @@
+{
+  "name": "trayce",
+  "description": "Canvas drawing tool for Claude Code — send and receive sketches via MCP Channels",
+  "version": "1.0.0",
+  "author": { "name": "RCellar" },
+  "repository": "https://github.com/RCellar/trayce",
+  "license": "MIT",
+  "keywords": ["skills", "canvas", "visual", "drawing", "sketch", "mcp"]
+}
