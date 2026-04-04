@@ -13,6 +13,7 @@ export interface Config {
   rateLimitPerMinute: number;
   transcriptBufferSize: number;
   noAuth: boolean;
+  token?: string;
 }
 
 const DEFAULTS: Config = {
@@ -61,6 +62,7 @@ export function getConfig(env: Record<string, string | undefined>): Config {
     stateFile: env.TRAYCE_STATE_FILE?.trim() || DEFAULTS.stateFile,
     clientDir: env.TRAYCE_CLIENT_DIR?.trim() || DEFAULTS.clientDir,
     noAuth: parseBool(env.TRAYCE_NO_AUTH),
+    token: env.TRAYCE_TOKEN?.trim() || undefined,
     maxSubmissionBytes: DEFAULTS.maxSubmissionBytes,
     maxWsPayloadBytes: DEFAULTS.maxWsPayloadBytes,
     submissionTtlMs: DEFAULTS.submissionTtlMs,

@@ -190,10 +190,34 @@ describe("getConfig — return type shape", () => {
       "host", "port", "submissionsDir", "stateFile", "clientDir",
       "maxSubmissionBytes", "maxWsPayloadBytes", "submissionTtlMs",
       "cleanupIntervalMs", "heartbeatIntervalMs", "heartbeatTimeoutMs",
-      "rateLimitPerMinute", "noAuth",
+      "rateLimitPerMinute", "noAuth", "transcriptBufferSize",
     ];
     for (const key of keys) {
       expect(cfg[key]).toBeDefined();
     }
+    // token is optional — just verify the key exists
+    expect("token" in cfg).toBe(true);
+  });
+});
+
+describe("getConfig — TRAYCE_TOKEN", () => {
+  test("token defaults to undefined", () => {
+    expect(getConfig(env()).token).toBeUndefined();
+  });
+
+  test("TRAYCE_TOKEN sets token", () => {
+    expect(getConfig(env({ TRAYCE_TOKEN: "mysecret" })).token).toBe("mysecret");
+  });
+
+  test("TRAYCE_TOKEN empty string results in undefined", () => {
+    expect(getConfig(env({ TRAYCE_TOKEN: "" })).token).toBeUndefined();
+  });
+
+  test("TRAYCE_TOKEN whitespace-only results in undefined", () => {
+    expect(getConfig(env({ TRAYCE_TOKEN: "   " })).token).toBeUndefined();
+  });
+
+  test("TRAYCE_TOKEN is trimmed", () => {
+    expect(getConfig(env({ TRAYCE_TOKEN: "  abc123  " })).token).toBe("abc123");
   });
 });
