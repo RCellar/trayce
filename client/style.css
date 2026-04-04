@@ -198,6 +198,12 @@ body {
   justify-content: center;
 }
 
+#toolbar button svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 #toolbar button:hover {
   background: var(--accent-dim);
   color: var(--text);
