@@ -16,7 +16,7 @@ COPY --from=build /app/dist/client ./dist/client
 COPY server/ ./server/
 COPY package.json .
 
-RUN mkdir -p /tmp/trayce/submissions
+RUN mkdir -p /tmp/trayce/submissions && chown -R bun:bun /tmp/trayce
 
 EXPOSE 9740
 
