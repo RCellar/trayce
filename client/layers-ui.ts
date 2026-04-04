@@ -5,6 +5,8 @@ export interface LayersUIConfig {
   onVisibilityToggle: (index: number) => void;
   onAddLayer: () => void;
   onDeleteLayer: (index: number) => void;
+  onMoveLayer?: (fromIndex: number, toIndex: number) => void;
+  onRasterize?: (index: number) => void;
 }
 
 const BLEND_OPTIONS: BlendMode[] = [
@@ -64,15 +66,64 @@ export class LayersUI {
       name.className = "name";
       name.textContent = layer.name;
       if (!layer.visible) name.style.opacity = "0.4";
+      if (layer.transform) {
+        const badge = document.createElement("span");
+        badge.textContent = " img";
+        badge.style.cssText = "font-size:9px;opacity:0.5;font-style:italic;";
+        name.appendChild(badge);
+      }
 
       // Blend mode
       const blend = document.createElement("span");
       blend.className = "blend-mode";
       blend.textContent = layer.blendMode === "normal" ? "" : layer.blendMode;
 
-      // Delete button (only for deletable layers)
+      // Actions
       const actions = document.createElement("span");
       actions.className = "layer-actions";
+
+      // Move up/down buttons (up = higher z-order = higher array index)
+      const lastIndex = this.layerManager.layers.length - 1;
+      if (this.config.onMoveLayer && i > 0) {
+        const downBtn = document.createElement("span");
+        downBtn.className = "layer-move";
+        downBtn.textContent = "\u25BC"; // down arrow
+        downBtn.title = "Move down";
+        downBtn.style.cssText = "cursor:pointer;margin-right:2px;opacity:0.5;font-size:9px;";
+        downBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.config.onMoveLayer!(i, i - 1);
+        });
+        actions.appendChild(downBtn);
+      }
+      if (this.config.onMoveLayer && i < lastIndex) {
+        const upBtn = document.createElement("span");
+        upBtn.className = "layer-move";
+        upBtn.textContent = "\u25B2"; // up arrow
+        upBtn.title = "Move up";
+        upBtn.style.cssText = "cursor:pointer;margin-right:4px;opacity:0.5;font-size:9px;";
+        upBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.config.onMoveLayer!(i, i + 1);
+        });
+        actions.appendChild(upBtn);
+      }
+
+      // Rasterize button for transform layers
+      if (layer.transform && this.config.onRasterize) {
+        const rastBtn = document.createElement("span");
+        rastBtn.className = "layer-rasterize";
+        rastBtn.textContent = "\u25A3";
+        rastBtn.title = "Rasterize (flatten to pixels)";
+        rastBtn.style.cssText = "cursor:pointer;margin-right:4px;opacity:0.6;";
+        rastBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.config.onRasterize!(i);
+        });
+        actions.appendChild(rastBtn);
+      }
+
+      // Delete button (only for deletable layers)
       if (layer.deletable) {
         const delBtn = document.createElement("span");
         delBtn.className = "layer-delete";

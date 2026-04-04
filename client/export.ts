@@ -9,7 +9,12 @@ export async function flattenToPng(layerManager: LayerManager): Promise<Blob> {
     if (!layer.visible) continue;
     ctx.globalAlpha = layer.opacity / 100;
     ctx.globalCompositeOperation = layerManager.blendToComposite(layer.blendMode);
-    ctx.drawImage(layer.canvas, 0, 0);
+    if (layer.transform) {
+      const t = layer.transform;
+      ctx.drawImage(layer.canvas, t.x, t.y, t.width, t.height);
+    } else {
+      ctx.drawImage(layer.canvas, 0, 0);
+    }
   }
 
   ctx.globalAlpha = 1;
@@ -28,6 +33,8 @@ export function isCanvasBlank(layerManager: LayerManager): boolean {
   // If user-created layers exist with visible content, not blank
   for (let i = 1; i < layers.length; i++) {
     if (!layers[i].visible) continue;
+    // Transform layers always have content
+    if (layers[i].transform) return false;
     const ctx = layers[i].ctx;
     // Sample a grid of points for non-transparent pixels
     const stepX = Math.max(1, Math.floor(docWidth / 20));
