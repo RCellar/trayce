@@ -100,6 +100,13 @@ if [ -z "$LABEL" ]; then
   LABEL="$(basename "$(pwd)")"
 fi
 
+# Require jq for JSON manipulation
+if ! command -v jq &>/dev/null; then
+  echo "Error: jq is required for setup-bridge.sh."
+  echo "Install jq and try again."
+  exit 1
+fi
+
 # Build env object for jq
 ENV_JSON=$(jq -n \
   --arg host "$HOST" \
@@ -118,16 +125,10 @@ TRAYCE_ENTRY=$(jq -n \
   '{command: $cmd, args: ["run", $bridge], env: $env}')
 
 # Write or merge into MCP config
-if command -v jq &>/dev/null; then
-  if [ -f "$MCP_FILE" ]; then
-    jq --argjson entry "$TRAYCE_ENTRY" '.mcpServers.trayce = $entry' "$MCP_FILE" > "$MCP_FILE.tmp" && mv "$MCP_FILE.tmp" "$MCP_FILE"
-  else
-    echo "{\"mcpServers\":{\"trayce\":$TRAYCE_ENTRY}}" | jq . > "$MCP_FILE"
-  fi
+if [ -f "$MCP_FILE" ]; then
+  jq --argjson entry "$TRAYCE_ENTRY" '.mcpServers.trayce = $entry' "$MCP_FILE" > "$MCP_FILE.tmp" && mv "$MCP_FILE.tmp" "$MCP_FILE"
 else
-  echo "Error: jq is required for setup-bridge.sh."
-  echo "Install jq and try again."
-  exit 1
+  echo "{\"mcpServers\":{\"trayce\":$TRAYCE_ENTRY}}" | jq . > "$MCP_FILE"
 fi
 
 echo ""
