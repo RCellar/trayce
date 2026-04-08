@@ -1,4 +1,4 @@
-import type { LayerManager, BlendMode } from "./layers";
+import type { LayerManager } from "./layers";
 
 export interface LayersUIConfig {
   onActiveChange: (index: number) => void;
@@ -8,12 +8,6 @@ export interface LayersUIConfig {
   onMoveLayer?: (fromIndex: number, toIndex: number) => void;
   onRasterize?: (index: number) => void;
 }
-
-const BLEND_OPTIONS: BlendMode[] = [
-  "normal", "multiply", "screen", "overlay",
-  "soft-light", "hard-light", "darken", "lighten",
-  "color-dodge", "color-burn",
-];
 
 export class LayersUI {
   private container: HTMLElement;

@@ -27,7 +27,7 @@ import { UsageTab } from "./usage-tab";
 import { ThemeManager } from "./theme";
 import { FloatingPanel } from "./floating-panel";
 import { ImageTool } from "./tools/image";
-import { History, type Command } from "./history";
+import { History } from "./history";
 
 // -- State --
 
@@ -74,7 +74,6 @@ function updateTabTitle(): void {
 
 // -- DOM Elements --
 
-const dialog = document.getElementById("new-doc-dialog") as HTMLDialogElement;
 const canvasContainer = document.getElementById("canvas-container")!;
 const canvasInfo = document.getElementById("canvas-info")!;
 const sessionSelect = document.getElementById("session-select") as HTMLSelectElement;
@@ -85,9 +84,7 @@ const toolInfo = document.getElementById("tool-info")!;
 const layerInfo = document.getElementById("layer-info")!;
 
 let toolbar: Toolbar | null = null;
-let brushSettingsUI: BrushSettingsUI | null = null;
 let layersUI: LayersUI | null = null;
-let colorPicker: ColorPicker | null = null;
 let floatingPanel: FloatingPanel | null = null;
 
 // -- Initialize UI Components --
@@ -156,14 +153,14 @@ function initUIComponents(): void {
 
   const brushContainer = floatingPanel.getBrushContainer();
   if (brushContainer) {
-    brushSettingsUI = new BrushSettingsUI(brushContainer, brushParams, {
+    new BrushSettingsUI(brushContainer, brushParams, {
       onParamsChange: (params) => {
         brushParams = params;
         updateToolInfo();
       },
     });
 
-    colorPicker = new ColorPicker(brushContainer, {
+    new ColorPicker(brushContainer, {
       onColorChange: (color) => {
         brushParams.color = color;
       },
@@ -333,7 +330,6 @@ type DragMode = { type: "move"; offsetX: number; offsetY: number }
   | { type: "resize"; handle: HandleId; anchorX: number; anchorY: number; startW: number; startH: number };
 
 let transformDrag: DragMode | null = null;
-let transformSnapshot: { x: number; y: number; width: number; height: number } | null = null;
 
 const HANDLE_RADIUS_SCREEN = 6; // pixels in screen space
 
@@ -439,9 +435,6 @@ function handleTransformInput(t: import("./layers").LayerTransform, docX: number
   if (event === "start") {
     const zoom = canvasManager!.viewport.zoom;
 
-    // Save snapshot for undo
-    transformSnapshot = { x: t.x, y: t.y, width: t.width, height: t.height };
-
     // Check handles first (higher priority than move)
     const handle = getHandleAtPoint(t, docX, docY, zoom);
     if (handle) {
@@ -460,7 +453,6 @@ function handleTransformInput(t: import("./layers").LayerTransform, docX: number
 
     // Clicked outside — no interaction
     transformDrag = null;
-    transformSnapshot = null;
   }
 
   if (event === "move" && transformDrag) {
@@ -477,7 +469,6 @@ function handleTransformInput(t: import("./layers").LayerTransform, docX: number
 
   if (event === "end" && transformDrag) {
     transformDrag = null;
-    // transformSnapshot remains for undo (not yet integrated)
   }
 }
 
@@ -550,7 +541,6 @@ function initConnection(): void {
 
 function handleConnectionStatus(status: "connected" | "disconnected" | "reconnecting"): void {
   connectionStatus.className = `status ${status}`;
-  const dot = connectionStatus.querySelector(".dot")!;
   const text = connectionStatus.querySelector(".text")!;
 
   if (status === "connected") {

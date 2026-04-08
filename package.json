@@ -7,6 +7,7 @@
     "dev:client": "bun build client/app.ts --outdir dist/client --target browser --watch",
     "build:client": "bun build client/app.ts --outdir dist/client --minify --target browser && cp client/index.html client/style.css dist/client/",
     "start": "bun run server/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
     "build:image": "bash scripts/build-image.sh"
   },

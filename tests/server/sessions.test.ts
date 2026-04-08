@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "bun:test";
-import { SessionRegistry, type Session } from "../../server/sessions";
+import { SessionRegistry } from "../../server/sessions";
 
 let registry: SessionRegistry;
 

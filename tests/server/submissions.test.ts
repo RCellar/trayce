@@ -101,7 +101,7 @@ describe("cleanup", () => {
     const past = new Date(Date.now() - 2 * 60 * 60 * 1000);
     utimesSync(`${TEST_DIR}/notes.txt`, past, past);
 
-    const removed = await store.cleanup(60 * 60 * 1000);
+    await store.cleanup(60 * 60 * 1000);
     // Only the PNG should be considered (if old enough), notes.txt should be ignored
     expect(existsSync(`${TEST_DIR}/notes.txt`)).toBe(true);
   });

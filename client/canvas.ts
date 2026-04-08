@@ -70,6 +70,14 @@ export class CanvasManager {
     this.applyViewport();
   }
 
+  /** Force the Pixi renderer to re-measure its container. Used when surrounding
+   *  layout changes (e.g. side panel toggled) don't trip the ResizeObserver fast
+   *  enough, and re-centers the document for the new screen dimensions. */
+  resize(): void {
+    this.app.queueResize();
+    this.applyViewport();
+  }
+
   private applyViewport(): void {
     this.stage.scale.set(this.viewport.zoom);
     this.stage.position.set(

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from "bun:test";
-import { WebSocketHub, type WsMessage, type WsData } from "../../server/websocket";
+import { WebSocketHub, type WsData } from "../../server/websocket";
 import { SessionRegistry } from "../../server/sessions";
 import { SubmissionStore } from "../../server/submissions";
 import { getConfig, type Config } from "../../server/config";
