@@ -18,7 +18,7 @@ bun test                       # Run all tests
 bun test tests/server/auth.test.ts  # Run a single test file
 bash scripts/start.sh          # Start server daemonized (reuses existing)
 bash scripts/stop.sh           # Stop daemonized server
-bash scripts/build-image.sh    # Build container image
+bash scripts/build-image.sh    # Build container image (uses podman on this system)
 ```
 
 `build:client` bundles `client/app.ts` and copies `index.html` + `style.css` to `dist/client/`.
@@ -33,11 +33,11 @@ Setup for a project: `bash scripts/setup.sh --label my-project` then launch Clau
 
 Three independent processes cooperate via WebSocket:
 
-1. **Server** (`server/`) — Bun HTTP + WebSocket server (long-lived, port 9740). Serves the client SPA, manages WebSocket connections from both browsers and bridges, stores submissions as PNG files on disk (`/tmp/trayce/submissions/`), and writes a state file (`/tmp/trayce/state.json`) with PID/port/token.
+1. **Server** (`server/`) — Bun HTTP + WebSocket server (long-lived, port 9740). Serves the client SPA, manages WebSocket connections from both browsers and bridges, stores submissions as PNG files on disk (`/tmp/trayce/submissions/`), and writes a state file (`/tmp/trayce/state.json`) with PID/port/token. `state.json` is the discovery mechanism — bridges and tooling read it to find the running server and auth token.
 
 2. **Bridge** (`bridge/`) — MCP Channel bridge, spawned per Claude Code session. Reads `state.json` to discover the server, connects via WebSocket, registers its session, and forwards submissions as `notifications/claude/channel` to Claude. Also watches the Claude session's transcript file for live updates and relays usage/cost data. Exposes a `push_image` MCP tool that lets Claude send images (by file path or base64) back to the browser canvas as new layers.
    - `index.ts` — MCP server setup, `push_image` tool, WebSocket connection, message routing, permission request forwarding
-   - `transcript-watcher.ts` — Watches Claude's JSONL transcript for tool calls, responses, and usage data; emits parsed entries to the server
+   - `transcript-watcher.ts` — Watches Claude's JSONL transcript for tool calls, responses, and usage data; emits parsed entries to the server. Gotcha: must lock to the correct session file (see commit `9c74196`) — don't assume the newest transcript is the active one.
 
 3. **Client** (`client/`) — Browser painting app (PixiJS + perfect-freehand, vanilla TS). Bundled to `dist/client/` with `bun build`. No framework — DOM manipulation via class-based UI components.
 
