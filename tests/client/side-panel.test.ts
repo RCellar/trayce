@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from "bun:test";
-import { SidePanel, type PanelTab } from "../../client/side-panel";
+import { SidePanel } from "../../client/side-panel";
 
 describe("SidePanel — class definition", () => {
   test("SidePanel class is defined", () => {

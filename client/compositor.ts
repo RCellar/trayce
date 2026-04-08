@@ -1,7 +1,7 @@
-import { Sprite, Texture, Container, Graphics, ImageSource, type Application } from "pixi.js";
+import { Sprite, Texture, Container, Graphics, ImageSource, type Application, type BLEND_MODES } from "pixi.js";
 import type { LayerManager, BlendMode, LayerTransform } from "./layers";
 
-const BLEND_MAP: Record<BlendMode, string> = {
+const BLEND_MAP: Record<BlendMode, BLEND_MODES> = {
   "normal": "normal",
   "multiply": "multiply",
   "screen": "screen",
@@ -42,8 +42,8 @@ export class Compositor {
 
   update(): void {
     if (!this.dirty) return;
-    // Don't update if the WebGL context isn't ready yet
-    if (!this.app.renderer || !this.app.renderer.gl) return;
+    // Renderer is guaranteed present after Application.init() resolves.
+    if (!this.app.renderer) return;
     this.dirty = false;
 
     // Remove sprites for deleted layers

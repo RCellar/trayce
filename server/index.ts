@@ -18,7 +18,6 @@ const httpHandler = createHttpHandler(config.clientDir);
 const server = Bun.serve<WsData>({
   hostname: config.host,
   port: config.port,
-  maxPayloadLength: config.maxWsPayloadBytes,
 
   fetch(req, server) {
     const url = new URL(req.url);
@@ -48,6 +47,8 @@ const server = Bun.serve<WsData>({
   },
 
   websocket: {
+    maxPayloadLength: config.maxWsPayloadBytes,
+
     open(ws) {
       if (ws.data.kind === "browser") hub.addBrowser(ws);
       else hub.addBridge(ws);

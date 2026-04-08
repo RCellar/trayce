@@ -10,7 +10,6 @@ import {
   mkdirSync,
   rmSync,
   appendFileSync,
-  existsSync,
 } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -534,8 +533,6 @@ describe("TranscriptWatcher subagent tracking", () => {
     const usageUpdates: any[] = [];
     const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
     watcher.readNewEntries();
-
-    const countAfterFirst = usageUpdates.length;
 
     // Append another entry to the same file
     appendFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 200, 600, 3000, 100) + "\n");

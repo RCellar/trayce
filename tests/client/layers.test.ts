@@ -174,7 +174,7 @@ describe("duplicateLayer copies all properties", () => {
 
   test("copies canvas dimensions from source", () => {
     const lm = new LayerManager(100, 100, "white");
-    const layer = lm.addLayer("Image", { canvasWidth: 50, canvasHeight: 30 });
+    lm.addLayer("Image", { canvasWidth: 50, canvasHeight: 30 });
 
     const copy = lm.duplicateLayer(1);
     expect(copy.canvas.width).toBe(50);

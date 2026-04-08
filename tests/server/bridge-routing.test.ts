@@ -33,24 +33,10 @@ function bridgeWs(id?: string): MockWs {
   return makeMockWs({ kind: "bridge", id: id ?? crypto.randomUUID() });
 }
 
-function lastSent(ws: MockWs): Record<string, unknown> {
-  return JSON.parse(ws.sent[ws.sent.length - 1]) as Record<string, unknown>;
-}
-
-function allSentOfType(ws: MockWs, type: string): Record<string, unknown>[] {
-  return ws.sent.map((s) => JSON.parse(s) as Record<string, unknown>).filter((m) => m.type === type);
-}
-
 // -- Test fixtures --
 
 const TEST_DIR = "/tmp/trayce-test-bridge-routing";
 const BASE_CONFIG = getConfig({});
-
-interface Fixture {
-  hub: WebSocketHub;
-  registry: SessionRegistry;
-  store: SubmissionStore;
-}
 
 function makeHub(configOverrides: Partial<Config> = {}): WebSocketHub {
   const registry = new SessionRegistry();

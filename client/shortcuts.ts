@@ -9,8 +9,6 @@ export type ShortcutAction =
 export type ShortcutCallback = (action: ShortcutAction) => void;
 
 export class ShortcutHandler {
-  private isPanning = false;
-
   constructor(private callback: ShortcutCallback) {
     document.addEventListener("keydown", this.onKeyDown);
     document.addEventListener("keyup", this.onKeyUp);

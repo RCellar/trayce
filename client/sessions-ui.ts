@@ -6,7 +6,6 @@ export interface Session {
 
 export class SessionsUI {
   private select: HTMLSelectElement;
-  private sessions: Session[] = [];
   private selectedId = "";
 
   constructor(select: HTMLSelectElement) {
@@ -22,8 +21,7 @@ export class SessionsUI {
   }
 
   update(sessions: Session[]): void {
-    this.sessions = sessions;
-    this.select.innerHTML = "";
+    this.select.replaceChildren();
 
     if (sessions.length === 0) {
       const opt = document.createElement("option");
