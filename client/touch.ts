@@ -28,11 +28,12 @@ export class TouchHandler {
 
     if (this.activeTouches.size === 2) {
       e.preventDefault();
-      const points = Array.from(this.activeTouches.values());
-      this.initialPinchDist = this.distance(points[0], points[1]);
+      const [a, b] = Array.from(this.activeTouches.values());
+      if (!a || !b) return;
+      this.initialPinchDist = this.distance(a, b);
       this.initialZoom = this.canvasManager.viewport.zoom;
-      this.lastPanX = (points[0].x + points[1].x) / 2;
-      this.lastPanY = (points[0].y + points[1].y) / 2;
+      this.lastPanX = (a.x + b.x) / 2;
+      this.lastPanY = (a.y + b.y) / 2;
     }
 
     // Three-finger tap → undo
@@ -49,18 +50,19 @@ export class TouchHandler {
 
     if (this.activeTouches.size === 2) {
       e.preventDefault();
-      const points = Array.from(this.activeTouches.values());
+      const [a, b] = Array.from(this.activeTouches.values());
+      if (!a || !b) return;
 
       // Pinch zoom
-      const dist = this.distance(points[0], points[1]);
+      const dist = this.distance(a, b);
       if (this.initialPinchDist > 0) {
         const scale = dist / this.initialPinchDist;
         this.canvasManager.setZoom(this.initialZoom * scale);
       }
 
       // Two-finger pan
-      const cx = (points[0].x + points[1].x) / 2;
-      const cy = (points[0].y + points[1].y) / 2;
+      const cx = (a.x + b.x) / 2;
+      const cy = (a.y + b.y) / 2;
       this.canvasManager.pan(cx - this.lastPanX, cy - this.lastPanY);
       this.lastPanX = cx;
       this.lastPanY = cy;

@@ -34,15 +34,15 @@ describe("LayerManager — creation", () => {
   test("creates with background layer", () => {
     const lm = new LayerManager(100, 100, "white");
     expect(lm.layers.length).toBe(1);
-    expect(lm.layers[0].name).toBe("Background");
-    expect(lm.layers[0].deletable).toBe(false);
+    expect(lm.layers[0]!.name).toBe("Background");
+    expect(lm.layers[0]!.deletable).toBe(false);
     expect(lm.activeLayerIndex).toBe(0);
   });
 
   test("transparent background creates layer without fill", () => {
     const lm = new LayerManager(100, 100, "transparent");
     expect(lm.layers.length).toBe(1);
-    expect(lm.layers[0].name).toBe("Background");
+    expect(lm.layers[0]!.name).toBe("Background");
   });
 
   test("activeLayer returns the current active layer", () => {
@@ -56,7 +56,7 @@ describe("LayerManager — add/delete", () => {
     const lm = new LayerManager(100, 100, "white");
     lm.addLayer("Sketch");
     expect(lm.layers.length).toBe(2);
-    expect(lm.layers[1].name).toBe("Sketch");
+    expect(lm.layers[1]!.name).toBe("Sketch");
     expect(lm.activeLayerIndex).toBe(1);
   });
 
@@ -110,8 +110,8 @@ describe("LayerManager — reorder", () => {
     lm.addLayer("A");
     lm.addLayer("B");
     lm.moveLayer(2, 1);
-    expect(lm.layers[1].name).toBe("B");
-    expect(lm.layers[2].name).toBe("A");
+    expect(lm.layers[1]!.name).toBe("B");
+    expect(lm.layers[2]!.name).toBe("A");
   });
 
   test("move updates activeLayerIndex", () => {
@@ -127,7 +127,7 @@ describe("LayerManager — reorder", () => {
     const lm = new LayerManager(100, 100, "white");
     lm.addLayer("A");
     lm.moveLayer(1, 1);
-    expect(lm.layers[1].name).toBe("A");
+    expect(lm.layers[1]!.name).toBe("A");
   });
 });
 
@@ -137,7 +137,7 @@ describe("LayerManager — duplicate", () => {
     lm.addLayer("Sketch");
     lm.duplicateLayer(1);
     expect(lm.layers.length).toBe(3);
-    expect(lm.layers[2].name).toBe("Sketch copy");
+    expect(lm.layers[2]!.name).toBe("Sketch copy");
     expect(lm.activeLayerIndex).toBe(2);
   });
 
@@ -200,7 +200,7 @@ describe("LayerManager — merge down", () => {
 describe("revision tracking", () => {
   test("new layers start at revision 0", () => {
     const lm = new LayerManager(100, 100, "white");
-    expect(lm.layers[0].revision).toBe(0);
+    expect(lm.layers[0]!.revision).toBe(0);
   });
 
   test("bumpRevision increments revision counter", () => {

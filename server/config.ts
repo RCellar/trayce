@@ -13,7 +13,7 @@ export interface Config {
   rateLimitPerMinute: number;
   transcriptBufferSize: number;
   noAuth: boolean;
-  token?: string;
+  token: string | undefined;
 }
 
 const DEFAULTS: Config = {
@@ -31,6 +31,7 @@ const DEFAULTS: Config = {
   rateLimitPerMinute: 10,
   transcriptBufferSize: 500,
   noAuth: false,
+  token: undefined,
 };
 
 function parsePort(raw: string | undefined, defaultPort: number): number {

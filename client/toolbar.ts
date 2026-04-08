@@ -16,7 +16,7 @@ function svg(paths: string, fill = false): string {
   return `<svg viewBox="0 0 18 18" width="18" height="18" ${style}>${paths}</svg>`;
 }
 
-const ICONS: Record<string, string> = {
+const ICONS = {
   // Pen — nib shape
   pen: svg('<path d="M12.5 2.5l3 3-9 9H3.5v-3l9-9z"/><path d="M10.5 4.5l3 3"/>'),
   // Pencil — angled pencil

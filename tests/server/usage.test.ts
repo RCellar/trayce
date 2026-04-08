@@ -51,10 +51,10 @@ describe("SessionUsage", () => {
     usage.add(makeUpdate({ model: "claude-opus-4-6", inputTokens: 15, outputTokens: 30 }));
     const snap = usage.snapshot();
     expect(Object.keys(snap.models)).toHaveLength(2);
-    expect(snap.models["claude-opus-4-6"].inputTokens).toBe(25);
-    expect(snap.models["claude-opus-4-6"].outputTokens).toBe(80);
-    expect(snap.models["claude-opus-4-6"].requests).toBe(2);
-    expect(snap.models["claude-haiku-4-5"].requests).toBe(1);
+    expect(snap.models["claude-opus-4-6"]!.inputTokens).toBe(25);
+    expect(snap.models["claude-opus-4-6"]!.outputTokens).toBe(80);
+    expect(snap.models["claude-opus-4-6"]!.requests).toBe(2);
+    expect(snap.models["claude-haiku-4-5"]!.requests).toBe(1);
   });
 
   it("tracks first and last timestamp", () => {

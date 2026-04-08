@@ -35,12 +35,14 @@ export class SessionUsage {
     this.cacheWriteTokens += update.cacheWriteTokens;
     this.requestCount++;
 
-    if (!this.models[update.model]) {
-      this.models[update.model] = { inputTokens: 0, outputTokens: 0, requests: 0 };
+    let entry = this.models[update.model];
+    if (!entry) {
+      entry = { inputTokens: 0, outputTokens: 0, requests: 0 };
+      this.models[update.model] = entry;
     }
-    this.models[update.model].inputTokens += update.inputTokens;
-    this.models[update.model].outputTokens += update.outputTokens;
-    this.models[update.model].requests++;
+    entry.inputTokens += update.inputTokens;
+    entry.outputTokens += update.outputTokens;
+    entry.requests++;
 
     if (this.firstTimestamp === 0 || update.timestamp < this.firstTimestamp) {
       this.firstTimestamp = update.timestamp;

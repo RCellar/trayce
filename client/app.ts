@@ -46,7 +46,7 @@ const brushes: Record<string, Brush> = {
   eraser: new EraserBrush(),
 };
 
-let activeBrush: Brush = brushes.pen;
+let activeBrush: Brush = brushes.pen!;
 let brushParams: BrushParams = {
   size: 12,
   opacity: 100,
@@ -226,6 +226,7 @@ function initResolutionSelector(): void {
 
   select.addEventListener("change", () => {
     const [w, h] = select.value.split("x").map(Number);
+    if (w === undefined || h === undefined) return;
     initCanvas(w, h, "white");
   });
 
@@ -269,7 +270,9 @@ async function initCanvas(width: number, height: number, background: "white" | "
       updateTransformOverlay();
     },
     onVisibilityToggle: (index) => {
-      layerManager!.layers[index].visible = !layerManager!.layers[index].visible;
+      const layer = layerManager!.layers[index];
+      if (!layer) return;
+      layer.visible = !layer.visible;
       compositor?.markDirty();
       layersUI?.render();
     },
@@ -378,6 +381,7 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
 
   // Get current doc-space point
   const lastPt = state.points[state.points.length - 1];
+  if (!lastPt) return;
   const doc = canvasManager.screenToDoc(lastPt.x, lastPt.y);
 
   // If active layer has a transform, handle move/resize instead of drawing
@@ -806,7 +810,8 @@ function updateSessionSelect(): void {
       sessionSelect.value = stored;
       selectedSessionId = stored;
     } else {
-      selectedSessionId = sessions[0].id;
+      const first = sessions[0];
+      selectedSessionId = first?.id ?? "";
       sessionSelect.value = selectedSessionId;
     }
   }
@@ -889,8 +894,10 @@ function clearCanvas(): void {
 
   // Refill background if it was white
   const bg = layerManager.layers[0];
-  bg.ctx.fillStyle = "#f0f0f0";
-  bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
+  if (bg) {
+    bg.ctx.fillStyle = "#f0f0f0";
+    bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
+  }
 
   compositor.markDirty();
   showToast("Canvas cleared");
@@ -913,32 +920,32 @@ document.addEventListener("keydown", (e) => {
 
   switch (e.key.toLowerCase()) {
     case "b":
-      activeBrush = brushes.pen;
+      activeBrush = brushes.pen!;
       toolbar?.setActive("pen");
       updateToolInfo();
       break;
     case "n":
-      activeBrush = brushes.pencil;
+      activeBrush = brushes.pencil!;
       toolbar?.setActive("pencil");
       updateToolInfo();
       break;
     case "m":
-      activeBrush = brushes.marker;
+      activeBrush = brushes.marker!;
       toolbar?.setActive("marker");
       updateToolInfo();
       break;
     case "w":
-      activeBrush = brushes.watercolor;
+      activeBrush = brushes.watercolor!;
       toolbar?.setActive("watercolor");
       updateToolInfo();
       break;
     case "h":
-      activeBrush = brushes.highlighter;
+      activeBrush = brushes.highlighter!;
       toolbar?.setActive("highlighter");
       updateToolInfo();
       break;
     case "e":
-      activeBrush = brushes.eraser;
+      activeBrush = brushes.eraser!;
       toolbar?.setActive("eraser");
       updateToolInfo();
       break;

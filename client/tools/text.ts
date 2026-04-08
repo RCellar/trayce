@@ -70,9 +70,9 @@ export class TextTool {
       ctx.textBaseline = "top";
 
       const lines = text.split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        ctx.fillText(lines[i], this.docX, this.docY + i * fontSize * 1.2);
-      }
+      lines.forEach((line, i) => {
+        ctx.fillText(line, this.docX, this.docY + i * fontSize * 1.2);
+      });
     }
 
     this.remove();

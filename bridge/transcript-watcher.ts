@@ -47,7 +47,7 @@ export class TranscriptWatcher {
   private cwd: string;
   private startTime: number;
   private onEntry: (entry: TranscriptEntry) => void;
-  private onUsage?: (usage: UsageData) => void;
+  private onUsage: ((usage: UsageData) => void) | undefined;
   private offset: number = 0;
   private fsWatcher: ReturnType<typeof watch> | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;

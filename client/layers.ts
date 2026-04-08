@@ -47,7 +47,7 @@ export class LayerManager {
   }
 
   get activeLayer(): Layer {
-    return this.layers[this.activeLayerIndex];
+    return this.layers[this.activeLayerIndex]!;
   }
 
   addLayer(name: string, opts?: { canvasWidth?: number; canvasHeight?: number }): Layer {
@@ -76,6 +76,7 @@ export class LayerManager {
       throw new Error(`Maximum ${MAX_LAYERS} layers`);
     }
     const source = this.layers[index];
+    if (!source) throw new Error(`Layer index ${index} out of bounds`);
     const copy = this.createLayer(
       `${source.name} copy`,
       true,
@@ -98,6 +99,7 @@ export class LayerManager {
   moveLayer(fromIndex: number, toIndex: number): void {
     if (fromIndex === toIndex) return;
     const [layer] = this.layers.splice(fromIndex, 1);
+    if (!layer) return;
     this.layers.splice(toIndex, 0, layer);
     if (this.activeLayerIndex === fromIndex) {
       this.activeLayerIndex = toIndex;
@@ -108,6 +110,7 @@ export class LayerManager {
     if (index <= 0 || index >= this.layers.length) return;
     const upper = this.layers[index];
     const lower = this.layers[index - 1];
+    if (!upper || !lower) return;
     lower.ctx.globalAlpha = upper.opacity / 100;
     lower.ctx.globalCompositeOperation = this.blendToComposite(upper.blendMode);
     lower.ctx.drawImage(upper.canvas, 0, 0);
@@ -130,7 +133,7 @@ export class LayerManager {
 
     layer.canvas = canvas;
     layer.ctx = ctx;
-    layer.transform = undefined;
+    delete layer.transform;
   }
 
   bumpRevision(layerId: string): void {

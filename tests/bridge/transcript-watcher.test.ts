@@ -75,9 +75,9 @@ describe("TranscriptWatcher", () => {
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
-    expect(entries[0].type).toBe("message");
-    expect(entries[0].role).toBe("user");
-    expect(entries[0].content).toBe("Hello Claude");
+    expect(entries[0]!.type).toBe("message");
+    expect(entries[0]!.role).toBe("user");
+    expect(entries[0]!.content).toBe("Hello Claude");
   });
 
   test("classifies assistant text as type 'response' with role 'assistant'", () => {
@@ -87,9 +87,9 @@ describe("TranscriptWatcher", () => {
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
-    expect(entries[0].type).toBe("response");
-    expect(entries[0].role).toBe("assistant");
-    expect(entries[0].content).toBe("Hi! How can I help?");
+    expect(entries[0]!.type).toBe("response");
+    expect(entries[0]!.role).toBe("assistant");
+    expect(entries[0]!.content).toBe("Hi! How can I help?");
   });
 
   test("classifies tool_use block as type 'tool-call' with toolName and toolInput", () => {
@@ -112,9 +112,9 @@ describe("TranscriptWatcher", () => {
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
-    expect(entries[0].type).toBe("tool-result");
-    expect(entries[0].toolUseId).toBe("tu_123");
-    expect(entries[0].content).toBe("file contents here");
+    expect(entries[0]!.type).toBe("tool-result");
+    expect(entries[0]!.toolUseId).toBe("tu_123");
+    expect(entries[0]!.content).toBe("file contents here");
   });
 
   test("reads incrementally from byte offset", () => {
@@ -132,8 +132,8 @@ describe("TranscriptWatcher", () => {
     // Second read should only get the new entry
     watcher.readNewEntries();
     expect(entries).toHaveLength(2);
-    expect(entries[1].type).toBe("response");
-    expect(entries[1].content).toBe("Hi! How can I help?");
+    expect(entries[1]!.type).toBe("response");
+    expect(entries[1]!.content).toBe("Hi! How can I help?");
   });
 
   test("does not re-emit already-read entries on second readNewEntries call", () => {
@@ -201,7 +201,7 @@ describe("TranscriptWatcher", () => {
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
 
-    expect(entries[0].content.length).toBeLessThanOrEqual(500);
+    expect(entries[0]!.content.length).toBeLessThanOrEqual(500);
   });
 
   test("entries have a numeric timestamp", () => {
@@ -210,8 +210,8 @@ describe("TranscriptWatcher", () => {
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
 
-    expect(typeof entries[0].timestamp).toBe("number");
-    expect(entries[0].timestamp).toBeGreaterThan(0);
+    expect(typeof entries[0]!.timestamp).toBe("number");
+    expect(entries[0]!.timestamp).toBeGreaterThan(0);
   });
 
   test("ignores malformed JSON lines gracefully", () => {
@@ -221,7 +221,7 @@ describe("TranscriptWatcher", () => {
 
     expect(() => watcher.readNewEntries()).not.toThrow();
     expect(entries).toHaveLength(1);
-    expect(entries[0].content).toBe("Hello Claude");
+    expect(entries[0]!.content).toBe("Hello Claude");
   });
 
   test("ignores non-message types like file-history-snapshot", () => {
@@ -232,7 +232,7 @@ describe("TranscriptWatcher", () => {
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
-    expect(entries[0].content).toBe("Hello Claude");
+    expect(entries[0]!.content).toBe("Hello Claude");
   });
 
   test("start() and stop() do not throw", () => {
@@ -348,7 +348,7 @@ describe("partial line handling", () => {
     // Read again — now should get the complete entry
     watcher.readNewEntries();
     expect(entries.length).toBe(1);
-    expect(entries[0].content).toBe("Hello Claude");
+    expect(entries[0]!.content).toBe("Hello Claude");
 
     watcher.stop();
   });
@@ -399,7 +399,7 @@ describe("TranscriptWatcher rediscovery", () => {
 
     // Should have read the old file and set confirmed = true
     expect(entries.length).toBeGreaterThanOrEqual(1);
-    expect(entries[0].content).toBe("Hello Claude");
+    expect(entries[0]!.content).toBe("Hello Claude");
     expect((watcher as any).confirmed).toBe(true);
 
     // Simulate a new file appearing — birthtime ≈ startTime

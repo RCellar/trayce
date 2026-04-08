@@ -37,7 +37,7 @@ function applyInline(escaped: string): string {
   result = result.replace(/\*([^*]+)\*/g, "<em>$1</em>");
 
   // Restore inline code segments
-  result = result.replace(/\x00CODE(\d+)\x00/g, (_m, idx) => codeSegments[Number(idx)]);
+  result = result.replace(/\x00CODE(\d+)\x00/g, (_m, idx) => codeSegments[Number(idx)] ?? "");
 
   return result;
 }
@@ -54,16 +54,16 @@ export function renderMarkdown(source: string): string {
   let i = 0;
 
   while (i < lines.length) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     // ── Code fence ──────────────────────────────────────────────────────────
     const fenceMatch = line.match(/^```([a-zA-Z0-9_+#.-]*)$/);
     if (fenceMatch) {
-      const lang = fenceMatch[1];
+      const lang = fenceMatch[1] ?? "";
       const codeLines: string[] = [];
       i++;
-      while (i < lines.length && !lines[i].startsWith("```")) {
-        codeLines.push(escapeHtml(lines[i]));
+      while (i < lines.length && !lines[i]!.startsWith("```")) {
+        codeLines.push(escapeHtml(lines[i]!));
         i++;
       }
       i++; // consume closing ```
@@ -75,8 +75,8 @@ export function renderMarkdown(source: string): string {
     // ── Heading ─────────────────────────────────────────────────────────────
     const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
     if (headingMatch) {
-      const level = headingMatch[1].length;
-      const text = applyInline(escapeHtml(headingMatch[2]));
+      const level = headingMatch[1]!.length;
+      const text = applyInline(escapeHtml(headingMatch[2]!));
       output.push(`<h${level}>${text}</h${level}>`);
       i++;
       continue;
@@ -85,8 +85,8 @@ export function renderMarkdown(source: string): string {
     // ── Unordered list ──────────────────────────────────────────────────────
     if (/^- /.test(line)) {
       const items: string[] = [];
-      while (i < lines.length && /^- /.test(lines[i])) {
-        items.push(`<li>${applyInline(escapeHtml(lines[i].slice(2)))}</li>`);
+      while (i < lines.length && /^- /.test(lines[i]!)) {
+        items.push(`<li>${applyInline(escapeHtml(lines[i]!.slice(2)))}</li>`);
         i++;
       }
       output.push(`<ul>${items.join("")}</ul>`);
@@ -96,8 +96,8 @@ export function renderMarkdown(source: string): string {
     // ── Ordered list ────────────────────────────────────────────────────────
     if (/^\d+\. /.test(line)) {
       const items: string[] = [];
-      while (i < lines.length && /^\d+\. /.test(lines[i])) {
-        const text = lines[i].replace(/^\d+\. /, "");
+      while (i < lines.length && /^\d+\. /.test(lines[i]!)) {
+        const text = lines[i]!.replace(/^\d+\. /, "");
         items.push(`<li>${applyInline(escapeHtml(text))}</li>`);
         i++;
       }
@@ -116,13 +116,13 @@ export function renderMarkdown(source: string): string {
     const paraLines: string[] = [];
     while (
       i < lines.length &&
-      lines[i].trim() !== "" &&
-      !lines[i].match(/^#{1,6}\s/) &&
-      !lines[i].match(/^```/) &&
-      !lines[i].match(/^- /) &&
-      !lines[i].match(/^\d+\. /)
+      lines[i]!.trim() !== "" &&
+      !lines[i]!.match(/^#{1,6}\s/) &&
+      !lines[i]!.match(/^```/) &&
+      !lines[i]!.match(/^- /) &&
+      !lines[i]!.match(/^\d+\. /)
     ) {
-      paraLines.push(applyInline(escapeHtml(lines[i])));
+      paraLines.push(applyInline(escapeHtml(lines[i]!)));
       i++;
     }
     if (paraLines.length > 0) {
