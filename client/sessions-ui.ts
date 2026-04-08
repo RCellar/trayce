@@ -47,7 +47,8 @@ export class SessionsUI {
     if (this.selectedId && sessions.some((s) => s.id === this.selectedId)) {
       this.select.value = this.selectedId;
     } else {
-      this.selectedId = sessions[0].id;
+      const first = sessions[0];
+      this.selectedId = first?.id ?? "";
       this.select.value = this.selectedId;
     }
   }

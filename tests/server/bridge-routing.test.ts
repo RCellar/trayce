@@ -78,7 +78,7 @@ describe("watch-session", () => {
 
     // Only a usage-snapshot is sent (no errors, no other responses)
     expect(browser.sent.length).toBe(1);
-    expect(JSON.parse(browser.sent[0]).type).toBe("usage-snapshot");
+    expect(JSON.parse(browser.sent[0]!).type).toBe("usage-snapshot");
   });
 
   it("ignores watch-session with missing sessionId", async () => {
@@ -130,7 +130,7 @@ describe("bridge routing — transcript-entry", () => {
     }));
 
     expect(browser.sent.length).toBe(1);
-    const msg = JSON.parse(browser.sent[0]) as Record<string, unknown>;
+    const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.type).toBe("transcript-entry");
     expect(msg.role).toBe("assistant");
     expect(msg.text).toBe("Hello!");
@@ -168,7 +168,7 @@ describe("bridge routing — response", () => {
     }));
 
     expect(browser.sent.length).toBe(1);
-    const msg = JSON.parse(browser.sent[0]) as Record<string, unknown>;
+    const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.type).toBe("response");
     expect(msg.content).toBe("Here is the answer.");
     expect(msg.sessionId).toBe("s1");
@@ -200,7 +200,7 @@ describe("bridge routing — canvas-push", () => {
     }));
 
     expect(browser.sent.length).toBe(1);
-    const msg = JSON.parse(browser.sent[0]) as Record<string, unknown>;
+    const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.type).toBe("canvas-push");
     expect(msg.image).toBe("base64data==");
     expect(msg.sessionId).toBe("s1");
@@ -232,7 +232,7 @@ describe("bridge routing — transcript-status", () => {
     }));
 
     expect(browser.sent.length).toBe(1);
-    const msg = JSON.parse(browser.sent[0]) as Record<string, unknown>;
+    const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.type).toBe("transcript-status");
     expect(msg.status).toBe("running");
     expect(msg.sessionId).toBe("s1");
@@ -311,7 +311,7 @@ describe("bridge routing — sessionId injection", () => {
       text: "hello",
     }));
 
-    const msg = JSON.parse(browser.sent[0]) as Record<string, unknown>;
+    const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.sessionId).toBe("my-session");
   });
 
@@ -325,7 +325,7 @@ describe("bridge routing — sessionId injection", () => {
       sessionId: "spoofed-session",
     }));
 
-    const msg = JSON.parse(browser.sent[0]) as Record<string, unknown>;
+    const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.sessionId).toBe("real-session");
   });
 });

@@ -32,17 +32,18 @@ export function isCanvasBlank(layerManager: LayerManager): boolean {
   // If only the background layer exists, check if it's all white
   // If user-created layers exist with visible content, not blank
   for (let i = 1; i < layers.length; i++) {
-    if (!layers[i].visible) continue;
+    const layer = layers[i]!;
+    if (!layer.visible) continue;
     // Transform layers always have content
-    if (layers[i].transform) return false;
-    const ctx = layers[i].ctx;
+    if (layer.transform) return false;
+    const ctx = layer.ctx;
     // Sample a grid of points for non-transparent pixels
     const stepX = Math.max(1, Math.floor(docWidth / 20));
     const stepY = Math.max(1, Math.floor(docHeight / 20));
     for (let x = 0; x < docWidth; x += stepX) {
       for (let y = 0; y < docHeight; y += stepY) {
         const pixel = ctx.getImageData(x, y, 1, 1).data;
-        if (pixel[3] > 0) return false; // non-transparent pixel found
+        if (pixel[3]! > 0) return false; // non-transparent pixel found
       }
     }
   }
@@ -54,7 +55,7 @@ export function blobToBase64(blob: Blob): Promise<string> {
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
-      const base64 = result.split(",")[1];
+      const base64 = result.split(",")[1] ?? "";
       resolve(base64);
     };
     reader.onerror = reject;

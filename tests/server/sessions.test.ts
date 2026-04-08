@@ -104,7 +104,7 @@ describe("list", () => {
     registry.add("id-2", "beta");
     registry.remove("id-1");
     expect(registry.list().length).toBe(1);
-    expect(registry.list()[0].label).toBe("beta");
+    expect(registry.list()[0]!.label).toBe("beta");
   });
 
   it("returns a snapshot — mutations to the array don't affect the registry", () => {

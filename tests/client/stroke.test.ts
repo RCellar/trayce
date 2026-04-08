@@ -19,8 +19,8 @@ describe("generateStrokeOutline", () => {
     }));
     const smallOutline = generateStrokeOutline(points, { size: 5, smoothing: 0.5 });
     const largeOutline = generateStrokeOutline(points, { size: 50, smoothing: 0.5 });
-    const smallYSpread = Math.max(...smallOutline.map((p) => p[1])) - Math.min(...smallOutline.map((p) => p[1]));
-    const largeYSpread = Math.max(...largeOutline.map((p) => p[1])) - Math.min(...largeOutline.map((p) => p[1]));
+    const smallYSpread = Math.max(...smallOutline.map((p) => p[1]!)) - Math.min(...smallOutline.map((p) => p[1]!));
+    const largeYSpread = Math.max(...largeOutline.map((p) => p[1]!)) - Math.min(...largeOutline.map((p) => p[1]!));
     expect(largeYSpread).toBeGreaterThan(smallYSpread);
   });
 
@@ -52,8 +52,8 @@ describe("generateStrokeOutline", () => {
     }));
     const light = generateStrokeOutline(lightPoints, { size: 20, smoothing: 0.5, simulatePressure: false });
     const heavy = generateStrokeOutline(heavyPoints, { size: 20, smoothing: 0.5, simulatePressure: false });
-    const lightSpread = Math.max(...light.map((p) => p[1])) - Math.min(...light.map((p) => p[1]));
-    const heavySpread = Math.max(...heavy.map((p) => p[1])) - Math.min(...heavy.map((p) => p[1]));
+    const lightSpread = Math.max(...light.map((p) => p[1]!)) - Math.min(...light.map((p) => p[1]!));
+    const heavySpread = Math.max(...heavy.map((p) => p[1]!)) - Math.min(...heavy.map((p) => p[1]!));
     expect(heavySpread).toBeGreaterThan(lightSpread);
   });
 });

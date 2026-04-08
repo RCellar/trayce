@@ -40,7 +40,7 @@ function bridgeWs(id?: string): MockWs {
 }
 
 function lastSent(ws: MockWs): Record<string, unknown> {
-  return JSON.parse(ws.sent[ws.sent.length - 1]) as Record<string, unknown>;
+  return JSON.parse(ws.sent[ws.sent.length - 1]!) as Record<string, unknown>;
 }
 
 function allSentOfType(ws: MockWs, type: string): Record<string, unknown>[] {
@@ -311,7 +311,7 @@ describe("submit — happy path", () => {
     }));
 
     // Bridge received submission
-    const sub = JSON.parse(bridge.sent[bridge.sent.length - 1]) as any;
+    const sub = JSON.parse(bridge.sent[bridge.sent.length - 1]!) as any;
     expect(sub.type).toBe("submission");
     expect(sub.prompt).toBe("draw this");
     expect(typeof sub.pngPath).toBe("string");
@@ -352,7 +352,7 @@ describe("submit — happy path", () => {
       type: "submit", targetSessionId: "s1", image: TINY_PNG_B64,
     }));
 
-    const sub = JSON.parse(bridge.sent[bridge.sent.length - 1]) as any;
+    const sub = JSON.parse(bridge.sent[bridge.sent.length - 1]!) as any;
     expect(sub.prompt).toBe("");
   });
 });
@@ -589,8 +589,8 @@ describe("transcript buffering", () => {
 
     const transcriptMsgs = allSentOfType(browser, "transcript-entry");
     expect(transcriptMsgs).toHaveLength(2);
-    expect((transcriptMsgs[0].entry as any).content).toBe("Hello");
-    expect((transcriptMsgs[1].entry as any).content).toBe("Hi there");
+    expect((transcriptMsgs[0]!.entry as any).content).toBe("Hello");
+    expect((transcriptMsgs[1]!.entry as any).content).toBe("Hi there");
   });
 
   it("buffers response messages from bridge", async () => {
@@ -610,7 +610,7 @@ describe("transcript buffering", () => {
 
     const responseMsgs = allSentOfType(browser, "response");
     expect(responseMsgs).toHaveLength(1);
-    expect(responseMsgs[0].content).toBe("Here is my answer");
+    expect(responseMsgs[0]!.content).toBe("Here is my answer");
   });
 
   it("replays buffer on watch-session, then routes live entries normally", async () => {
@@ -637,7 +637,7 @@ describe("transcript buffering", () => {
 
     const afterLive = allSentOfType(browser, "transcript-entry");
     expect(afterLive).toHaveLength(2);
-    expect((afterLive[1].entry as any).content).toBe("live");
+    expect((afterLive[1]!.entry as any).content).toBe("live");
   });
 
   it("caps buffer at transcriptBufferSize, dropping oldest entries", async () => {
@@ -659,9 +659,9 @@ describe("transcript buffering", () => {
 
     const msgs = allSentOfType(browser, "transcript-entry");
     expect(msgs).toHaveLength(3);
-    expect((msgs[0].entry as any).content).toBe("msg-3");
-    expect((msgs[1].entry as any).content).toBe("msg-4");
-    expect((msgs[2].entry as any).content).toBe("msg-5");
+    expect((msgs[0]!.entry as any).content).toBe("msg-3");
+    expect((msgs[1]!.entry as any).content).toBe("msg-4");
+    expect((msgs[2]!.entry as any).content).toBe("msg-5");
   });
 
   it("cleans up buffer when bridge disconnects and session is removed", async () => {
@@ -731,13 +731,13 @@ describe("transcript buffering", () => {
     await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
     let msgs = allSentOfType(browser, "transcript-entry");
     expect(msgs).toHaveLength(1);
-    expect((msgs[0].entry as any).content).toBe("from-s1");
+    expect((msgs[0]!.entry as any).content).toBe("from-s1");
 
     browser.sent.length = 0;
     await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s2" }));
     msgs = allSentOfType(browser, "transcript-entry");
     expect(msgs).toHaveLength(1);
-    expect((msgs[0].entry as any).content).toBe("from-s2");
+    expect((msgs[0]!.entry as any).content).toBe("from-s2");
   });
 });
 
@@ -811,7 +811,7 @@ describe("usage routing", () => {
 
     const snapshots = allSentOfType(browser, "usage-snapshot");
     expect(snapshots).toHaveLength(1);
-    const usage = snapshots[0].usage as any;
+    const usage = snapshots[0]!.usage as any;
     expect(usage.inputTokens).toBe(30);
     expect(usage.outputTokens).toBe(80);
     expect(usage.cacheReadTokens).toBe(300);
@@ -835,7 +835,7 @@ describe("usage routing", () => {
 
     const updates = allSentOfType(browser, "usage-update");
     expect(updates).toHaveLength(1);
-    expect((updates[0].usage as any).outputTokens).toBe(25);
+    expect((updates[0]!.usage as any).outputTokens).toBe(25);
   });
 
   it("cleans up usage when bridge disconnects", async () => {
@@ -862,7 +862,7 @@ describe("usage routing", () => {
 
     const snapshots = allSentOfType(browser, "usage-snapshot");
     expect(snapshots).toHaveLength(1);
-    expect((snapshots[0].usage as any).requestCount).toBe(0);
+    expect((snapshots[0]!.usage as any).requestCount).toBe(0);
   });
 
   it("sends empty snapshot when no usage data exists", async () => {
@@ -878,7 +878,7 @@ describe("usage routing", () => {
 
     const snapshots = allSentOfType(browser, "usage-snapshot");
     expect(snapshots).toHaveLength(1);
-    expect((snapshots[0].usage as any).requestCount).toBe(0);
+    expect((snapshots[0]!.usage as any).requestCount).toBe(0);
   });
 });
 
@@ -951,6 +951,6 @@ describe("canvas-push buffering", () => {
 
     const pushMsgs = allSentOfType(browser, "canvas-push");
     expect(pushMsgs.length).toBe(1);
-    expect(pushMsgs[0].label).toBe("test-image");
+    expect(pushMsgs[0]!.label).toBe("test-image");
   });
 });

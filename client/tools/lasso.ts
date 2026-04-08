@@ -25,9 +25,11 @@ export class LassoTool {
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath();
-    ctx.moveTo(this.points[0].x, this.points[0].y);
+    const firstPreview = this.points[0]!;
+    ctx.moveTo(firstPreview.x, firstPreview.y);
     for (let i = 1; i < this.points.length; i++) {
-      ctx.lineTo(this.points[i].x, this.points[i].y);
+      const pt = this.points[i]!;
+      ctx.lineTo(pt.x, pt.y);
     }
     ctx.stroke();
     ctx.setLineDash([]);
@@ -47,10 +49,12 @@ export class LassoTool {
     const tempCtx = tempCanvas.getContext("2d")!;
 
     // Draw the original image through the lasso clip
+    const first = this.points[0]!;
     tempCtx.beginPath();
-    tempCtx.moveTo(this.points[0].x, this.points[0].y);
+    tempCtx.moveTo(first.x, first.y);
     for (let i = 1; i < this.points.length; i++) {
-      tempCtx.lineTo(this.points[i].x, this.points[i].y);
+      const pt = this.points[i]!;
+      tempCtx.lineTo(pt.x, pt.y);
     }
     tempCtx.closePath();
     tempCtx.clip();
@@ -60,9 +64,10 @@ export class LassoTool {
     ctx.putImageData(this.layerSnapshot, 0, 0);
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(this.points[0].x, this.points[0].y);
+    ctx.moveTo(first.x, first.y);
     for (let i = 1; i < this.points.length; i++) {
-      ctx.lineTo(this.points[i].x, this.points[i].y);
+      const pt = this.points[i]!;
+      ctx.lineTo(pt.x, pt.y);
     }
     ctx.closePath();
     ctx.globalCompositeOperation = "destination-out";

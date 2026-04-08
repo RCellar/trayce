@@ -11,7 +11,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-haiku-4-5":  { input: 1,   output: 5,  cacheRead: 0.10, cacheWrite: 2 },
 };
 
-const DEFAULT_PRICING: ModelPricing = MODEL_PRICING["claude-sonnet-4-6"];
+const DEFAULT_PRICING: ModelPricing = MODEL_PRICING["claude-sonnet-4-6"]!;
 
 export function getPricing(model: string): ModelPricing {
   if (MODEL_PRICING[model]) return MODEL_PRICING[model];

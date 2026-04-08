@@ -41,6 +41,7 @@ export class LayersUI {
     // Layer list (bottom to top)
     for (let i = this.layerManager.layers.length - 1; i >= 0; i--) {
       const layer = this.layerManager.layers[i];
+      if (!layer) continue;
       const item = document.createElement("div");
       item.className = `layer-item${i === this.layerManager.activeLayerIndex ? " active" : ""}`;
 

@@ -26,7 +26,7 @@ export class ShapeTool {
   cycleShapeType(): void {
     const types: ShapeType[] = ["rectangle", "ellipse", "line"];
     const idx = types.indexOf(this.shapeType);
-    this.shapeType = types[(idx + 1) % types.length];
+    this.shapeType = types[(idx + 1) % types.length]!;
   }
 
   beginShape(ctx: OffscreenCanvasRenderingContext2D, x: number, y: number, color: string, size: number): void {

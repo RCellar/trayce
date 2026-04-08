@@ -60,6 +60,7 @@ export class Compositor {
     // Update or create sprites for each layer
     for (let i = 0; i < this.layerManager.layers.length; i++) {
       const layer = this.layerManager.layers[i];
+      if (!layer) continue;
       let sprite = this.sprites.get(layer.id);
 
       if (!sprite) {
@@ -127,7 +128,9 @@ export class Compositor {
       [sx, sy + sh / 2], [sx + sw, sy + sh / 2],
       [sx, sy + sh], [sx + sw / 2, sy + sh], [sx + sw, sy + sh],
     ];
-    for (const [hx, hy] of handles) {
+    for (const h of handles) {
+      const hx = h[0]!;
+      const hy = h[1]!;
       g.rect(hx - hs, hy - hs, hs * 2, hs * 2);
       g.fill({ color: 0xffffff });
       g.rect(hx - hs, hy - hs, hs * 2, hs * 2);

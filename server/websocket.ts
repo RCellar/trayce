@@ -12,7 +12,7 @@ export interface WsMessage {
 export interface WsData {
   kind: "browser" | "bridge";
   id: string;
-  sessionId?: string;
+  sessionId: string | undefined;
   lastHeartbeat: number;
 }
 

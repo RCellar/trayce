@@ -1,7 +1,7 @@
 # Static Analysis Hardening
 
 **Date:** 2026-04-08
-**Status:** Round 1 complete, Round 2 and Round 3 pending
+**Status:** Round 1 and Round 2 complete, Round 3 pending
 **Context:** Evaluation of linting/static analysis strategies for Trayce. The project had `strict: true` in `tsconfig.json` but no additional compiler flags, no linter, no `typecheck` script, and no CI gate for type errors. Server and bridge code compiles via `bun run` which strips types at runtime, so type errors ship unnoticed until a test hits the affected code path.
 
 ## Goal
@@ -49,43 +49,76 @@ Four real bugs were caught that had nothing to do with the new flags — they we
 - `bun test` — 388 pass, 0 fail
 - `bun run build:client` — clean (737 modules, 0.56 MB)
 
-## Round 2 — Aggressive nullability flags (PENDING)
+## Round 2 — Aggressive nullability flags (COMPLETE)
 
-### Flags to enable
+Landed in the same commit cadence as Round 1. See git log.
 
-Add to `tsconfig.json`:
+### Flags enabled
+
+Added to `tsconfig.json`:
 
 - `noUncheckedIndexedAccess`
 - `exactOptionalPropertyTypes`
 
-### Expected scope
+### Actual scope vs. prediction
 
-Enabling these two flags on the Round 1 baseline produced **~200 additional errors** across 19 files when measured on commit 0b3e228. Approximate distribution at that commit:
+The spec's original prediction (based on a measurement at commit 0b3e228) was ~200 errors concentrated in `client/app.ts` as the "heavy" file, recommending that Round 2 be combined with the `client-god-module` refactor to avoid doing the same work twice.
 
-| Count | Code | Source |
+**The prediction was wrong on both counts.** Fresh measurement at the start of Round 2 showed:
+
+- **216 errors across 28 files** (not 19)
+- **`client/app.ts` had only 15 errors** — not the bulk. The heavy files were `client/layers.ts` (21), `client/compositor.ts` (21), and `client/markdown.ts` (20), all well-scoped modules with no structural concerns.
+- **Test files accounted for ~70 errors** (not mentioned in the original estimate), concentrated in `tests/bridge/transcript-watcher.test.ts` (18), `tests/server/websocket.test.ts` (17), and `tests/client/layers.test.ts` (9).
+
+### Actual strategy: decoupled from god-module refactor
+
+Because app.ts's share of the errors was small and the errors were formulaic (six `brushes.pen`/`brushes.pencil`/etc. keyboard-shortcut lookups plus a handful of local guards), mechanical fixes took ~3 minutes of focused work. **The god-module refactor is still worth doing for maintainability, but static-analysis pressure no longer provides any of its motivation.** Round 2 and the app.ts refactor are fully independent.
+
+### Error distribution by root cause
+
+| Count | Code | Pattern |
 |---|---|---|
-| ~150 | TS2532 / TS18048 | `noUncheckedIndexedAccess` — array/map access returns `T \| undefined` |
-| ~40 | TS2345 | Argument `T \| undefined` not assignable to `T` |
-| ~20 | TS2322 | Assignment `T \| undefined` not assignable, or `exactOptional` mismatch |
-| ~5 | TS2412 / TS2375 | `exactOptionalPropertyTypes` — optional fields declared without `\| undefined` |
+| 93 | TS2532 | `Object is possibly undefined` — mostly array/map index access inside loops |
+| 60 | TS18048 | Typed local possibly undefined — usually after destructuring or `Map.get` |
+| 33 | TS2345 | Argument `T \| undefined` not assignable — often `arr[arr.length - 1]` |
+| 24 | TS2322 | Assignment mismatch — `brushes.pen` (Record lookup), etc. |
+| 5 | TS2412 / TS2375 | `exactOptionalPropertyTypes` — `?`-optional fields assigned `undefined` explicitly |
+| 1 | TS2769 | Overload mismatch on `path.moveTo(match[1])` |
 
-The actual count at the time of work will differ. Re-run `bunx tsc --noEmit` after enabling the flags to get a fresh count before planning.
+### Type signature changes (the cleanest fixes)
 
-### Affected files
+- **`server/config.ts`** — `Config.token: string | undefined` instead of `token?: string`; added `token: undefined` to `DEFAULTS`. With `exactOptionalPropertyTypes`, `?` means "absent or the declared type" — it does NOT mean "nullable." Explicit `string | undefined` is the correct expression when a value needs to be present-but-possibly-undefined.
+- **`server/websocket.ts`** — same treatment for `WsData.sessionId`.
+- **`bridge/transcript-watcher.ts`** — same treatment for the `onUsage` private field.
+- **`client/toolbar.ts`** — dropped `Record<string, string>` annotation on `ICONS`. With `noUncheckedIndexedAccess`, `Record<K, V>` access returns `V | undefined`, but a bare object literal with known keys keeps dot-access as `string`. Losing the type annotation was a net gain.
+- **`client/layers.ts`** — `rasterizeLayer` uses `delete layer.transform` instead of `layer.transform = undefined`. Same runtime semantic, but `exactOptionalPropertyTypes` treats them differently.
 
-Concentrated in `client/`: `app.ts`, `compositor.ts`, `layers.ts`, `layers-ui.ts`, `markdown.ts`, `stroke.ts`, `theme.ts`, `toolbar.ts`, `touch.ts`, `tools/lasso.ts`, `tools/shapes.ts`, `tools/text.ts`, plus smaller hits in `export.ts`, `pricing.ts`, `sessions-ui.ts`, `usage-tab.ts`, and a single error in `bridge/transcript-watcher.ts`.
+### Real bug surfaced in `client/sessions-ui.ts`
 
-Server code and tests are almost entirely clean.
+`update()` fell through to `this.selectedId = sessions[0].id` in the else branch with no empty-array guard. Would have thrown on any fresh state where no sessions were registered. Now uses `sessions[0]?.id ?? ""`. Similar pattern was also fixed in the app.ts session bootstrap at line 809.
 
-### Strategy — do this alongside the app.ts god-module refactor
+### Mechanical guard patterns
 
-`client/app.ts` is ~966 lines of module-level mutable state (tracked as the `client-god-module` issue in the analysis vault). Most of the `noUncheckedIndexedAccess` errors in `app.ts` come from that same centralized state being accessed without guards — `brushes[toolId]`, `this.layerManager.layers[i]`, etc. Adding `!` assertions or `if (x) return` guards mechanically now and then refactoring later means doing the same work twice and potentially introducing guards in places that the refactor will restructure away.
+- **Array-indexed loops** (`for (let i = 0; i < arr.length; i++)`) — pull `const x = arr[i]; if (!x) continue;` rather than assertion-everywhere. Applied in `layers.ts`, `compositor.ts`, `layers-ui.ts`, `export.ts`.
+- **Known-length tuple destructure** (`Array.from(map.values())` after a size check) — replaced with `const [a, b] = ...; if (!a || !b) return;`. Applied in `touch.ts`.
+- **Invariant-safe `!` assertion** — where a loop or length check just proved non-null and the extra guard would be ceremony, `!` with the invariant documented. Applied in `stroke.ts`, `markdown.ts`, `tools/lasso.ts`, `tools/shapes.ts`, `client/pricing.ts`, and the 6 brush-shortcut lookups in `app.ts`.
+- **Aggregator pattern fix** — `server/usage.ts` and `client/usage-tab.ts` had the `this.models[key] = new; this.models[key].field++;` idiom three times in a row, which confused the narrower. Rewrote to pull into a local `entry` variable so the compiler narrows once.
 
-**Recommended approach:**
+### Tests
 
-1. Do not touch `app.ts` with mechanical null-guards. Instead, combine Round 2 with a structured refactor of `app.ts` into smaller modules. The refactor naturally forces better-typed seams (state owned by classes rather than module-level `let` bindings), which resolves most of the `noUncheckedIndexedAccess` errors through design rather than ceremony.
-2. For the non-`app.ts` files — `compositor.ts`, `layers.ts`, `markdown.ts`, `stroke.ts`, `theme.ts`, `toolbar.ts`, `touch.ts`, `tools/*`, `pricing.ts`, `usage-tab.ts` — apply targeted null-guards file by file. These modules are smaller, well-scoped, and unlikely to be restructured soon.
-3. `bridge/transcript-watcher.ts` — a single `exactOptionalPropertyTypes` error on the optional `onUsage` callback. Trivial fix: change the type to explicitly allow `undefined`.
+~70 errors in test files closed with `!` assertions on array accesses (`entries[0]!.content`, `browser.sent[0]!`, `lm.layers[1]!.name`). Test invariants fail loudly when wrong, so defensive guarding was unwarranted. Bulk-replaced per file via `replace_all`.
+
+One `exactOptionalPropertyTypes` fix in `tests/client/history.test.ts` uses a conditional spread for optional `checkpointSize` instead of passing `undefined` explicitly.
+
+### Verification
+
+- `bunx tsc --noEmit` — clean
+- `bun test` — 388 pass, 0 fail, 731 expect() calls, 8.34s
+- `bun run build:client` — clean (737 modules, 0.56 MB, 47ms)
+
+### Lesson learned for future rounds
+
+**Always re-measure before planning.** The spec was written with a snapshot from an earlier commit, and the recommended strategy (defer app.ts, combine with refactor) was built on assumptions that no longer held by the time Round 2 started. The re-measurement took 30 seconds and changed the entire plan. Future rounds should start with `bunx tsc --noEmit | wc -l` and a per-file breakdown, not with the previous round's predictions.
 
 ### Fix patterns to prefer
 

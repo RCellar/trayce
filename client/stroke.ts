@@ -33,11 +33,13 @@ export function generateStrokeOutline(
 
 export function outlineToPath2D(outline: number[][]): Path2D {
   const path = new Path2D();
-  if (outline.length === 0) return path;
+  const first = outline[0];
+  if (!first) return path;
 
-  path.moveTo(outline[0][0], outline[0][1]);
+  path.moveTo(first[0]!, first[1]!);
   for (let i = 1; i < outline.length; i++) {
-    path.lineTo(outline[i][0], outline[i][1]);
+    const pt = outline[i]!;
+    path.lineTo(pt[0]!, pt[1]!);
   }
   path.closePath();
   return path;

@@ -5,7 +5,7 @@ const makeCommand = (id: string, checkpointSize?: number): Command => ({
   type: "stroke",
   layerId: "layer-1",
   data: { id },
-  checkpointSize,
+  ...(checkpointSize !== undefined && { checkpointSize }),
 });
 
 describe("History — undo/redo", () => {

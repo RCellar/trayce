@@ -197,7 +197,7 @@ export class ThemeManager {
     for (const preset of THEME_PRESETS) {
       const swatch = document.createElement("div");
       swatch.className = "theme-swatch" + (preset.name === this.currentPreset ? " active" : "");
-      swatch.style.background = preset.vars["--bg"];
+      swatch.style.background = preset.vars["--bg"] ?? "";
       swatch.title = preset.name;
       swatch.addEventListener("click", () => {
         this.currentPreset = preset.name;
@@ -289,9 +289,9 @@ export class ThemeManager {
   }
 
   private buildVars(): Record<string, string> {
-    const preset = THEME_PRESETS.find((p) => p.name === this.currentPreset) ?? THEME_PRESETS[0];
-    const accent = ACCENT_COLORS.find((a) => a.name === this.currentAccent) ?? ACCENT_COLORS[0];
-    const font = FONT_OPTIONS.find((f) => f.name === this.currentFont) ?? FONT_OPTIONS[0];
+    const preset = THEME_PRESETS.find((p) => p.name === this.currentPreset) ?? THEME_PRESETS[0]!;
+    const accent = ACCENT_COLORS.find((a) => a.name === this.currentAccent) ?? ACCENT_COLORS[0]!;
+    const font = FONT_OPTIONS.find((f) => f.name === this.currentFont) ?? FONT_OPTIONS[0]!;
     return {
       ...preset.vars,
       "--accent": accent.accent,

@@ -39,12 +39,14 @@ export class UsageTab {
     this.snapshot.cacheWriteTokens += usage.cacheWriteTokens;
     this.snapshot.requestCount++;
 
-    if (!this.snapshot.models[usage.model]) {
-      this.snapshot.models[usage.model] = { inputTokens: 0, outputTokens: 0, requests: 0 };
+    let entry = this.snapshot.models[usage.model];
+    if (!entry) {
+      entry = { inputTokens: 0, outputTokens: 0, requests: 0 };
+      this.snapshot.models[usage.model] = entry;
     }
-    this.snapshot.models[usage.model].inputTokens += usage.inputTokens;
-    this.snapshot.models[usage.model].outputTokens += usage.outputTokens;
-    this.snapshot.models[usage.model].requests++;
+    entry.inputTokens += usage.inputTokens;
+    entry.outputTokens += usage.outputTokens;
+    entry.requests++;
 
     if (this.snapshot.firstTimestamp === 0 || usage.timestamp < this.snapshot.firstTimestamp) {
       this.snapshot.firstTimestamp = usage.timestamp;
