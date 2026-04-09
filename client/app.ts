@@ -27,6 +27,7 @@ import { showToast } from "./toast";
 import { type ActionId, Toolbar, type ToolId } from "./toolbar";
 import { ImageTool } from "./tools/image";
 import { TranscriptTab } from "./transcript-tab";
+import { TransformHandler } from "./transform";
 import { UsageTab } from "./usage-tab";
 
 // -- State --
@@ -56,6 +57,7 @@ let brushParams: BrushParams = {
 };
 
 let imageTool: ImageTool | null = null;
+let transformHandler: TransformHandler | null = null;
 
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
@@ -258,6 +260,11 @@ async function initCanvas(
   layerManager.addLayer("Sketch");
   compositor = new Compositor(canvasManager.app, layerManager);
   history = new History(50 * 1024 * 1024); // 50MB budget
+  transformHandler = new TransformHandler({
+    layerManager: () => layerManager,
+    compositor: () => compositor,
+    canvasManager: () => canvasManager,
+  });
 
   // Add compositor container to stage (inside zoom/pan)
   canvasManager.stage.addChild(compositor.getContainer());
@@ -279,7 +286,7 @@ async function initCanvas(
       layerManager!.activeLayerIndex = index;
       layersUI?.render();
       updateLayerInfo();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
     },
     onVisibilityToggle: (index) => {
       const layer = layerManager!.layers[index];
@@ -299,7 +306,7 @@ async function initCanvas(
       compositor?.markDirty();
       layersUI?.render();
       updateLayerInfo();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
     },
     onDeleteLayer: (index) => {
       try {
@@ -307,7 +314,7 @@ async function initCanvas(
         compositor?.markDirty();
         layersUI?.render();
         updateLayerInfo();
-        updateTransformOverlay();
+        transformHandler?.updateOverlay();
       } catch (_e) {
         showToast("Cannot delete this layer");
       }
@@ -316,7 +323,7 @@ async function initCanvas(
       layerManager!.rasterizeLayer(index);
       compositor?.markDirty();
       layersUI?.render();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
       showToast("Layer rasterized");
     },
   });
@@ -334,76 +341,8 @@ async function initCanvas(
   // Render loop
   canvasManager.app.ticker.add(() => {
     compositor?.update();
-    updateTransformOverlay();
+    transformHandler?.updateOverlay();
   });
-}
-
-// -- Transform interaction state --
-
-type HandleId = "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
-type DragMode =
-  | { type: "move"; offsetX: number; offsetY: number }
-  | {
-      type: "resize";
-      handle: HandleId;
-      anchorX: number;
-      anchorY: number;
-      startW: number;
-      startH: number;
-    };
-
-let transformDrag: DragMode | null = null;
-
-const HANDLE_RADIUS_SCREEN = 6; // pixels in screen space
-
-function getHandleAtPoint(
-  t: { x: number; y: number; width: number; height: number },
-  docX: number,
-  docY: number,
-  zoom: number,
-): HandleId | null {
-  const r = HANDLE_RADIUS_SCREEN / zoom; // convert screen hit radius to doc space
-  const handles: Array<{ id: HandleId; hx: number; hy: number }> = [
-    { id: "nw", hx: t.x, hy: t.y },
-    { id: "n", hx: t.x + t.width / 2, hy: t.y },
-    { id: "ne", hx: t.x + t.width, hy: t.y },
-    { id: "w", hx: t.x, hy: t.y + t.height / 2 },
-    { id: "e", hx: t.x + t.width, hy: t.y + t.height / 2 },
-    { id: "sw", hx: t.x, hy: t.y + t.height },
-    { id: "s", hx: t.x + t.width / 2, hy: t.y + t.height },
-    { id: "se", hx: t.x + t.width, hy: t.y + t.height },
-  ];
-  for (const h of handles) {
-    if (Math.abs(docX - h.hx) <= r && Math.abs(docY - h.hy) <= r) return h.id;
-  }
-  return null;
-}
-
-function hitTestTransformBounds(
-  t: { x: number; y: number; width: number; height: number },
-  docX: number,
-  docY: number,
-): boolean {
-  return docX >= t.x && docX <= t.x + t.width && docY >= t.y && docY <= t.y + t.height;
-}
-
-function updateTransformOverlay(): void {
-  if (!compositor || !canvasManager || !layerManager) {
-    compositor?.clearOverlay();
-    return;
-  }
-  const layer = layerManager.activeLayer;
-  if (!layer.transform) {
-    compositor.clearOverlay();
-    return;
-  }
-  const stagePos = canvasManager.stage.position;
-  compositor.drawTransformOverlay(
-    stagePos.x,
-    stagePos.y,
-    canvasManager.viewport.zoom,
-    layer.transform,
-  );
 }
 
 // -- Drawing --
@@ -420,7 +359,7 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
 
   // If active layer has a transform, handle move/resize instead of drawing
   if (layer.transform) {
-    handleTransformInput(layer.transform, doc.x, doc.y, event);
+    transformHandler?.handleInput(layer.transform, doc.x, doc.y, event);
     return;
   }
 
@@ -467,111 +406,6 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
       }
     }
   }
-}
-
-function handleTransformInput(
-  t: import("./layers").LayerTransform,
-  docX: number,
-  docY: number,
-  event: "start" | "move" | "end",
-): void {
-  if (event === "start") {
-    const zoom = canvasManager!.viewport.zoom;
-
-    // Check handles first (higher priority than move)
-    const handle = getHandleAtPoint(t, docX, docY, zoom);
-    if (handle) {
-      // Anchor is the corner opposite to the dragged handle
-      const ax = handle.includes("e") ? t.x : handle.includes("w") ? t.x + t.width : t.x;
-      const ay = handle.includes("s") ? t.y : handle.includes("n") ? t.y + t.height : t.y;
-      transformDrag = {
-        type: "resize",
-        handle,
-        anchorX: ax,
-        anchorY: ay,
-        startW: t.width,
-        startH: t.height,
-      };
-      return;
-    }
-
-    // Check body hit for move
-    if (hitTestTransformBounds(t, docX, docY)) {
-      transformDrag = { type: "move", offsetX: docX - t.x, offsetY: docY - t.y };
-      return;
-    }
-
-    // Clicked outside — no interaction
-    transformDrag = null;
-  }
-
-  if (event === "move" && transformDrag) {
-    if (transformDrag.type === "move") {
-      t.x = docX - transformDrag.offsetX;
-      t.y = docY - transformDrag.offsetY;
-    } else {
-      applyResize(t, transformDrag, docX, docY);
-    }
-    compositor?.markDirty();
-    if (layerManager) layerManager.bumpRevision(layerManager.activeLayer.id);
-    updateTransformOverlay();
-  }
-
-  if (event === "end" && transformDrag) {
-    transformDrag = null;
-  }
-}
-
-function applyResize(
-  t: import("./layers").LayerTransform,
-  drag: Extract<DragMode, { type: "resize" }>,
-  docX: number,
-  docY: number,
-): void {
-  const MIN_SIZE = 10;
-  const { handle, anchorX, anchorY, startW, startH } = drag;
-  const aspect = startW / startH;
-
-  let newX = t.x,
-    newY = t.y,
-    newW = t.width,
-    newH = t.height;
-
-  // Horizontal component
-  if (handle.includes("e")) {
-    newW = Math.max(MIN_SIZE, docX - anchorX);
-    newX = anchorX;
-  } else if (handle.includes("w")) {
-    newW = Math.max(MIN_SIZE, anchorX - docX);
-    newX = anchorX - newW;
-  }
-
-  // Vertical component
-  if (handle.includes("s")) {
-    newH = Math.max(MIN_SIZE, docY - anchorY);
-    newY = anchorY;
-  } else if (handle.includes("n")) {
-    newH = Math.max(MIN_SIZE, anchorY - docY);
-    newY = anchorY - newH;
-  }
-
-  // Corner handles: preserve aspect ratio (default behavior)
-  if (handle.length === 2) {
-    // Fit to the smaller dimension
-    if (newW / newH > aspect) {
-      newW = newH * aspect;
-    } else {
-      newH = newW / aspect;
-    }
-    // Re-anchor after ratio adjustment
-    if (handle.includes("w")) newX = anchorX - newW;
-    if (handle.includes("n")) newY = anchorY - newH;
-  }
-
-  t.x = Math.round(newX);
-  t.y = Math.round(newY);
-  t.width = Math.round(newW);
-  t.height = Math.round(newH);
 }
 
 // -- Connection --
@@ -805,7 +639,7 @@ function handleCanvasPush(msg: ServerMessage): void {
       compositor?.markDirty();
       layersUI?.render();
       updateLayerInfo();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
     };
     imgElement.src = `data:image/png;base64,${image}`;
 
@@ -850,7 +684,7 @@ function handleImageImport(bitmap: ImageBitmap, name: string): void {
   compositor.markDirty();
   layersUI?.render();
   updateLayerInfo();
-  updateTransformOverlay();
+  transformHandler?.updateOverlay();
   showToast(`Image added as "${name}"`);
 }
 
