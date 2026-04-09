@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { type ChildProcess, spawn as nodeSpawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
@@ -114,7 +115,7 @@ function nextMessage(ws: WebSocket, timeoutMs = 15_000): Promise<Record<string, 
 }
 
 describe("integration", () => {
-  let serverProc: ReturnType<typeof Bun.spawn>;
+  let serverProc: ChildProcess;
   let state: StateJson;
   let baseUrl: string;
 
@@ -123,7 +124,9 @@ describe("integration", () => {
     mkdirSync(CLIENT_DIR, { recursive: true });
     Bun.write(join(CLIENT_DIR, "index.html"), "<html><body>trayce</body></html>");
 
-    serverProc = Bun.spawn([process.execPath, "run", SERVER_ENTRY], {
+    // Use node:child_process with detached: true to prevent Bun's test runner
+    // from killing the server as a "dangling process" mid-suite.
+    serverProc = nodeSpawn(process.execPath, ["run", SERVER_ENTRY], {
       cwd: PROJECT_ROOT,
       env: {
         ...process.env,
@@ -133,10 +136,9 @@ describe("integration", () => {
         TRAYCE_SUBMISSIONS_DIR: SUBMISSIONS_DIR,
         TRAYCE_CLIENT_DIR: CLIENT_DIR,
       },
-      stdout: "pipe",
-      stderr: "pipe",
+      stdio: "ignore",
+      detached: true,
     });
-    // Prevent Bun's test runner from killing the server as a "dangling process"
     serverProc.unref();
 
     state = await waitForState(STATE_FILE);
@@ -148,7 +150,8 @@ describe("integration", () => {
 
   afterAll(() => {
     try {
-      serverProc.kill("SIGTERM");
+      // Kill the detached process group (negative PID)
+      if (serverProc.pid) process.kill(-serverProc.pid, "SIGTERM");
     } catch {}
     rmSync(TMP_DIR, { recursive: true, force: true });
   });
