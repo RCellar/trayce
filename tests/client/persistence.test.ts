@@ -1,21 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import type { SavedLayer } from "../../client/persistence";
-import { generateTabId } from "../../client/persistence";
+import { persistenceKey, SCRATCHPAD_KEY } from "../../client/persistence";
 
-describe("persistence helpers", () => {
-  test("generateTabId returns a string", () => {
-    expect(typeof generateTabId()).toBe("string");
+describe("persistence key helpers", () => {
+  test("persistenceKey returns prefixed session key", () => {
+    expect(persistenceKey("abc-123")).toBe("layers-session-abc-123");
   });
 
-  test("generateTabId returns unique IDs", () => {
-    const a = generateTabId();
-    const b = generateTabId();
-    expect(a).not.toBe(b);
+  test("persistenceKey handles arbitrary session IDs", () => {
+    expect(persistenceKey("xyz")).toBe("layers-session-xyz");
+    expect(persistenceKey("my-session-42")).toBe("layers-session-my-session-42");
   });
 
-  test("generateTabId returns UUID format", () => {
-    const id = generateTabId();
-    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  test("SCRATCHPAD_KEY equals layers-scratchpad", () => {
+    expect(SCRATCHPAD_KEY).toBe("layers-scratchpad");
   });
 });
 
