@@ -78,44 +78,43 @@ function nextMessage(ws: WebSocket, timeoutMs = 10_000): Promise<Record<string, 
   });
 }
 
-// -- Main test suite (auth enabled) --
+describe("integration", () => {
+  let serverProc: ReturnType<typeof Bun.spawn>;
+  let state: StateJson;
+  let baseUrl: string;
 
-let serverProc: ReturnType<typeof Bun.spawn>;
-let state: StateJson;
-let baseUrl: string;
+  beforeAll(async () => {
+    rmSync(TMP_DIR, { recursive: true, force: true });
+    mkdirSync(CLIENT_DIR, { recursive: true });
+    Bun.write(join(CLIENT_DIR, "index.html"), "<html><body>trayce</body></html>");
 
-beforeAll(async () => {
-  rmSync(TMP_DIR, { recursive: true, force: true });
-  mkdirSync(CLIENT_DIR, { recursive: true });
-  Bun.write(join(CLIENT_DIR, "index.html"), "<html><body>trayce</body></html>");
+    serverProc = Bun.spawn([process.execPath, "run", SERVER_ENTRY], {
+      cwd: PROJECT_ROOT,
+      env: {
+        ...process.env,
+        TRAYCE_PORT: String(TEST_PORT),
+        TRAYCE_HOST: "127.0.0.1",
+        TRAYCE_STATE_FILE: STATE_FILE,
+        TRAYCE_SUBMISSIONS_DIR: SUBMISSIONS_DIR,
+        TRAYCE_CLIENT_DIR: CLIENT_DIR,
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
 
-  serverProc = Bun.spawn([process.execPath, "run", SERVER_ENTRY], {
-    cwd: PROJECT_ROOT,
-    env: {
-      ...process.env,
-      TRAYCE_PORT: String(TEST_PORT),
-      TRAYCE_HOST: "127.0.0.1",
-      TRAYCE_STATE_FILE: STATE_FILE,
-      TRAYCE_SUBMISSIONS_DIR: SUBMISSIONS_DIR,
-      TRAYCE_CLIENT_DIR: CLIENT_DIR,
-    },
-    stdout: "pipe",
-    stderr: "pipe",
+    state = await waitForState(STATE_FILE);
+    baseUrl = `http://127.0.0.1:${state.port}`;
+    await waitForHttp(baseUrl);
+  }, 30_000);
+
+  afterAll(() => {
+    try {
+      serverProc.kill("SIGTERM");
+    } catch {}
+    rmSync(TMP_DIR, { recursive: true, force: true });
   });
 
-  state = await waitForState(STATE_FILE);
-  baseUrl = `http://127.0.0.1:${state.port}`;
-  await waitForHttp(baseUrl);
-}, 30_000);
-
-afterAll(() => {
-  try {
-    serverProc.kill("SIGTERM");
-  } catch {}
-  rmSync(TMP_DIR, { recursive: true, force: true });
-});
-
-describe("state file", () => {
+  describe("state file", () => {
   it("contains pid, port, host, token, url", () => {
     expect(state.pid).toBeGreaterThan(0);
     expect(state.port).toBe(TEST_PORT);
@@ -247,3 +246,4 @@ describe("WebSocket /bridge", () => {
     await res.body?.cancel();
   });
 });
+}); // end integration
