@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { ServerWebSocket } from "bun";
 import type {
   BridgeRoutedMessage,
@@ -50,12 +51,22 @@ export class WebSocketHub {
   private readonly browserWatchSession = new Map<string, string>();
   private readonly sessionBuffers = new Map<string, string[]>();
   private readonly sessionUsage = new Map<string, SessionUsage>();
+  private _containerMode: boolean | null = null;
+  private detectContainerMode(): boolean {
+    if (this._containerMode !== null) return this._containerMode;
+    this._containerMode = existsSync("/.dockerenv") || Bun.env.TRAYCE_CONTAINER === "1";
+    return this._containerMode;
+  }
   private static readonly BUFFERED_TYPES = new Set([
     "transcript-entry",
     "response",
     "transcript-status",
     "canvas-push",
   ]);
+  /** Delay between acknowledging a shutdown-request and firing the
+   * actual shutdown callback. Lets the WebSocket flush the ack frame
+   * before the socket is torn down. */
+  private static readonly SHUTDOWN_ACK_FLUSH_MS = 50;
 
   constructor(
     private readonly registry: SessionRegistry,
@@ -63,11 +74,7 @@ export class WebSocketHub {
     private readonly config: Config,
     private readonly shutdownFn: ShutdownFn,
     private readonly now: () => number = Date.now,
-  ) {
-    // Touch shutdownFn so TS/Biome don't flag it as unused before Task 3
-    // wires the real call site. Compiles to a no-op.
-    void this.shutdownFn;
-  }
+  ) {}
 
   static parseMessage(raw: string | Buffer): WsMessage | null {
     try {
@@ -168,6 +175,24 @@ export class WebSocketHub {
             requestId: msg.requestId,
             behavior: msg.behavior,
           }),
+        );
+        return;
+      }
+
+      case "shutdown-request": {
+        const containerMode = this.detectContainerMode();
+        safeSend(
+          ws,
+          JSON.stringify({
+            type: "server-exiting",
+            restart: msg.restart,
+            containerMode,
+          }),
+        );
+        // Give the socket a beat to flush the ack before tearing down.
+        setTimeout(
+          () => this.shutdownFn({ restart: msg.restart, containerMode }),
+          WebSocketHub.SHUTDOWN_ACK_FLUSH_MS,
         );
         return;
       }
