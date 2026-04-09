@@ -13,14 +13,6 @@ import type { SessionRegistry } from "./sessions";
 import type { SubmissionStore } from "./submissions";
 import { SessionUsage } from "./usage";
 
-/** The raw parsed shape before discriminated-union narrowing. `parseRaw`
- * guarantees `type` is a non-empty string; everything else is unknown
- * until runtime validation at the boundary. Kept exported for tests. */
-export interface WsMessage {
-  type: string;
-  [key: string]: unknown;
-}
-
 export interface WsData {
   kind: "browser" | "bridge";
   id: string;
@@ -224,11 +216,6 @@ export class WebSocketHub {
       }
 
       case "shutdown-request": {
-        // Runtime validation: the discriminated union describes intent, not
-        // guarantee. Drop malformed payloads silently rather than crashing
-        // the server via a follow-on process.exit. Round 4 of the static-
-        // analysis plan proposes Zod at the parse boundary for a general fix.
-        if (typeof msg.restart !== "boolean") return;
         const containerMode = this.detectContainerMode();
         safeSend(
           ws,
@@ -288,9 +275,7 @@ export class WebSocketHub {
     }
   }
 
-  private handleWatchSession(ws: Ws, rawSessionId: unknown): void {
-    if (typeof rawSessionId !== "string" || rawSessionId.length === 0) return;
-    const sid = rawSessionId;
+  private handleWatchSession(ws: Ws, sid: string): void {
     this.browserWatchSession.set(ws.data.id, sid);
 
     // Replay buffered transcript entries for this session
@@ -329,15 +314,7 @@ export class WebSocketHub {
         usage = new SessionUsage();
         this.sessionUsage.set(sessionId, usage);
       }
-      const u = msg.usage;
-      usage.add({
-        inputTokens: u.inputTokens ?? 0,
-        outputTokens: u.outputTokens ?? 0,
-        cacheReadTokens: u.cacheReadTokens ?? 0,
-        cacheWriteTokens: u.cacheWriteTokens ?? 0,
-        model: u.model ?? "unknown",
-        timestamp: u.timestamp ?? Date.now(),
-      });
+      usage.add(msg.usage);
     }
 
     // Buffer replay-worthy messages for late-joining browsers
@@ -362,10 +339,6 @@ export class WebSocketHub {
 
   private handleRegister(ws: Ws, msg: RegisterMessage): void {
     const { sessionId, label } = msg;
-    // Runtime validation — the discriminated union describes the intended
-    // shape, not what was actually received.
-    if (typeof sessionId !== "string" || sessionId.length === 0) return;
-    if (typeof label !== "string" || label.length === 0) return;
 
     // If this bridge previously registered a different session, clean up
     if (ws.data.sessionId && ws.data.sessionId !== sessionId) {
