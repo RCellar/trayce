@@ -93,11 +93,17 @@ export interface PermissionVerdictMessage {
   behavior: PermissionBehavior;
 }
 
+export interface ShutdownRequestMessage {
+  type: "shutdown-request";
+  restart: boolean; // false = clean exit, true = spawn replacement before exit
+}
+
 export type BrowserToServerMessage =
   | HeartbeatMessage
   | SubmitMessage
   | WatchSessionMessage
-  | PermissionVerdictMessage;
+  | PermissionVerdictMessage
+  | ShutdownRequestMessage;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Bridge → Server (also: the server appends sessionId and forwards to browsers)
@@ -184,6 +190,18 @@ export interface UsageSnapshotMessage {
   usage: UsageSnapshotData;
 }
 
+export interface ServerExitingMessage {
+  type: "server-exiting";
+  restart: boolean; // echoes the request so the browser knows what to expect
+  containerMode: boolean; // true → orchestrator will handle restart
+}
+
+export interface ServerInfoMessage {
+  type: "server-info";
+  containerMode: boolean; // true if running under a container orchestrator
+  // Room to grow: version, uptime, etc. as future fields
+}
+
 /** When the server forwards a bridge message to a browser, it tags it with
  * the bridge's session ID so the browser can route it to the right watcher. */
 export type SessionScoped<M> = M & { sessionId: string };
@@ -194,6 +212,8 @@ export type ServerToBrowserMessage =
   | AckMessage
   | ErrorMessage
   | UsageSnapshotMessage
+  | ServerInfoMessage
+  | ServerExitingMessage
   | SessionScoped<BridgeRoutedMessage>;
 
 // ────────────────────────────────────────────────────────────────────────────
