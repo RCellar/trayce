@@ -72,7 +72,13 @@ function makeFixture(configOverrides: Partial<Config> = {}): Fixture {
   const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
   const nowRef = { value: 1_000_000 };
   const config = { ...BASE_CONFIG, ...configOverrides };
-  const hub = new WebSocketHub(registry, store, config, () => nowRef.value);
+  const hub = new WebSocketHub(
+    registry,
+    store,
+    config,
+    () => {},
+    () => nowRef.value,
+  );
   return { hub, registry, store, now: nowRef };
 }
 
@@ -474,7 +480,7 @@ describe("submit — validation", () => {
   it("rejects oversized submission", async () => {
     const { hub: _, registry } = makeFixture();
     const tinyStore = new SubmissionStore(TEST_DIR, 10);
-    const hub = new WebSocketHub(registry, tinyStore, BASE_CONFIG);
+    const hub = new WebSocketHub(registry, tinyStore, BASE_CONFIG, () => {});
     const ws = browserWs();
     hub.addBrowser(ws as any);
     ws.sent.length = 0;
