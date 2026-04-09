@@ -60,6 +60,8 @@ let imageTool: ImageTool | null = null;
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
 
+let containerMode = false; // Set by the server-info message on connect
+
 let sidePanel: SidePanel | null = null;
 let responseTab: ResponseTab | null = null;
 let transcriptTab: TranscriptTab | null = null;
@@ -82,6 +84,8 @@ const promptInput = document.getElementById("prompt-input") as HTMLInputElement;
 const connectionStatus = document.getElementById("connection-status")!;
 const toolInfo = document.getElementById("tool-info")!;
 const layerInfo = document.getElementById("layer-info")!;
+const powerBtn = document.getElementById("server-power-btn") as HTMLButtonElement;
+let powerPopover: HTMLElement | null = null;
 
 let toolbar: Toolbar | null = null;
 let layersUI: LayersUI | null = null;
@@ -606,6 +610,7 @@ function handleConnectionStatus(status: "connected" | "disconnected" | "reconnec
   }
 
   submitBtn.disabled = status !== "connected" || !selectedSessionId;
+  powerBtn.disabled = status !== "connected";
 }
 
 // Track pending permission prompts for stale detection
@@ -647,6 +652,18 @@ function handleServerMessage(msg: ServerMessage): void {
   if (msg.type === "sessions") {
     sessions = msg.sessions as typeof sessions;
     updateSessionSelect();
+  } else if (msg.type === "server-info") {
+    if (typeof msg.containerMode === "boolean") {
+      containerMode = msg.containerMode;
+    }
+  } else if (msg.type === "server-exiting") {
+    const restart = Boolean(msg.restart);
+    const inContainer = Boolean(msg.containerMode);
+    const action = restart ? "restarting" : "shutting down";
+    const where = inContainer ? " (orchestrator will handle restart)" : "";
+    showToast(`Server ${action}${where}…`);
+    submitBtn.disabled = true;
+    powerBtn.disabled = true;
   } else if (msg.type === "ack") {
     showToast("Submitted!");
   } else if (msg.type === "error") {
@@ -864,9 +881,21 @@ function updateSessionSelect(): void {
       sessionSelect.value = stored;
       selectedSessionId = stored;
     } else {
+      // The stored session isn't in the current list yet. This happens during
+      // a server restart: the browser reconnects before the bridge has
+      // re-registered, so the first sessions broadcast can be empty or
+      // partial. Show the first available session as a temporary default but
+      // DO NOT overwrite localStorage — when the bridge catches up and the
+      // next broadcast arrives, this branch will run again with the full
+      // list and correctly restore the user's selection.
       const first = sessions[0];
       selectedSessionId = first?.id ?? "";
       sessionSelect.value = selectedSessionId;
+      // Only persist the auto-picked first as the "remembered" selection when
+      // there was nothing stored at all — that's the first-ever visit case.
+      if (!stored && selectedSessionId) {
+        localStorage.setItem("trayce-session", selectedSessionId);
+      }
     }
   }
 
@@ -974,6 +1003,108 @@ function updateToolInfo(): void {
 function updateLayerInfo(): void {
   if (!layerManager) return;
   layerInfo.textContent = `Layer: ${layerManager.activeLayer.name}`;
+}
+
+// -- Server power button --
+
+powerBtn.addEventListener("click", (e) => {
+  if (!connection?.isConnected) return;
+  if (e.shiftKey) {
+    // Fast path: skip popover, skip confirmation, restart immediately.
+    sendShutdownRequest(true);
+    return;
+  }
+  if (powerPopover) {
+    closePowerPopover();
+    return;
+  }
+  openPowerPopover();
+});
+
+function openPowerPopover(): void {
+  powerPopover = document.createElement("div");
+  powerPopover.className = "server-power-popover";
+
+  const restartBtn = document.createElement("button");
+  restartBtn.type = "button";
+  restartBtn.className = "popover-btn restart";
+  restartBtn.textContent = "Restart";
+  restartBtn.title = containerMode
+    ? "Exit this process; orchestrator will restart if configured"
+    : "Restart the server; this browser will reconnect automatically";
+  restartBtn.addEventListener("click", () => {
+    closePowerPopover();
+    sendShutdownRequest(true);
+  });
+
+  const shutdownBtn = document.createElement("button");
+  shutdownBtn.type = "button";
+  shutdownBtn.className = "popover-btn shutdown";
+  shutdownBtn.textContent = "Shutdown";
+  shutdownBtn.title = containerMode
+    ? "Exit this process; container will stop unless restart policy is set"
+    : "Stop the server; you'll need to start it again from a terminal";
+  shutdownBtn.addEventListener("click", () => {
+    closePowerPopover();
+    sendShutdownRequest(false);
+  });
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "popover-btn cancel";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", closePowerPopover);
+
+  powerPopover.append(restartBtn, shutdownBtn, cancelBtn);
+
+  // Position below the button, right-aligned with it
+  const rect = powerBtn.getBoundingClientRect();
+  powerPopover.style.top = `${rect.bottom + 4}px`;
+  powerPopover.style.right = `${window.innerWidth - rect.right}px`;
+
+  document.body.appendChild(powerPopover);
+  powerBtn.classList.add("active");
+
+  // Click-outside and escape-key dismiss, deferred by one frame so the
+  // opening click doesn't immediately close it
+  requestAnimationFrame(() => {
+    const dismissClick = (ev: MouseEvent) => {
+      if (powerPopover && !powerPopover.contains(ev.target as Node) && ev.target !== powerBtn) {
+        closePowerPopover();
+      }
+    };
+    const dismissEsc = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") closePowerPopover();
+    };
+    document.addEventListener("click", dismissClick);
+    document.addEventListener("keydown", dismissEsc);
+    // Store handlers on the popover element so closePowerPopover can find them
+    (powerPopover as unknown as { _dismissClick: typeof dismissClick })._dismissClick =
+      dismissClick;
+    (powerPopover as unknown as { _dismissEsc: typeof dismissEsc })._dismissEsc = dismissEsc;
+  });
+}
+
+function closePowerPopover(): void {
+  if (!powerPopover) return;
+  const handlers = powerPopover as unknown as {
+    _dismissClick?: (e: MouseEvent) => void;
+    _dismissEsc?: (e: KeyboardEvent) => void;
+  };
+  if (handlers._dismissClick) document.removeEventListener("click", handlers._dismissClick);
+  if (handlers._dismissEsc) document.removeEventListener("keydown", handlers._dismissEsc);
+  powerPopover.remove();
+  powerPopover = null;
+  powerBtn.classList.remove("active");
+}
+
+function sendShutdownRequest(restart: boolean): void {
+  if (!connection?.isConnected) return;
+  connection.send({ type: "shutdown-request", restart });
+  // The toast is shown by the server-exiting handler when the ack arrives
+  // (~50ms). It has more info (container mode) and confirms the request was
+  // received. Avoid showing a redundant one here.
+  powerBtn.disabled = true;
 }
 
 // -- Keyboard Shortcuts --

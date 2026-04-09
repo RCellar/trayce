@@ -1170,3 +1170,83 @@ dialog .bg-choice label {
   border: 1px solid var(--accent);
   color: var(--accent);
 }
+
+/* Server power button */
+.power-btn {
+  background: transparent;
+  border: 1px solid var(--border, #444);
+  color: var(--text-muted, #ccc);
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.power-btn:hover:not(:disabled) {
+  background: var(--accent-dim, rgba(74, 158, 255, 0.15));
+  color: var(--accent, #4a9eff);
+}
+
+.power-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.power-btn.active {
+  background: var(--accent-dim, rgba(74, 158, 255, 0.2));
+  color: var(--accent, #4a9eff);
+}
+
+/* Server power popover */
+.server-power-popover {
+  position: fixed;
+  background: var(--surface, #2a2a2a);
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  min-width: 140px;
+}
+
+.server-power-popover .popover-btn {
+  background: transparent;
+  border: none;
+  color: var(--text, #ccc);
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.server-power-popover .popover-btn:hover {
+  background: var(--accent-dim, rgba(74, 158, 255, 0.15));
+}
+
+.server-power-popover .popover-btn.restart {
+  color: var(--accent, #4a9eff);
+}
+
+.server-power-popover .popover-btn.shutdown {
+  color: #e55;
+}
+
+.server-power-popover .popover-btn.cancel {
+  color: var(--text-muted, #888);
+  border-top: 1px solid var(--border, #444);
+  margin-top: 2px;
+  padding-top: 10px;
+}
