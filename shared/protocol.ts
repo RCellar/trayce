@@ -55,10 +55,14 @@ export interface TranscriptEntryData {
   type: TranscriptEntryType;
   role: TranscriptRole;
   content: string;
-  timestamp: number;
-  toolName?: string;
-  toolInput?: string;
-  toolUseId?: string;
+  /** All optional fields use `?: T | undefined` (not just `?: T`) to match
+   * Zod's `.optional()` inference under `exactOptionalPropertyTypes: true`.
+   * Only the client's transcript tab reads `timestamp`; the server relays
+   * entry objects verbatim. */
+  timestamp?: number | undefined;
+  toolName?: string | undefined;
+  toolInput?: string | undefined;
+  toolUseId?: string | undefined;
 }
 
 export type PermissionBehavior = "allow" | "allow_once" | "deny";
@@ -77,9 +81,15 @@ export interface HeartbeatMessage {
 
 export interface SubmitMessage {
   type: "submit";
-  targetSessionId: string;
-  image?: string; // base64 PNG, optional if prompt present
-  prompt?: string;
+  // `targetSessionId` is nominally required but typed as optional here
+  // because `SubmitSchema` is deliberately permissive: `handleSubmit`
+  // owns its own validation and returns `INVALID_TARGET` / `EMPTY_SUBMISSION`
+  // error codes for missing fields. If the schema rejected missing fields
+  // at the parse boundary, those user-facing errors would never fire and
+  // existing tests would fail. The handler checks this at runtime.
+  targetSessionId?: string | undefined;
+  image?: string | undefined; // base64 PNG, optional if prompt present
+  prompt?: string | undefined;
 }
 
 export interface WatchSessionMessage {
@@ -123,13 +133,13 @@ export interface TranscriptEntryMessage {
 export interface ResponseMessage {
   type: "response";
   content: string;
-  format?: "markdown" | "plain";
+  format?: "markdown" | "plain" | undefined;
 }
 
 export interface CanvasPushMessage {
   type: "canvas-push";
   image: string; // base64 PNG
-  label?: string;
+  label?: string | undefined;
 }
 
 export interface TranscriptStatusMessage {
@@ -146,7 +156,7 @@ export interface PermissionRequestMessage {
   type: "permission-request";
   requestId: string;
   toolName: string;
-  toolInput?: unknown;
+  toolInput?: unknown | undefined;
 }
 
 /** Bridge-routed messages: bridge sends these, server forwards them to

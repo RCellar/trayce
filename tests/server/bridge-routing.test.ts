@@ -155,16 +155,20 @@ describe("bridge routing — transcript-entry", () => {
       bridge as any,
       JSON.stringify({
         type: "transcript-entry",
-        role: "assistant",
-        text: "Hello!",
+        entry: {
+          type: "message",
+          role: "assistant",
+          content: "Hello!",
+          timestamp: Date.now(),
+        },
       }),
     );
 
     expect(browser.sent.length).toBe(1);
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.type).toBe("transcript-entry");
-    expect(msg.role).toBe("assistant");
-    expect(msg.text).toBe("Hello!");
+    expect((msg.entry as any).role).toBe("assistant");
+    expect((msg.entry as any).content).toBe("Hello!");
     expect(msg.sessionId).toBe("s1");
   });
 
@@ -185,8 +189,7 @@ describe("bridge routing — transcript-entry", () => {
       bridge as any,
       JSON.stringify({
         type: "transcript-entry",
-        role: "user",
-        text: "Hi",
+        entry: { type: "message", role: "user", content: "Hi", timestamp: Date.now() },
       }),
     );
 
@@ -340,7 +343,10 @@ describe("bridge routing — multi-browser fan-out", () => {
 
     await hub.handleMessage(
       bridge as any,
-      JSON.stringify({ type: "transcript-entry", role: "user", text: "hi" }),
+      JSON.stringify({
+        type: "transcript-entry",
+        entry: { type: "message", role: "user", content: "hi", timestamp: Date.now() },
+      }),
     );
 
     expect(browser1.sent.length).toBe(1);
@@ -386,7 +392,7 @@ describe("bridge routing — sessionId injection", () => {
       bridge as any,
       JSON.stringify({
         type: "transcript-entry",
-        text: "hello",
+        entry: { type: "message", role: "user", content: "hello", timestamp: Date.now() },
       }),
     );
 
@@ -402,7 +408,7 @@ describe("bridge routing — sessionId injection", () => {
       bridge as any,
       JSON.stringify({
         type: "transcript-entry",
-        text: "hello",
+        entry: { type: "message", role: "user", content: "hello", timestamp: Date.now() },
         sessionId: "spoofed-session",
       }),
     );
@@ -475,7 +481,10 @@ describe("removeBrowser", () => {
     // After removal, routing bridge messages should not try to send to removed browser
     await hub.handleMessage(
       bridge as any,
-      JSON.stringify({ type: "transcript-entry", text: "hi" }),
+      JSON.stringify({
+        type: "transcript-entry",
+        entry: { type: "message", role: "user", content: "hi", timestamp: Date.now() },
+      }),
     );
 
     expect(browser.sent.length).toBe(0);
