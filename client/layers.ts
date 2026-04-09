@@ -46,6 +46,7 @@ export class LayerManager {
     background: "white" | "transparent",
   ) {
     const bg = this.createLayer("Background", false);
+    bg.locked = true;
     if (background === "white") {
       bg.ctx.fillStyle = "#f0f0f0";
       bg.ctx.fillRect(0, 0, docWidth, docHeight);
