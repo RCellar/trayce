@@ -89,7 +89,7 @@ export class UsageTab {
 
       const detail = document.createElement("div");
       detail.className = "usage-detail";
-      detail.textContent = s.requestCount + " requests";
+      detail.textContent = `${s.requestCount} requests`;
       section.appendChild(detail);
     });
 
@@ -120,20 +120,20 @@ export class UsageTab {
       barContainer.className = "usage-bar-container";
       const bar = document.createElement("div");
       bar.className = "usage-bar";
-      bar.style.width = cacheHitRate + "%";
+      bar.style.width = `${cacheHitRate}%`;
       barContainer.appendChild(bar);
       section.appendChild(barContainer);
 
       const detail = document.createElement("div");
       detail.className = "usage-detail";
-      detail.textContent = cacheHitRate + "% cache hit rate";
+      detail.textContent = `${cacheHitRate}% cache hit rate`;
       section.appendChild(detail);
     });
 
     this.addSection("Rate", (section) => {
       const detail = document.createElement("div");
       detail.className = "usage-detail";
-      detail.textContent = tokPerSec + " tokens/sec" + (duration > 0 ? " over " + duration + "s" : "");
+      detail.textContent = `${tokPerSec} tokens/sec${duration > 0 ? ` over ${duration}s` : ""}`;
       section.appendChild(detail);
     });
 
@@ -148,7 +148,7 @@ export class UsageTab {
           nameEl.textContent = model.replace("claude-", "").replace(/-/g, " ");
           const statEl = document.createElement("span");
           statEl.className = "usage-model-stat";
-          statEl.textContent = formatTokens(data.inputTokens + data.outputTokens) + " tok / " + data.requests + " req";
+          statEl.textContent = `${formatTokens(data.inputTokens + data.outputTokens)} tok / ${data.requests} req`;
           row.appendChild(nameEl);
           row.appendChild(statEl);
           section.appendChild(row);

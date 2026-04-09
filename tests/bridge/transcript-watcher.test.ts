@@ -69,7 +69,7 @@ afterEach(() => {
 
 describe("TranscriptWatcher", () => {
   test("classifies user text messages as type 'message' with role 'user'", () => {
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -81,7 +81,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("classifies assistant text as type 'response' with role 'assistant'", () => {
-    writeFileSync(TEST_FILE, ASSISTANT_MSG + "\n");
+    writeFileSync(TEST_FILE, `${ASSISTANT_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -93,7 +93,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("classifies tool_use block as type 'tool-call' with toolName and toolInput", () => {
-    writeFileSync(TEST_FILE, TOOL_USE_MSG + "\n");
+    writeFileSync(TEST_FILE, `${TOOL_USE_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -106,7 +106,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("classifies tool_result block as type 'tool-result' with toolUseId", () => {
-    writeFileSync(TEST_FILE, TOOL_RESULT_MSG + "\n");
+    writeFileSync(TEST_FILE, `${TOOL_RESULT_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -118,7 +118,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("reads incrementally from byte offset", () => {
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
 
@@ -127,7 +127,7 @@ describe("TranscriptWatcher", () => {
     expect(entries).toHaveLength(1);
 
     // Append more content
-    appendFileSync(TEST_FILE, ASSISTANT_MSG + "\n");
+    appendFileSync(TEST_FILE, `${ASSISTANT_MSG}\n`);
 
     // Second read should only get the new entry
     watcher.readNewEntries();
@@ -137,7 +137,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("does not re-emit already-read entries on second readNewEntries call", () => {
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
 
@@ -148,7 +148,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("emits both response and tool-call for mixed assistant message", () => {
-    writeFileSync(TEST_FILE, TOOL_USE_MSG + "\n");
+    writeFileSync(TEST_FILE, `${TOOL_USE_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -173,7 +173,7 @@ describe("TranscriptWatcher", () => {
         ],
       },
     });
-    writeFileSync(TEST_FILE, msg + "\n");
+    writeFileSync(TEST_FILE, `${msg}\n`);
 
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
@@ -195,7 +195,7 @@ describe("TranscriptWatcher", () => {
         ],
       },
     });
-    writeFileSync(TEST_FILE, msg + "\n");
+    writeFileSync(TEST_FILE, `${msg}\n`);
 
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
@@ -205,7 +205,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("entries have a numeric timestamp", () => {
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -215,7 +215,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("ignores malformed JSON lines gracefully", () => {
-    writeFileSync(TEST_FILE, "not-valid-json\n" + USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `not-valid-json\n${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
 
@@ -226,7 +226,7 @@ describe("TranscriptWatcher", () => {
 
   test("ignores non-message types like file-history-snapshot", () => {
     const snapshot = JSON.stringify({ type: "file-history-snapshot", snapshot: {} });
-    writeFileSync(TEST_FILE, snapshot + "\n" + USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${snapshot}\n${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
     watcher.readNewEntries();
@@ -236,7 +236,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("start() and stop() do not throw", () => {
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), () => {});
     expect(() => watcher.start()).not.toThrow();
     expect(() => watcher.stop()).not.toThrow();
@@ -258,7 +258,7 @@ describe("TranscriptWatcher", () => {
       },
       timestamp: "2026-03-27T19:00:00.000Z",
     });
-    writeFileSync(TEST_FILE, assistantWithUsage + "\n");
+    writeFileSync(TEST_FILE, `${assistantWithUsage}\n`);
 
     const usageUpdates: any[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
@@ -273,7 +273,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("does not emit usage callback for entries without usage data", () => {
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
 
     const usageUpdates: any[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
@@ -283,7 +283,7 @@ describe("TranscriptWatcher", () => {
   });
 
   test("usage callback is optional (backwards compatible)", () => {
-    writeFileSync(TEST_FILE, ASSISTANT_MSG + "\n");
+    writeFileSync(TEST_FILE, `${ASSISTANT_MSG}\n`);
 
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
@@ -296,7 +296,7 @@ describe("TranscriptWatcher", () => {
 describe("rediscovery bounds", () => {
   test("stops rediscovering after confirming transcript via birthtime", async () => {
     mkdirSync(TEST_DIR, { recursive: true });
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
 
     const entries: TranscriptEntry[] = [];
     // Pass discoveredByBirthtime=true to simulate birthtime-confirmed discovery
@@ -312,7 +312,7 @@ describe("rediscovery bounds", () => {
 
   test("does not confirm transcript discovered via cwd fallback", async () => {
     mkdirSync(TEST_DIR, { recursive: true });
-    writeFileSync(TEST_FILE, USER_MSG + "\n");
+    writeFileSync(TEST_FILE, `${USER_MSG}\n`);
 
     const entries: TranscriptEntry[] = [];
     // discoveredByBirthtime=false (default) — cwd fallback
@@ -343,7 +343,7 @@ describe("partial line handling", () => {
     expect(entries.length).toBe(0);
 
     // Append the second half + newline
-    appendFileSync(TEST_FILE, fullLine.slice(Math.floor(fullLine.length / 2)) + "\n");
+    appendFileSync(TEST_FILE, `${fullLine.slice(Math.floor(fullLine.length / 2))}\n`);
 
     // Read again — now should get the complete entry
     watcher.readNewEntries();
@@ -373,10 +373,10 @@ describe("TranscriptWatcher rediscovery", () => {
     const oldFile = join(projectDir, "old-session.jsonl");
     const newFile = join(projectDir, "new-session.jsonl");
 
-    writeFileSync(oldFile, USER_MSG + "\n");
+    writeFileSync(oldFile, `${USER_MSG}\n`);
     // Ensure new file has a later mtime
     const future = new Date(Date.now() + 2000);
-    writeFileSync(newFile, ASSISTANT_MSG + "\n");
+    writeFileSync(newFile, `${ASSISTANT_MSG}\n`);
     const { utimesSync } = require("node:fs");
     utimesSync(newFile, future, future);
 
@@ -386,7 +386,7 @@ describe("TranscriptWatcher rediscovery", () => {
 
   test("watcher stays on birthtime-confirmed file and does not switch", async () => {
     const oldFile = join(projectDir, "old-session.jsonl");
-    writeFileSync(oldFile, USER_MSG + "\n");
+    writeFileSync(oldFile, `${USER_MSG}\n`);
 
     // Ensure old file's birthtime is clearly before startTime
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -404,7 +404,7 @@ describe("TranscriptWatcher rediscovery", () => {
 
     // Simulate a new file appearing — birthtime ≈ startTime
     const newFile = join(projectDir, "current-session.jsonl");
-    writeFileSync(newFile, ASSISTANT_MSG + "\n");
+    writeFileSync(newFile, `${ASSISTANT_MSG}\n`);
 
     // Wait longer than the rediscovery timer (3s) — watcher should NOT switch
     await new Promise((resolve) => setTimeout(resolve, 3500));
@@ -418,7 +418,7 @@ describe("TranscriptWatcher rediscovery", () => {
 
   test("watcher switches from cwd-fallback file to birthtime-matched file", async () => {
     const oldFile = join(projectDir, "old-session.jsonl");
-    writeFileSync(oldFile, USER_MSG + "\n");
+    writeFileSync(oldFile, `${USER_MSG}\n`);
 
     // Ensure old file's birthtime is clearly before startTime
     await new Promise((resolve) => setTimeout(resolve, 250));
@@ -434,7 +434,7 @@ describe("TranscriptWatcher rediscovery", () => {
 
     // Simulate the real transcript appearing — birthtime ≈ startTime
     const newFile = join(projectDir, "current-session.jsonl");
-    writeFileSync(newFile, ASSISTANT_MSG + "\n");
+    writeFileSync(newFile, `${ASSISTANT_MSG}\n`);
 
     // Wait longer than the rediscovery timer (3s) — watcher SHOULD switch
     await new Promise((resolve) => setTimeout(resolve, 3500));
@@ -449,7 +449,7 @@ describe("TranscriptWatcher rediscovery", () => {
     // Create a file now — its birthtime will be close to Date.now()
     const testFile = join(projectDir, "birthtime-test.jsonl");
     const beforeCreate = Date.now();
-    writeFileSync(testFile, USER_MSG + "\n");
+    writeFileSync(testFile, `${USER_MSG}\n`);
 
     const discovered = discoverTranscriptByBirthtime(beforeCreate);
     expect(discovered).toBe(testFile);
@@ -457,7 +457,7 @@ describe("TranscriptWatcher rediscovery", () => {
 
   test("discoverTranscriptByBirthtime returns null for old startTime", () => {
     const testFile = join(projectDir, "old-file.jsonl");
-    writeFileSync(testFile, USER_MSG + "\n");
+    writeFileSync(testFile, `${USER_MSG}\n`);
 
     // Start time far in the past — file's birthtime (now) is >60s away
     const discovered = discoverTranscriptByBirthtime(Date.now() - 120_000);
@@ -490,7 +490,7 @@ describe("TranscriptWatcher subagent tracking", () => {
 
   beforeEach(() => {
     mkdirSync(SUBAGENTS_DIR, { recursive: true });
-    writeFileSync(MAIN_TRANSCRIPT, USER_MSG + "\n");
+    writeFileSync(MAIN_TRANSCRIPT, `${USER_MSG}\n`);
   });
 
   afterEach(() => {
@@ -499,7 +499,7 @@ describe("TranscriptWatcher subagent tracking", () => {
 
   test("picks up usage from subagent transcript files", () => {
     const subFile = join(SUBAGENTS_DIR, "agent-001.jsonl");
-    writeFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+    writeFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
 
     const usageUpdates: any[] = [];
     const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
@@ -514,8 +514,8 @@ describe("TranscriptWatcher subagent tracking", () => {
   });
 
   test("tracks multiple subagent files with different models", () => {
-    writeFileSync(join(SUBAGENTS_DIR, "agent-001.jsonl"), mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
-    writeFileSync(join(SUBAGENTS_DIR, "agent-002.jsonl"), mkSubagentEntry("claude-haiku-3-5", 50, 200, 1000, 100) + "\n");
+    writeFileSync(join(SUBAGENTS_DIR, "agent-001.jsonl"), `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
+    writeFileSync(join(SUBAGENTS_DIR, "agent-002.jsonl"), `${mkSubagentEntry("claude-haiku-3-5", 50, 200, 1000, 100)}\n`);
 
     const usageUpdates: any[] = [];
     const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
@@ -528,14 +528,14 @@ describe("TranscriptWatcher subagent tracking", () => {
 
   test("reads subagent files incrementally across polls", () => {
     const subFile = join(SUBAGENTS_DIR, "agent-001.jsonl");
-    writeFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+    writeFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
 
     const usageUpdates: any[] = [];
     const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
     watcher.readNewEntries();
 
     // Append another entry to the same file
-    appendFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 200, 600, 3000, 100) + "\n");
+    appendFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 200, 600, 3000, 100)}\n`);
     watcher.readNewEntries();
 
     // Should have picked up only the new entry (no duplicates)
@@ -555,7 +555,7 @@ describe("TranscriptWatcher subagent tracking", () => {
     const countBefore = usageUpdates.length;
 
     // Now create a subagent file after initial read
-    writeFileSync(join(SUBAGENTS_DIR, "agent-late.jsonl"), mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+    writeFileSync(join(SUBAGENTS_DIR, "agent-late.jsonl"), `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
     watcher.readNewEntries();
 
     expect(usageUpdates.length).toBeGreaterThan(countBefore);
@@ -600,7 +600,7 @@ describe("TranscriptWatcher subagent tracking", () => {
     expect(beforeCount).toBe(0);
 
     // Append the second half + newline
-    appendFileSync(subFile, fullLine.slice(Math.floor(fullLine.length / 2)) + "\n");
+    appendFileSync(subFile, `${fullLine.slice(Math.floor(fullLine.length / 2))}\n`);
     watcher.readNewEntries();
 
     // Now the complete entry should be emitted
@@ -612,7 +612,7 @@ describe("TranscriptWatcher subagent tracking", () => {
 
   test("emits transcript entries from subagent files", () => {
     const subFile = join(SUBAGENTS_DIR, "agent-001.jsonl");
-    writeFileSync(subFile, mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200) + "\n");
+    writeFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
 
     const entries: TranscriptEntry[] = [];
     const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), (entry) => entries.push(entry));

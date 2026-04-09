@@ -78,7 +78,7 @@ export class ImageTool {
     container.addEventListener("drop", async (e) => {
       e.preventDefault();
       const file = e.dataTransfer?.files[0];
-      if (!file || !file.type.startsWith("image/")) return;
+      if (!file?.type.startsWith("image/")) return;
 
       try {
         const bitmap = await createImageBitmap(file);
