@@ -134,6 +134,11 @@ export class LayerManager {
     layer.canvas = canvas;
     layer.ctx = ctx;
     delete layer.transform;
+    // Force compositor cache invalidation: without this, the sprite's cached
+    // texture keeps pointing at the old (pre-rasterize) OffscreenCanvas and
+    // the rasterize result stays invisible until something else dirties the
+    // layer.
+    layer.revision++;
   }
 
   bumpRevision(layerId: string): void {
