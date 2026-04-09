@@ -67,22 +67,39 @@ function connectWs(
   });
 }
 
-/** Retry WebSocket connection until it succeeds or deadline passes. */
-async function waitForWs(url: string, timeoutMs = 10_000): Promise<void> {
+/** Retry WebSocket connection until server-info AND sessions are received. */
+async function waitForWs(url: string, timeoutMs = 15_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const { ws } = await connectWs(url, 3000);
-      ws.close();
-      return;
+      const { ws, firstMessage } = await connectWs(url, 5000);
+      if ((firstMessage as any).type === "server-info") {
+        // Also wait for the sessions broadcast to confirm full readiness
+        const msg = await new Promise<any>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error("timeout")), 5000);
+          ws.addEventListener(
+            "message",
+            (ev) => {
+              clearTimeout(timer);
+              resolve(JSON.parse(ev.data as string));
+            },
+            { once: true },
+          );
+        });
+        ws.close();
+        if (msg.type === "sessions") return;
+      } else {
+        ws.close();
+      }
     } catch {
-      await Bun.sleep(100);
+      /* retry */
     }
+    await Bun.sleep(200);
   }
   throw new Error(`WebSocket not ready at ${url} within ${timeoutMs}ms`);
 }
 
-function nextMessage(ws: WebSocket, timeoutMs = 10_000): Promise<Record<string, unknown>> {
+function nextMessage(ws: WebSocket, timeoutMs = 15_000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("No WS message")), timeoutMs);
     ws.addEventListener(
