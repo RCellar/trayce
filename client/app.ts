@@ -220,6 +220,12 @@ async function doSwitchSession(sessionId: string | null): Promise<void> {
     const acquired = await canvasLock.claim(sessionId);
     if (!acquired) {
       showToast("This session's canvas is active in another tab");
+      // Roll back UI state — the dropdown may already show this session
+      const fallbackId = currentCanvasKey === SCRATCHPAD_KEY ? "" : selectedSessionId;
+      selectedSessionId = fallbackId;
+      sessionSelect.value = fallbackId;
+      submitBtn.disabled = !connection?.isConnected || !fallbackId;
+      updateTabTitle();
       return;
     }
   } else {
@@ -815,6 +821,9 @@ function updateSessionSelect(): void {
 sessionSelect.addEventListener("change", async () => {
   const newSessionId = sessionSelect.value;
   await switchSession(newSessionId || null);
+  // If the lock was denied, doSwitchSession already rolled back the dropdown.
+  // Only update state if the switch actually succeeded.
+  if (sessionSelect.value !== newSessionId) return;
   selectedSessionId = newSessionId;
   localStorage.setItem("trayce-session", selectedSessionId);
   submitBtn.disabled = !connection?.isConnected || !selectedSessionId;
