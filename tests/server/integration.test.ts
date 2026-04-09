@@ -136,6 +136,8 @@ describe("integration", () => {
       stdout: "pipe",
       stderr: "pipe",
     });
+    // Prevent Bun's test runner from killing the server as a "dangling process"
+    serverProc.unref();
 
     state = await waitForState(STATE_FILE);
     baseUrl = `http://127.0.0.1:${state.port}`;
