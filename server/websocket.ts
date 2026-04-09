@@ -7,18 +7,11 @@ import type {
   RegisterMessage,
   SubmitMessage,
 } from "../shared/protocol";
+import { BridgeToServerSchema, BrowserToServerSchema } from "../shared/protocol-schema";
 import type { Config } from "./config";
 import type { SessionRegistry } from "./sessions";
 import type { SubmissionStore } from "./submissions";
 import { SessionUsage } from "./usage";
-
-/** The raw parsed shape before discriminated-union narrowing. `parseRaw`
- * guarantees `type` is a non-empty string; everything else is unknown
- * until runtime validation at the boundary. Kept exported for tests. */
-export interface WsMessage {
-  type: string;
-  [key: string]: unknown;
-}
 
 export interface WsData {
   kind: "browser" | "bridge";
@@ -76,16 +69,44 @@ export class WebSocketHub {
     private readonly now: () => number = Date.now,
   ) {}
 
-  static parseMessage(raw: string | Buffer): WsMessage | null {
+  static parseBrowserMessage(raw: string | Buffer): BrowserToServerMessage | null {
+    return WebSocketHub.parseWithSchema<BrowserToServerMessage>(
+      raw,
+      BrowserToServerSchema,
+      "browser",
+    );
+  }
+
+  static parseBridgeMessage(raw: string | Buffer): BridgeToServerMessage | null {
+    return WebSocketHub.parseWithSchema<BridgeToServerMessage>(raw, BridgeToServerSchema, "bridge");
+  }
+
+  private static parseWithSchema<T>(
+    raw: string | Buffer,
+    schema: {
+      safeParse: (
+        data: unknown,
+      ) => { success: true; data: T } | { success: false; error: { issues: unknown } };
+    },
+    kind: "browser" | "bridge",
+  ): T | null {
+    let data: unknown;
     try {
       const text = typeof raw === "string" ? raw : raw.toString("utf8");
-      const data = JSON.parse(text);
-      if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
-      if (typeof data.type !== "string" || data.type.length === 0) return null;
-      return data as WsMessage;
+      data = JSON.parse(text);
     } catch {
+      // Malformed JSON — silently drop. Untrusted input.
       return null;
     }
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      // Runtime-silent, compile-loud: log the validation failure so a dev
+      // tailing server.log can see it, but don't throw — crashing on bad
+      // input from untrusted clients is the wrong runtime behavior.
+      console.warn(`[trayce] invalid ${kind} payload:`, result.error.issues);
+      return null;
+    }
+    return result.data;
   }
 
   // -- Connection lifecycle --
@@ -134,20 +155,28 @@ export class WebSocketHub {
   // -- Message routing --
 
   async handleMessage(ws: Ws, raw: string | Buffer): Promise<void> {
-    const msg = WebSocketHub.parseMessage(raw);
-    if (!msg) return;
-
-    // Heartbeat is universal (any direction, any connection kind)
-    if (msg.type === "heartbeat") {
-      ws.data.lastHeartbeat = this.now();
-      safeSend(ws, JSON.stringify({ type: "heartbeat" }));
-      return;
-    }
-
     if (ws.data.kind === "browser") {
-      await this.handleBrowserMessage(ws, msg as BrowserToServerMessage);
+      const msg = WebSocketHub.parseBrowserMessage(raw);
+      if (!msg) return;
+
+      if (msg.type === "heartbeat") {
+        ws.data.lastHeartbeat = this.now();
+        safeSend(ws, JSON.stringify({ type: "heartbeat" }));
+        return;
+      }
+
+      await this.handleBrowserMessage(ws, msg);
     } else {
-      this.handleBridgeMessage(ws, msg as BridgeToServerMessage);
+      const msg = WebSocketHub.parseBridgeMessage(raw);
+      if (!msg) return;
+
+      if (msg.type === "heartbeat") {
+        ws.data.lastHeartbeat = this.now();
+        safeSend(ws, JSON.stringify({ type: "heartbeat" }));
+        return;
+      }
+
+      this.handleBridgeMessage(ws, msg);
     }
   }
 
@@ -187,11 +216,6 @@ export class WebSocketHub {
       }
 
       case "shutdown-request": {
-        // Runtime validation: the discriminated union describes intent, not
-        // guarantee. Drop malformed payloads silently rather than crashing
-        // the server via a follow-on process.exit. Round 4 of the static-
-        // analysis plan proposes Zod at the parse boundary for a general fix.
-        if (typeof msg.restart !== "boolean") return;
         const containerMode = this.detectContainerMode();
         safeSend(
           ws,
@@ -251,9 +275,7 @@ export class WebSocketHub {
     }
   }
 
-  private handleWatchSession(ws: Ws, rawSessionId: unknown): void {
-    if (typeof rawSessionId !== "string" || rawSessionId.length === 0) return;
-    const sid = rawSessionId;
+  private handleWatchSession(ws: Ws, sid: string): void {
     this.browserWatchSession.set(ws.data.id, sid);
 
     // Replay buffered transcript entries for this session
@@ -292,15 +314,7 @@ export class WebSocketHub {
         usage = new SessionUsage();
         this.sessionUsage.set(sessionId, usage);
       }
-      const u = msg.usage;
-      usage.add({
-        inputTokens: u.inputTokens ?? 0,
-        outputTokens: u.outputTokens ?? 0,
-        cacheReadTokens: u.cacheReadTokens ?? 0,
-        cacheWriteTokens: u.cacheWriteTokens ?? 0,
-        model: u.model ?? "unknown",
-        timestamp: u.timestamp ?? Date.now(),
-      });
+      usage.add(msg.usage);
     }
 
     // Buffer replay-worthy messages for late-joining browsers
@@ -325,10 +339,6 @@ export class WebSocketHub {
 
   private handleRegister(ws: Ws, msg: RegisterMessage): void {
     const { sessionId, label } = msg;
-    // Runtime validation — the discriminated union describes the intended
-    // shape, not what was actually received.
-    if (typeof sessionId !== "string" || sessionId.length === 0) return;
-    if (typeof label !== "string" || label.length === 0) return;
 
     // If this bridge previously registered a different session, clean up
     if (ws.data.sessionId && ws.data.sessionId !== sessionId) {

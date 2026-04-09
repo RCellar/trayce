@@ -240,4 +240,18 @@ describe("getConfig — TRAYCE_TOKEN", () => {
   test("TRAYCE_TOKEN is trimmed", () => {
     expect(getConfig(env({ TRAYCE_TOKEN: "  abc123  " })).token).toBe("abc123");
   });
+
+  test("whitespace-only TRAYCE_TOKEN emits a warning", () => {
+    const originalWarn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (msg: unknown) => {
+      if (typeof msg === "string") warnings.push(msg);
+    };
+    try {
+      getConfig(env({ TRAYCE_TOKEN: "   " }));
+    } finally {
+      console.warn = originalWarn;
+    }
+    expect(warnings.some((w) => w.includes("TRAYCE_TOKEN"))).toBe(true);
+  });
 });

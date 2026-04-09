@@ -55,6 +55,26 @@ function parseBool(raw: string | undefined): boolean {
   return ["1", "true", "yes"].includes(raw.trim().toLowerCase());
 }
 
+function parseToken(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === "") {
+    if (raw !== "") {
+      // The caller set TRAYCE_TOKEN but only to whitespace. Previously this
+      // silently coerced to undefined and fell back to a generated token,
+      // leaving operators who expected their token to take effect silently
+      // confused. Emit a loud warning so the misconfiguration is visible.
+      console.warn(
+        `[trayce] TRAYCE_TOKEN is set but contains only whitespace — ` +
+          `falling back to a generated token. Clear the env var or set a ` +
+          `non-empty value to silence this warning.`,
+      );
+    }
+    return undefined;
+  }
+  return trimmed;
+}
+
 export function getConfig(env: Record<string, string | undefined>): Config {
   return {
     host: env.TRAYCE_HOST?.trim() || DEFAULTS.host,
@@ -63,7 +83,7 @@ export function getConfig(env: Record<string, string | undefined>): Config {
     stateFile: env.TRAYCE_STATE_FILE?.trim() || DEFAULTS.stateFile,
     clientDir: env.TRAYCE_CLIENT_DIR?.trim() || DEFAULTS.clientDir,
     noAuth: parseBool(env.TRAYCE_NO_AUTH),
-    token: env.TRAYCE_TOKEN?.trim() || undefined,
+    token: parseToken(env.TRAYCE_TOKEN),
     maxSubmissionBytes: DEFAULTS.maxSubmissionBytes,
     maxWsPayloadBytes: DEFAULTS.maxWsPayloadBytes,
     submissionTtlMs: DEFAULTS.submissionTtlMs,
