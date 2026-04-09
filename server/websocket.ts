@@ -187,6 +187,11 @@ export class WebSocketHub {
       }
 
       case "shutdown-request": {
+        // Runtime validation: the discriminated union describes intent, not
+        // guarantee. Drop malformed payloads silently rather than crashing
+        // the server via a follow-on process.exit. Round 4 of the static-
+        // analysis plan proposes Zod at the parse boundary for a general fix.
+        if (typeof msg.restart !== "boolean") return;
         const containerMode = this.detectContainerMode();
         safeSend(
           ws,

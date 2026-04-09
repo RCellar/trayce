@@ -1345,6 +1345,39 @@ describe("shutdown-request", () => {
     await new Promise((r) => setTimeout(r, 100));
     expect(shutdownCalls).toHaveLength(0);
   });
+
+  it("silently drops shutdown-request with missing/invalid restart field", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const shutdownCalls: Array<{ restart: boolean; containerMode: boolean }> = [];
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, (opts) => {
+      shutdownCalls.push(opts);
+    });
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+
+    // Missing `restart` entirely — a buggy client should not be able to
+    // crash the server by leaving out the field.
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "shutdown-request" }));
+
+    // `restart` of wrong type should also drop.
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "shutdown-request", restart: "yes" }),
+    );
+
+    // Neither produced an ack.
+    const ackMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-exiting");
+    expect(ackMessages).toHaveLength(0);
+
+    // Shutdown callback never fires.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(shutdownCalls).toHaveLength(0);
+  });
 });
 
 describe("server-info on connect", () => {
