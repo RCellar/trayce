@@ -60,8 +60,7 @@ let imageTool: ImageTool | null = null;
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
 
-// biome-ignore lint/style/useConst: reassigned by server-info handler in Task 10
-let containerMode = false; // Set by server-info message on connect (Task 10 wires this)
+let containerMode = false; // Set by the server-info message on connect
 
 let sidePanel: SidePanel | null = null;
 let responseTab: ResponseTab | null = null;
@@ -611,6 +610,7 @@ function handleConnectionStatus(status: "connected" | "disconnected" | "reconnec
   }
 
   submitBtn.disabled = status !== "connected" || !selectedSessionId;
+  powerBtn.disabled = status !== "connected";
 }
 
 // Track pending permission prompts for stale detection
@@ -652,6 +652,18 @@ function handleServerMessage(msg: ServerMessage): void {
   if (msg.type === "sessions") {
     sessions = msg.sessions as typeof sessions;
     updateSessionSelect();
+  } else if (msg.type === "server-info") {
+    if (typeof msg.containerMode === "boolean") {
+      containerMode = msg.containerMode;
+    }
+  } else if (msg.type === "server-exiting") {
+    const restart = Boolean(msg.restart);
+    const inContainer = Boolean(msg.containerMode);
+    const action = restart ? "restarting" : "shutting down";
+    const where = inContainer ? " (orchestrator will handle restart)" : "";
+    showToast(`Server ${action}${where}…`);
+    submitBtn.disabled = true;
+    powerBtn.disabled = true;
   } else if (msg.type === "ack") {
     showToast("Submitted!");
   } else if (msg.type === "error") {
