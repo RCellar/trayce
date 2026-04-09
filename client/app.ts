@@ -187,7 +187,7 @@ function createFreshCanvas(lm: LayerManager): void {
     visible: true,
     opacity: 100,
     blendMode: "normal",
-    locked: false,
+    locked: true,
     deletable: false,
     revision: 0,
   };
