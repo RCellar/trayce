@@ -8,10 +8,7 @@ export interface PermissionMessage {
 }
 
 export class PermissionPromptManager {
-  private pending = new Map<
-    string,
-    { el: HTMLElement; timer: ReturnType<typeof setTimeout> }
-  >();
+  private pending = new Map<string, { el: HTMLElement; timer: ReturnType<typeof setTimeout> }>();
 
   constructor(
     private deps: {

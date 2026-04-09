@@ -20,6 +20,8 @@ import { History } from "./history";
 import { InputHandler, type InputState } from "./input";
 import { LayerManager } from "./layers";
 import { LayersUI } from "./layers-ui";
+import { PermissionPromptManager } from "./permission-prompts";
+import { PowerPopover } from "./power-popover";
 import { ResponseTab } from "./response-tab";
 import { SidePanel } from "./side-panel";
 import { ThemeManager } from "./theme";
@@ -27,8 +29,6 @@ import { showToast } from "./toast";
 import { type ActionId, Toolbar, type ToolId } from "./toolbar";
 import { ImageTool } from "./tools/image";
 import { TranscriptTab } from "./transcript-tab";
-import { PermissionPromptManager } from "./permission-prompts";
-import { PowerPopover } from "./power-popover";
 import { TransformHandler } from "./transform";
 import { UsageTab } from "./usage-tab";
 
