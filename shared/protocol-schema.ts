@@ -104,3 +104,58 @@ export const BrowserToServerSchema = z.discriminatedUnion("type", [
   PermissionVerdictSchema,
   ShutdownRequestSchema,
 ]);
+
+// ────────────────────────────────────────────────────────────────────────────
+// Bridge → Server
+// ────────────────────────────────────────────────────────────────────────────
+
+export const RegisterSchema = z.object({
+  type: z.literal("register"),
+  sessionId: z.string().min(1),
+  label: z.string().min(1),
+});
+
+export const TranscriptEntryMessageSchema = z.object({
+  type: z.literal("transcript-entry"),
+  entry: TranscriptEntryDataSchema,
+});
+
+export const ResponseSchema = z.object({
+  type: z.literal("response"),
+  content: z.string(),
+  format: z.enum(["markdown", "plain"]).optional(),
+});
+
+export const CanvasPushSchema = z.object({
+  type: z.literal("canvas-push"),
+  image: z.string(),
+  label: z.string().optional(),
+});
+
+export const TranscriptStatusSchema = z.object({
+  type: z.literal("transcript-status"),
+  status: z.enum(["running", "idle", "error"]),
+});
+
+export const UsageUpdateSchema = z.object({
+  type: z.literal("usage-update"),
+  usage: UsageSchema,
+});
+
+export const PermissionRequestSchema = z.object({
+  type: z.literal("permission-request"),
+  requestId: z.string().min(1),
+  toolName: z.string().min(1),
+  toolInput: z.unknown().optional(),
+});
+
+export const BridgeToServerSchema = z.discriminatedUnion("type", [
+  HeartbeatSchema,
+  RegisterSchema,
+  TranscriptEntryMessageSchema,
+  ResponseSchema,
+  CanvasPushSchema,
+  TranscriptStatusSchema,
+  UsageUpdateSchema,
+  PermissionRequestSchema,
+]);
