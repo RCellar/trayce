@@ -86,54 +86,77 @@ beforeEach(() => {
   rmSync(TEST_DIR, { recursive: true, force: true });
 });
 
-// -- parseMessage --
+// -- parseBrowserMessage / parseBridgeMessage --
 
-describe("parseMessage", () => {
-  it("parses valid JSON object with type", () => {
-    expect(WebSocketHub.parseMessage('{"type":"heartbeat"}')).toEqual({ type: "heartbeat" });
-  });
-
-  it("preserves extra fields", () => {
-    const msg = WebSocketHub.parseMessage('{"type":"register","sessionId":"s1","label":"app"}');
-    expect(msg?.sessionId).toBe("s1");
+describe("parseBrowserMessage", () => {
+  it("parses valid heartbeat", () => {
+    expect(WebSocketHub.parseBrowserMessage('{"type":"heartbeat"}')).toEqual({ type: "heartbeat" });
   });
 
   it("accepts Buffer input", () => {
-    expect(WebSocketHub.parseMessage(Buffer.from('{"type":"heartbeat"}'))).toEqual({
+    expect(WebSocketHub.parseBrowserMessage(Buffer.from('{"type":"heartbeat"}'))).toEqual({
       type: "heartbeat",
     });
   });
 
   it("returns null for invalid JSON", () => {
-    expect(WebSocketHub.parseMessage("not json")).toBeNull();
+    expect(WebSocketHub.parseBrowserMessage("not json")).toBeNull();
   });
 
   it("returns null for JSON array", () => {
-    expect(WebSocketHub.parseMessage("[]")).toBeNull();
+    expect(WebSocketHub.parseBrowserMessage("[]")).toBeNull();
   });
 
   it("returns null for JSON null", () => {
-    expect(WebSocketHub.parseMessage("null")).toBeNull();
+    expect(WebSocketHub.parseBrowserMessage("null")).toBeNull();
   });
 
   it("returns null for JSON string", () => {
-    expect(WebSocketHub.parseMessage('"hello"')).toBeNull();
+    expect(WebSocketHub.parseBrowserMessage('"hello"')).toBeNull();
   });
 
   it("returns null for missing type", () => {
-    expect(WebSocketHub.parseMessage('{"foo":"bar"}')).toBeNull();
+    expect(WebSocketHub.parseBrowserMessage('{"foo":"bar"}')).toBeNull();
   });
 
-  it("returns null for non-string type", () => {
-    expect(WebSocketHub.parseMessage('{"type":42}')).toBeNull();
-  });
-
-  it("returns null for empty type", () => {
-    expect(WebSocketHub.parseMessage('{"type":""}')).toBeNull();
+  it("returns null for unknown type discriminant", () => {
+    expect(WebSocketHub.parseBrowserMessage('{"type":"unknown-type"}')).toBeNull();
   });
 
   it("returns null for empty string", () => {
-    expect(WebSocketHub.parseMessage("")).toBeNull();
+    expect(WebSocketHub.parseBrowserMessage("")).toBeNull();
+  });
+});
+
+describe("parseBridgeMessage", () => {
+  it("parses valid heartbeat", () => {
+    expect(WebSocketHub.parseBridgeMessage('{"type":"heartbeat"}')).toEqual({ type: "heartbeat" });
+  });
+
+  it("parses valid register message and preserves fields", () => {
+    const msg = WebSocketHub.parseBridgeMessage(
+      '{"type":"register","sessionId":"s1","label":"app"}',
+    );
+    expect(msg?.type).toBe("register");
+    expect((msg as any)?.sessionId).toBe("s1");
+  });
+
+  it("accepts Buffer input", () => {
+    expect(WebSocketHub.parseBridgeMessage(Buffer.from('{"type":"heartbeat"}'))).toEqual({
+      type: "heartbeat",
+    });
+  });
+
+  it("returns null for invalid JSON", () => {
+    expect(WebSocketHub.parseBridgeMessage("not json")).toBeNull();
+  });
+
+  it("returns null for unknown type discriminant", () => {
+    expect(WebSocketHub.parseBridgeMessage('{"type":"unknown-type"}')).toBeNull();
+  });
+
+  it("returns null for empty string", () => {
+    expect(WebSocketHub.parseBridgeMessage("")).toBeNull();
   });
 });
 
@@ -962,7 +985,7 @@ describe("bridge rate limiting", () => {
         bridge as any,
         JSON.stringify({
           type: "transcript-entry",
-          entry: { content: `msg ${i}` },
+          entry: { type: "message", role: "user", content: `msg ${i}`, timestamp: Date.now() },
         }),
       );
     }
