@@ -1257,3 +1257,36 @@ describe("canvas-push buffering", () => {
     expect(pushMsgs[0]!.label).toBe("test-image");
   });
 });
+
+describe("shutdown-request", () => {
+  it("calls shutdownFn with restart=true and sends server-exiting ack", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const shutdownCalls: Array<{ restart: boolean; containerMode: boolean }> = [];
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, (opts) => {
+      shutdownCalls.push(opts);
+    });
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "shutdown-request", restart: true }),
+    );
+
+    // Browser should receive server-exiting ack immediately (before the timeout fires)
+    const ackMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-exiting");
+    expect(ackMessages).toHaveLength(1);
+    expect(ackMessages[0]!.restart).toBe(true);
+    expect(typeof ackMessages[0]!.containerMode).toBe("boolean");
+
+    // shutdownFn is called asynchronously via setTimeout(..., 50)
+    await new Promise((r) => setTimeout(r, 100));
+    expect(shutdownCalls).toHaveLength(1);
+    expect(shutdownCalls[0]!.restart).toBe(true);
+  });
+});
