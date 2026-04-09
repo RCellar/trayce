@@ -259,7 +259,8 @@ describe("LayerManager — replaceAll", () => {
     expect(lm.layers.length).toBe(3);
     expect(lm.layers[0]!.id).toBe("bg");
     expect(lm.layers[2]!.name).toBe("Notes");
-    expect(lm.activeLayerIndex).toBe(0);
+    // Active layer defaults to first deletable (non-background) layer
+    expect(lm.activeLayerIndex).toBe(1);
   });
 
   test("replaceAll bumps revision on all layers to invalidate compositor cache", () => {
