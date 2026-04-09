@@ -12,7 +12,13 @@ const token = config.noAuth ? "" : (config.token ?? generateToken());
 
 const registry = new SessionRegistry();
 const submissions = new SubmissionStore(config.submissionsDir, config.maxSubmissionBytes);
-const hub = new WebSocketHub(registry, submissions, config);
+// The hub's ShutdownFn type is synchronous, but initiateShutdown is async
+// because it needs to await state-file cleanup. Fire-and-forget is safe here:
+// initiateShutdown runs to process.exit(0), so no floating promise survives
+// the process lifetime.
+const hub = new WebSocketHub(registry, submissions, config, (opts) => {
+  void initiateShutdown(opts);
+});
 const httpHandler = createHttpHandler(config.clientDir);
 
 const server = Bun.serve<WsData>({
@@ -102,6 +108,43 @@ const cleanupTimer = setInterval(async () => {
     console.error("[trayce] Cleanup error:", err);
   }
 }, config.cleanupIntervalMs);
+
+// WS-initiated shutdown / restart
+async function initiateShutdown({
+  restart,
+  containerMode,
+}: {
+  restart: boolean;
+  containerMode: boolean;
+}): Promise<void> {
+  console.log(`[trayce] ${restart ? "restart" : "shutdown"} requested via WS`);
+  clearInterval(heartbeatTimer);
+  clearInterval(cleanupTimer);
+  server.stop(true); // releases port 9740
+  try {
+    await unlink(config.stateFile);
+  } catch {}
+  submissions.removeAll();
+
+  if (restart && !containerMode) {
+    // Spawn a fully detached child with the current token so the browser's
+    // reconnect-with-backoff picks up the new server seamlessly.
+    try {
+      Bun.spawn(["bash", "scripts/start.sh"], {
+        cwd: process.cwd(),
+        env: { ...process.env, TRAYCE_TOKEN: token },
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      console.log(`[trayce] spawned replacement server; parent PID ${process.pid} exiting`);
+    } catch (err) {
+      console.error("[trayce] failed to spawn replacement server:", err);
+    }
+  }
+  // Container mode or plain shutdown: just exit. If the container has a
+  // restart policy, the orchestrator relaunches us; otherwise the container
+  // stops.
+  process.exit(0);
+}
 
 // Graceful shutdown
 async function shutdown(signal: string): Promise<void> {

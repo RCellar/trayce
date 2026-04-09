@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { ServerWebSocket } from "bun";
 import type {
   BridgeRoutedMessage,
@@ -28,6 +29,11 @@ export interface WsData {
 
 type Ws = ServerWebSocket<WsData>;
 
+/** Callback invoked when a browser sends a shutdown-request. `server/index.ts`
+ * implements the real behavior (process exit + optional spawn of a detached
+ * replacement); tests pass a no-op spy. */
+export type ShutdownFn = (opts: { restart: boolean; containerMode: boolean }) => void;
+
 function safeSend(ws: Ws, payload: string): void {
   try {
     ws.send(payload);
@@ -45,17 +51,28 @@ export class WebSocketHub {
   private readonly browserWatchSession = new Map<string, string>();
   private readonly sessionBuffers = new Map<string, string[]>();
   private readonly sessionUsage = new Map<string, SessionUsage>();
+  private _containerMode: boolean | null = null;
+  private detectContainerMode(): boolean {
+    if (this._containerMode !== null) return this._containerMode;
+    this._containerMode = existsSync("/.dockerenv") || Bun.env.TRAYCE_CONTAINER === "1";
+    return this._containerMode;
+  }
   private static readonly BUFFERED_TYPES = new Set([
     "transcript-entry",
     "response",
     "transcript-status",
     "canvas-push",
   ]);
+  /** Delay between acknowledging a shutdown-request and firing the
+   * actual shutdown callback. Lets the WebSocket flush the ack frame
+   * before the socket is torn down. */
+  private static readonly SHUTDOWN_ACK_FLUSH_MS = 50;
 
   constructor(
     private readonly registry: SessionRegistry,
     private readonly submissions: SubmissionStore,
     private readonly config: Config,
+    private readonly shutdownFn: ShutdownFn,
     private readonly now: () => number = Date.now,
   ) {}
 
@@ -76,6 +93,13 @@ export class WebSocketHub {
   addBrowser(ws: Ws): void {
     this.browsers.set(ws.data.id, ws);
     this.rateBuckets.set(ws.data.id, []);
+    safeSend(
+      ws,
+      JSON.stringify({
+        type: "server-info",
+        containerMode: this.detectContainerMode(),
+      }),
+    );
     this.sendSessions(ws);
   }
 
@@ -158,6 +182,29 @@ export class WebSocketHub {
             requestId: msg.requestId,
             behavior: msg.behavior,
           }),
+        );
+        return;
+      }
+
+      case "shutdown-request": {
+        // Runtime validation: the discriminated union describes intent, not
+        // guarantee. Drop malformed payloads silently rather than crashing
+        // the server via a follow-on process.exit. Round 4 of the static-
+        // analysis plan proposes Zod at the parse boundary for a general fix.
+        if (typeof msg.restart !== "boolean") return;
+        const containerMode = this.detectContainerMode();
+        safeSend(
+          ws,
+          JSON.stringify({
+            type: "server-exiting",
+            restart: msg.restart,
+            containerMode,
+          }),
+        );
+        // Give the socket a beat to flush the ack before tearing down.
+        setTimeout(
+          () => this.shutdownFn({ restart: msg.restart, containerMode }),
+          WebSocketHub.SHUTDOWN_ACK_FLUSH_MS,
         );
         return;
       }

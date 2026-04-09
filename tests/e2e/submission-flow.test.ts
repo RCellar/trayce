@@ -139,6 +139,8 @@ describe("E2E submission flow", () => {
 
     // 2. Connect browser
     const browser = await connectWs(`${wsBase}/canvas?token=${token}`);
+    const infoMsg = await nextMessage(browser);
+    expect(infoMsg.type).toBe("server-info");
     const sessionsMsg = await nextMessage(browser);
     expect(sessionsMsg.type).toBe("sessions");
     expect((sessionsMsg.sessions as any[]).some((s: any) => s.id === sessionId)).toBe(true);
@@ -194,6 +196,7 @@ describe("E2E submission flow", () => {
 
     // Browser submits to the now-disconnected session
     const browser = await connectWs(`${wsBase}/canvas?token=${token}`);
+    await nextMessage(browser); // consume server-info
     await nextMessage(browser); // consume sessions
 
     browser.send(

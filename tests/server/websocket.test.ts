@@ -72,7 +72,13 @@ function makeFixture(configOverrides: Partial<Config> = {}): Fixture {
   const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
   const nowRef = { value: 1_000_000 };
   const config = { ...BASE_CONFIG, ...configOverrides };
-  const hub = new WebSocketHub(registry, store, config, () => nowRef.value);
+  const hub = new WebSocketHub(
+    registry,
+    store,
+    config,
+    () => {},
+    () => nowRef.value,
+  );
   return { hub, registry, store, now: nowRef };
 }
 
@@ -474,7 +480,7 @@ describe("submit — validation", () => {
   it("rejects oversized submission", async () => {
     const { hub: _, registry } = makeFixture();
     const tinyStore = new SubmissionStore(TEST_DIR, 10);
-    const hub = new WebSocketHub(registry, tinyStore, BASE_CONFIG);
+    const hub = new WebSocketHub(registry, tinyStore, BASE_CONFIG, () => {});
     const ws = browserWs();
     hub.addBrowser(ws as any);
     ws.sent.length = 0;
@@ -1249,5 +1255,144 @@ describe("canvas-push buffering", () => {
     const pushMsgs = allSentOfType(browser, "canvas-push");
     expect(pushMsgs.length).toBe(1);
     expect(pushMsgs[0]!.label).toBe("test-image");
+  });
+});
+
+describe("shutdown-request", () => {
+  it("calls shutdownFn with restart=true and sends server-exiting ack", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const shutdownCalls: Array<{ restart: boolean; containerMode: boolean }> = [];
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, (opts) => {
+      shutdownCalls.push(opts);
+    });
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "shutdown-request", restart: true }),
+    );
+
+    // Browser should receive server-exiting ack immediately (before the timeout fires)
+    const ackMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-exiting");
+    expect(ackMessages).toHaveLength(1);
+    expect(ackMessages[0]!.restart).toBe(true);
+    expect(typeof ackMessages[0]!.containerMode).toBe("boolean");
+
+    // shutdownFn is called asynchronously via setTimeout(..., 50)
+    await new Promise((r) => setTimeout(r, 100));
+    expect(shutdownCalls).toHaveLength(1);
+    expect(shutdownCalls[0]!.restart).toBe(true);
+  });
+
+  it("calls shutdownFn with restart=false for clean shutdown", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const shutdownCalls: Array<{ restart: boolean; containerMode: boolean }> = [];
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, (opts) => {
+      shutdownCalls.push(opts);
+    });
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "shutdown-request", restart: false }),
+    );
+
+    const ackMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-exiting");
+    expect(ackMessages).toHaveLength(1);
+    expect(ackMessages[0]!.restart).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(shutdownCalls).toHaveLength(1);
+    expect(shutdownCalls[0]!.restart).toBe(false);
+  });
+
+  it("silently ignores shutdown-request from bridges", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const shutdownCalls: Array<{ restart: boolean; containerMode: boolean }> = [];
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, (opts) => {
+      shutdownCalls.push(opts);
+    });
+
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    bridge.sent.length = 0;
+
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "shutdown-request", restart: true }),
+    );
+
+    // No ack sent
+    const ackMessages = bridge.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-exiting");
+    expect(ackMessages).toHaveLength(0);
+
+    // Shutdown callback not called
+    await new Promise((r) => setTimeout(r, 100));
+    expect(shutdownCalls).toHaveLength(0);
+  });
+
+  it("silently drops shutdown-request with missing/invalid restart field", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const shutdownCalls: Array<{ restart: boolean; containerMode: boolean }> = [];
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, (opts) => {
+      shutdownCalls.push(opts);
+    });
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+    browser.sent.length = 0;
+
+    // Missing `restart` entirely — a buggy client should not be able to
+    // crash the server by leaving out the field.
+    await hub.handleMessage(browser as any, JSON.stringify({ type: "shutdown-request" }));
+
+    // `restart` of wrong type should also drop.
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "shutdown-request", restart: "yes" }),
+    );
+
+    // Neither produced an ack.
+    const ackMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-exiting");
+    expect(ackMessages).toHaveLength(0);
+
+    // Shutdown callback never fires.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(shutdownCalls).toHaveLength(0);
+  });
+});
+
+describe("server-info on connect", () => {
+  it("sends server-info to new browsers alongside sessions", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, () => {});
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+
+    const infoMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-info");
+    expect(infoMessages).toHaveLength(1);
+    expect(typeof infoMessages[0]!.containerMode).toBe("boolean");
   });
 });
