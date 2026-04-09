@@ -8,6 +8,7 @@ const STATE_FILE = join(TMP_DIR, "state.json");
 const SUBMISSIONS_DIR = join(TMP_DIR, "submissions");
 const CLIENT_DIR = join(TMP_DIR, "client");
 const SERVER_ENTRY = resolve(import.meta.dir, "../../server/index.ts");
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
 interface StateJson {
   pid: number;
@@ -88,8 +89,8 @@ beforeAll(async () => {
   mkdirSync(CLIENT_DIR, { recursive: true });
   Bun.write(join(CLIENT_DIR, "index.html"), "<html><body>trayce</body></html>");
 
-  serverProc = Bun.spawn(["bun", "run", SERVER_ENTRY], {
-    cwd: "/run/media/system/Dos/Projects/trayce",
+  serverProc = Bun.spawn([process.execPath, "run", SERVER_ENTRY], {
+    cwd: PROJECT_ROOT,
     env: {
       ...process.env,
       TRAYCE_PORT: String(TEST_PORT),
