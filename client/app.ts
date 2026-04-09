@@ -881,9 +881,21 @@ function updateSessionSelect(): void {
       sessionSelect.value = stored;
       selectedSessionId = stored;
     } else {
+      // The stored session isn't in the current list yet. This happens during
+      // a server restart: the browser reconnects before the bridge has
+      // re-registered, so the first sessions broadcast can be empty or
+      // partial. Show the first available session as a temporary default but
+      // DO NOT overwrite localStorage — when the bridge catches up and the
+      // next broadcast arrives, this branch will run again with the full
+      // list and correctly restore the user's selection.
       const first = sessions[0];
       selectedSessionId = first?.id ?? "";
       sessionSelect.value = selectedSessionId;
+      // Only persist the auto-picked first as the "remembered" selection when
+      // there was nothing stored at all — that's the first-ever visit case.
+      if (!stored && selectedSessionId) {
+        localStorage.setItem("trayce-session", selectedSessionId);
+      }
     }
   }
 
@@ -1089,7 +1101,9 @@ function closePowerPopover(): void {
 function sendShutdownRequest(restart: boolean): void {
   if (!connection?.isConnected) return;
   connection.send({ type: "shutdown-request", restart });
-  showToast(restart ? "Server restarting…" : "Server shutting down…");
+  // The toast is shown by the server-exiting handler when the ack arrives
+  // (~50ms). It has more info (container mode) and confirms the request was
+  // received. Avoid showing a redundant one here.
   powerBtn.disabled = true;
 }
 
