@@ -1,6 +1,6 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { CanvasLock } from "../../client/canvas-lock";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { LockMessage } from "../../client/canvas-lock";
+import { CanvasLock } from "../../client/canvas-lock";
 
 // MockBroadcastChannel simulates cross-tab behavior: messages are delivered
 // to all OTHER instances registered on the same channel name.

@@ -15,9 +15,7 @@ export class CanvasLock {
   constructor() {
     this.tabId = crypto.randomUUID();
     this.channel =
-      typeof BroadcastChannel !== "undefined"
-        ? new BroadcastChannel("trayce-canvas-lock")
-        : null;
+      typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("trayce-canvas-lock") : null;
 
     if (this.channel) {
       this.channel.onmessage = (event: MessageEvent<LockMessage>) => {
