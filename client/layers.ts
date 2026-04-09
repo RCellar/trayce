@@ -153,6 +153,16 @@ export class LayerManager {
     if (layer) layer.revision++;
   }
 
+  /** Replace all layers with the given array. Used when switching session canvases. */
+  replaceAll(layers: Layer[]): void {
+    this.layers = layers;
+    this.activeLayerIndex = 0;
+    // Bump revision on every layer so the compositor rebuilds all textures
+    for (const layer of this.layers) {
+      layer.revision++;
+    }
+  }
+
   private createLayer(name: string, deletable: boolean, w?: number, h?: number): Layer {
     const canvas = new OffscreenCanvas(w ?? this.docWidth, h ?? this.docHeight);
     const ctx = canvas.getContext("2d")!;

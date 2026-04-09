@@ -155,6 +155,16 @@ export class Compositor {
     this.overlay.clear();
   }
 
+  /** Tear down all cached sprites and mark dirty for full rebuild on next update(). */
+  rebuild(): void {
+    for (const sprite of this.sprites.values()) {
+      sprite.destroy(true);
+    }
+    this.sprites.clear();
+    this.spriteRevisions.clear();
+    this.markDirty();
+  }
+
   destroy(): void {
     for (const sprite of this.sprites.values()) {
       sprite.destroy(true);
