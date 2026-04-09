@@ -46,6 +46,7 @@ export class LayerManager {
     background: "white" | "transparent",
   ) {
     const bg = this.createLayer("Background", false);
+    bg.locked = true;
     if (background === "white") {
       bg.ctx.fillStyle = "#f0f0f0";
       bg.ctx.fillRect(0, 0, docWidth, docHeight);
@@ -151,6 +152,18 @@ export class LayerManager {
   bumpRevision(layerId: string): void {
     const layer = this.layers.find((l) => l.id === layerId);
     if (layer) layer.revision++;
+  }
+
+  /** Replace all layers with the given array. Used when switching session canvases. */
+  replaceAll(layers: Layer[]): void {
+    this.layers = layers;
+    // Default to the first deletable (non-background) layer, matching initCanvas behavior
+    const firstDeletable = layers.findIndex((l) => l.deletable);
+    this.activeLayerIndex = firstDeletable >= 0 ? firstDeletable : 0;
+    // Bump revision on every layer so the compositor rebuilds all textures
+    for (const layer of this.layers) {
+      layer.revision++;
+    }
   }
 
   private createLayer(name: string, deletable: boolean, w?: number, h?: number): Layer {

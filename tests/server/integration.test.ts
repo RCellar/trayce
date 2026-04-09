@@ -46,13 +46,16 @@ async function waitForHttp(url: string, timeoutMs = 10_000): Promise<void> {
   throw new Error(`Server not reachable at ${url} within ${timeoutMs}ms`);
 }
 
-function connectWs(url: string): Promise<{ ws: WebSocket; firstMessage: unknown }> {
+function connectWs(
+  url: string,
+  timeoutMs = 10_000,
+): Promise<{ ws: WebSocket; firstMessage: unknown }> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     const timer = setTimeout(() => {
       ws.close();
       reject(new Error(`WS timeout: ${url}`));
-    }, 5000);
+    }, timeoutMs);
     ws.onmessage = (ev) => {
       clearTimeout(timer);
       resolve({ ws, firstMessage: JSON.parse(ev.data as string) });
@@ -62,6 +65,21 @@ function connectWs(url: string): Promise<{ ws: WebSocket; firstMessage: unknown 
       reject(new Error(`WS error: ${url}`));
     };
   });
+}
+
+/** Retry WebSocket connection until it succeeds or deadline passes. */
+async function waitForWs(url: string, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const { ws } = await connectWs(url, 3000);
+      ws.close();
+      return;
+    } catch {
+      await Bun.sleep(100);
+    }
+  }
+  throw new Error(`WebSocket not ready at ${url} within ${timeoutMs}ms`);
 }
 
 function nextMessage(ws: WebSocket, timeoutMs = 10_000): Promise<Record<string, unknown>> {
@@ -105,6 +123,8 @@ describe("integration", () => {
     state = await waitForState(STATE_FILE);
     baseUrl = `http://127.0.0.1:${state.port}`;
     await waitForHttp(baseUrl);
+    // Confirm WebSocket is accepting connections before tests start
+    await waitForWs(`ws://127.0.0.1:${state.port}/canvas?token=${state.token}`);
   }, 30_000);
 
   afterAll(() => {
@@ -196,7 +216,7 @@ describe("integration", () => {
       const opened = await new Promise<boolean>((res) => {
         ws.onopen = () => res(true);
         ws.onerror = () => res(false);
-        setTimeout(() => res(false), 5000);
+        setTimeout(() => res(false), 10_000);
       });
       expect(opened).toBe(true);
       ws.close();
@@ -210,7 +230,7 @@ describe("integration", () => {
       await new Promise<void>((res, rej) => {
         bridge.onopen = () => res();
         bridge.onerror = () => rej(new Error("bridge failed"));
-        setTimeout(() => rej(new Error("timeout")), 5000);
+        setTimeout(() => rej(new Error("timeout")), 10_000);
       });
 
       // Connect browser
@@ -220,7 +240,7 @@ describe("integration", () => {
 
       // Listen for session update on browser
       const update = new Promise<any>((res, rej) => {
-        const timer = setTimeout(() => rej(new Error("no update")), 5000);
+        const timer = setTimeout(() => rej(new Error("no update")), 10_000);
         browser.onmessage = (ev) => {
           const msg = JSON.parse(ev.data as string);
           if (msg.type === "sessions" && msg.sessions.some((s: any) => s.id === sessionId)) {

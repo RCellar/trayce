@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { type BlendMode, LayerManager } from "../../client/layers";
+import { type BlendMode, type Layer, LayerManager } from "../../client/layers";
 
 // Mock OffscreenCanvas for Bun test environment
 globalThis.OffscreenCanvas = class MockOffscreenCanvas {
@@ -222,6 +222,81 @@ describe("revision tracking", () => {
   test("bumpRevision is no-op for unknown id", () => {
     const lm = new LayerManager(100, 100, "white");
     lm.bumpRevision("nonexistent"); // should not throw
+  });
+});
+
+describe("LayerManager — replaceAll", () => {
+  test("replaceAll replaces all layers and resets active index", () => {
+    const lm = new LayerManager(100, 100, "white");
+    lm.addLayer("Extra");
+    expect(lm.layers.length).toBe(2);
+
+    const canvas = new OffscreenCanvas(100, 100);
+    const ctx = canvas.getContext("2d")!;
+    const newLayers: Layer[] = [
+      {
+        id: "bg",
+        name: "Background",
+        canvas,
+        ctx,
+        visible: true,
+        opacity: 100,
+        blendMode: "normal",
+        locked: false,
+        deletable: false,
+        revision: 0,
+      },
+      {
+        id: "sketch",
+        name: "Sketch",
+        canvas: new OffscreenCanvas(100, 100),
+        ctx: new OffscreenCanvas(100, 100).getContext("2d")!,
+        visible: true,
+        opacity: 100,
+        blendMode: "normal",
+        locked: false,
+        deletable: true,
+        revision: 0,
+      },
+      {
+        id: "notes",
+        name: "Notes",
+        canvas: new OffscreenCanvas(100, 100),
+        ctx: new OffscreenCanvas(100, 100).getContext("2d")!,
+        visible: true,
+        opacity: 80,
+        blendMode: "multiply",
+        locked: false,
+        deletable: true,
+        revision: 0,
+      },
+    ];
+
+    lm.replaceAll(newLayers);
+    expect(lm.layers.length).toBe(3);
+    expect(lm.layers[0]!.id).toBe("bg");
+    expect(lm.layers[2]!.name).toBe("Notes");
+    // Active layer defaults to first deletable (non-background) layer
+    expect(lm.activeLayerIndex).toBe(1);
+  });
+
+  test("replaceAll bumps revision on all layers to invalidate compositor cache", () => {
+    const lm = new LayerManager(100, 100, "white");
+    const canvas = new OffscreenCanvas(100, 100);
+    const layer: Layer = {
+      id: "test",
+      name: "Test",
+      canvas,
+      ctx: canvas.getContext("2d")!,
+      visible: true,
+      opacity: 100,
+      blendMode: "normal",
+      locked: false,
+      deletable: true,
+      revision: 0,
+    };
+    lm.replaceAll([layer]);
+    expect(lm.layers[0]!.revision).toBe(1);
   });
 });
 

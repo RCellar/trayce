@@ -11,6 +11,7 @@ import { PencilBrush } from "./brushes/pencil";
 import type { Brush, BrushParams } from "./brushes/types";
 import { WatercolorBrush } from "./brushes/watercolor";
 import { CanvasManager } from "./canvas";
+import { CanvasLock } from "./canvas-lock";
 import { ColorPicker } from "./color-picker";
 import { Compositor } from "./compositor";
 import { buildWsUrl, Connection, type ServerMessage } from "./connection";
@@ -18,12 +19,21 @@ import { blobToBase64, flattenToPng, isCanvasBlank } from "./export";
 import { FloatingPanel } from "./floating-panel";
 import { History } from "./history";
 import { InputHandler, type InputState } from "./input";
-import { LayerManager } from "./layers";
+import { type BlendMode, type Layer, LayerManager } from "./layers";
 import { LayersUI } from "./layers-ui";
 import { PermissionPromptManager } from "./permission-prompts";
+import {
+  loadLayers,
+  persistenceKey,
+  pruneStaleEntries,
+  type SavedLayer,
+  SCRATCHPAD_KEY,
+  saveLayers,
+} from "./persistence";
 import { PowerPopover } from "./power-popover";
 import { ResponseTab } from "./response-tab";
 import { SidePanel } from "./side-panel";
+import { formatTabTitle } from "./tab-title";
 import { ThemeManager } from "./theme";
 import { showToast } from "./toast";
 import { type ActionId, Toolbar, type ToolId } from "./toolbar";
@@ -73,10 +83,171 @@ let transcriptTab: TranscriptTab | null = null;
 let usageTab: UsageTab | null = null;
 let history: History | null = null;
 
-import { formatTabTitle } from "./tab-title";
+const canvasLock = new CanvasLock();
+let currentCanvasKey: string = SCRATCHPAD_KEY;
+let suppressCanvasPush = false;
 
 function updateTabTitle(): void {
   document.title = formatTabTitle(sessions, selectedSessionId);
+}
+
+async function saveCurrentCanvas(): Promise<void> {
+  if (!layerManager) return;
+  // Scratchpad is ephemeral — don't persist it
+  if (currentCanvasKey === SCRATCHPAD_KEY) return;
+  try {
+    const layers: SavedLayer[] = await Promise.all(
+      layerManager.layers.map(async (layer) => {
+        const blob = await layer.canvas.convertToBlob({ type: "image/png" });
+        return {
+          id: layer.id,
+          name: layer.name,
+          blob,
+          opacity: layer.opacity,
+          blendMode: layer.blendMode,
+          visible: layer.visible,
+          locked: layer.locked,
+          deletable: layer.deletable,
+          ...(layer.transform ? { transform: { ...layer.transform } } : {}),
+        };
+      }),
+    );
+    await saveLayers(currentCanvasKey, layers);
+  } catch (err) {
+    console.error("[trayce] Failed to save canvas:", err);
+  }
+}
+
+async function restoreCanvas(key: string): Promise<void> {
+  if (!layerManager || !compositor) return;
+
+  // Suppress canvas-push messages during restore — the server replays buffered
+  // pushes on watch-session, but those layers are already in the persisted state.
+  suppressCanvasPush = true;
+
+  try {
+    // Scratchpad is always a fresh blank canvas — never restore persisted state
+    const saved = key === SCRATCHPAD_KEY ? null : await loadLayers(key);
+    if (!saved || saved.length === 0) {
+      // No persisted state — create fresh canvas with background + sketch layer
+      createFreshCanvas(layerManager);
+    } else {
+      // Restore persisted layers
+      const restoredLayers: Layer[] = await Promise.all(
+        saved.map(async (s) => {
+          const img = await createImageBitmap(s.blob);
+          const canvas = new OffscreenCanvas(img.width, img.height);
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0);
+          img.close();
+          return {
+            id: s.id,
+            name: s.name,
+            canvas,
+            ctx,
+            visible: s.visible,
+            opacity: s.opacity,
+            blendMode: s.blendMode as BlendMode,
+            locked: s.locked,
+            deletable: s.deletable,
+            ...(s.transform ? { transform: { ...s.transform } } : {}),
+            revision: 0,
+          };
+        }),
+      );
+      layerManager.replaceAll(restoredLayers);
+    }
+  } catch (err) {
+    console.error("[trayce] Failed to restore canvas:", err);
+    showToast("Failed to restore canvas — starting fresh");
+    createFreshCanvas(layerManager);
+  }
+
+  compositor.rebuild();
+  history?.clear();
+  layersUI?.render();
+  updateLayerInfo();
+  transformHandler?.updateOverlay();
+  currentCanvasKey = key;
+
+  // Allow canvas-push messages again after a tick — buffer replay is synchronous
+  // from the server's perspective but arrives via WebSocket message events which
+  // are queued in the microtask/event loop. Use setTimeout to wait for them.
+  setTimeout(() => {
+    suppressCanvasPush = false;
+  }, 500);
+}
+
+function createFreshCanvas(lm: LayerManager): void {
+  const bg: Layer = {
+    id: crypto.randomUUID(),
+    name: "Background",
+    canvas: new OffscreenCanvas(lm.docWidth, lm.docHeight),
+    ctx: null as any,
+    visible: true,
+    opacity: 100,
+    blendMode: "normal",
+    locked: true,
+    deletable: false,
+    revision: 0,
+  };
+  bg.ctx = bg.canvas.getContext("2d")!;
+  bg.ctx.fillStyle = "#f0f0f0";
+  bg.ctx.fillRect(0, 0, lm.docWidth, lm.docHeight);
+
+  const sketch: Layer = {
+    id: crypto.randomUUID(),
+    name: "Sketch",
+    canvas: new OffscreenCanvas(lm.docWidth, lm.docHeight),
+    ctx: null as any,
+    visible: true,
+    opacity: 100,
+    blendMode: "normal",
+    locked: false,
+    deletable: true,
+    revision: 0,
+  };
+  sketch.ctx = sketch.canvas.getContext("2d")!;
+
+  lm.replaceAll([bg, sketch]);
+}
+
+let switchInFlight: Promise<void> | null = null;
+
+async function switchSession(sessionId: string | null): Promise<void> {
+  // Serialize: wait for any in-flight switch to finish before starting a new one
+  if (switchInFlight) await switchInFlight;
+  switchInFlight = doSwitchSession(sessionId);
+  try {
+    await switchInFlight;
+  } finally {
+    switchInFlight = null;
+  }
+}
+
+async function doSwitchSession(sessionId: string | null): Promise<void> {
+  const newKey = sessionId ? persistenceKey(sessionId) : SCRATCHPAD_KEY;
+  if (newKey === currentCanvasKey) return;
+
+  await saveCurrentCanvas();
+
+  if (sessionId) {
+    const acquired = await canvasLock.claim(sessionId);
+    if (!acquired) {
+      showToast("This session's canvas is active in another tab");
+      // Roll back UI state — the dropdown may already show this session
+      const fallbackId = currentCanvasKey === SCRATCHPAD_KEY ? "" : selectedSessionId;
+      selectedSessionId = fallbackId;
+      sessionSelect.value = fallbackId;
+      submitBtn.disabled = !connection?.isConnected || !fallbackId;
+      updateTabTitle();
+      return;
+    }
+  } else {
+    canvasLock.release();
+  }
+
+  await restoreCanvas(newKey);
 }
 
 // -- DOM Elements --
@@ -90,6 +261,15 @@ const connectionStatus = document.getElementById("connection-status")!;
 const toolInfo = document.getElementById("tool-info")!;
 const layerInfo = document.getElementById("layer-info")!;
 const powerBtn = document.getElementById("server-power-btn") as HTMLButtonElement;
+
+canvasLock.onEvicted = async () => {
+  await saveCurrentCanvas();
+  await restoreCanvas(SCRATCHPAD_KEY);
+  selectedSessionId = "";
+  sessionSelect.value = "";
+  showToast("Session canvas claimed by another tab — switched to scratchpad");
+  updateTabTitle();
+};
 
 let toolbar: Toolbar | null = null;
 let layersUI: LayersUI | null = null;
@@ -462,6 +642,7 @@ function handleServerMessage(msg: ServerMessage): void {
   if (msg.type === "sessions") {
     sessions = msg.sessions as typeof sessions;
     updateSessionSelect();
+    pruneStaleEntries(sessions.map((s) => s.id));
   } else if (msg.type === "server-info") {
     if (typeof msg.containerMode === "boolean") {
       containerMode = msg.containerMode;
@@ -512,6 +693,7 @@ function handleServerMessage(msg: ServerMessage): void {
 
 function handleCanvasPush(msg: ServerMessage): void {
   if (!layerManager || !compositor) return;
+  if (suppressCanvasPush) return;
 
   const image = msg.image as string;
   const label = (msg.label as string) || `Claude: ${new Date().toLocaleTimeString()}`;
@@ -645,17 +827,22 @@ function updateSessionSelect(): void {
 
   if (selectedSessionId) {
     connection?.send({ type: "watch-session", sessionId: selectedSessionId });
+    switchSession(selectedSessionId);
   }
 
   handleConnectionStatus(connection?.isConnected ? "connected" : "disconnected");
   updateTabTitle();
 }
 
-sessionSelect.addEventListener("change", () => {
-  selectedSessionId = sessionSelect.value;
+sessionSelect.addEventListener("change", async () => {
+  const newSessionId = sessionSelect.value;
+  await switchSession(newSessionId || null);
+  // If the lock was denied, doSwitchSession already rolled back the dropdown.
+  // Only update state if the switch actually succeeded.
+  if (sessionSelect.value !== newSessionId) return;
+  selectedSessionId = newSessionId;
   localStorage.setItem("trayce-session", selectedSessionId);
   submitBtn.disabled = !connection?.isConnected || !selectedSessionId;
-  // Tell server which session to watch for transcript/response data
   connection?.send({ type: "watch-session", sessionId: selectedSessionId });
   responseTab?.clear();
   transcriptTab?.clear();
@@ -709,34 +896,38 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+// Best-effort save on tab close. IndexedDB writes started here may not complete
+// before the browser tears down the page — this is an accepted limitation.
+// The periodic auto-save below limits worst-case data loss to ~30 seconds.
+window.addEventListener("beforeunload", () => {
+  saveCurrentCanvas();
+  canvasLock.destroy();
+});
+
+// Periodic auto-save every 30 seconds so tab-close only risks losing recent work
+setInterval(() => {
+  saveCurrentCanvas();
+}, 30_000);
+
 // -- Info Updates --
 
 function clearCanvas(): void {
   if (!layerManager || !compositor) return;
   if (!confirm("Clear the entire canvas? This cannot be undone.")) return;
 
-  for (const layer of layerManager.layers) {
-    layer.ctx.clearRect(0, 0, layerManager.docWidth, layerManager.docHeight);
-    // Also reset transform so image layers don't leave ghost-positioned
-    // sprites behind (the compositor reads layer.transform for positioning).
-    delete layer.transform;
-    layer.revision++;
-  }
-
-  // Refill background if it was white
-  const bg = layerManager.layers[0];
-  if (bg) {
-    bg.ctx.fillStyle = "#f0f0f0";
-    bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
-  }
+  // Reset to a fresh Background + Sketch, removing all extra layers (image
+  // layers, duplicates, etc.) rather than just blanking their pixels.
+  createFreshCanvas(layerManager);
 
   // Clear history — the confirm prompt promises the action can't be undone,
   // and leaving stale checkpoints in the undo stack would let Ctrl+Z restore
   // incoherent pre-clear state mixed with the now-empty layers.
   history?.clear();
 
-  compositor.markDirty();
+  compositor.rebuild();
   layersUI?.render();
+  updateLayerInfo();
+  transformHandler?.updateOverlay();
   showToast("Canvas cleared");
 }
 

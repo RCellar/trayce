@@ -1,5 +1,7 @@
-export function generateTabId(): string {
-  return crypto.randomUUID();
+export const SCRATCHPAD_KEY = "layers-scratchpad";
+
+export function persistenceKey(sessionId: string): string {
+  return `layers-session-${sessionId}`;
 }
 
 const DB_NAME = "trayce";
@@ -39,35 +41,93 @@ export interface SavedLayer {
   };
 }
 
-export async function saveLayers(tabId: string, layers: SavedLayer[]): Promise<void> {
+interface PersistedEntry {
+  layers: SavedLayer[];
+  lastAccessed: number;
+}
+
+export async function saveLayers(key: string, layers: SavedLayer[]): Promise<void> {
   const db = await openDb();
   const tx = db.transaction(STORE_NAME, "readwrite");
   const store = tx.objectStore(STORE_NAME);
-  store.put(layers, `layers-${tabId}`);
+  const entry: PersistedEntry = { layers, lastAccessed: Date.now() };
+  store.put(entry, key);
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-export async function loadLayers(tabId: string): Promise<SavedLayer[] | null> {
+export async function loadLayers(key: string): Promise<SavedLayer[] | null> {
   const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readonly");
+  const tx = db.transaction(STORE_NAME, "readwrite");
   const store = tx.objectStore(STORE_NAME);
-  const req = store.get(`layers-${tabId}`);
+  const req = store.get(key);
   return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result ?? null);
+    req.onsuccess = () => {
+      const raw: PersistedEntry | SavedLayer[] | null = req.result ?? null;
+      if (raw === null) {
+        resolve(null);
+        return;
+      }
+
+      // Handle both legacy SavedLayer[] format and new PersistedEntry format
+      let layers: SavedLayer[];
+      if (Array.isArray(raw)) {
+        layers = raw;
+      } else {
+        layers = raw.layers;
+      }
+
+      // Touch lastAccessed on read within the same transaction
+      const updated: PersistedEntry = { layers, lastAccessed: Date.now() };
+      store.put(updated, key);
+
+      tx.oncomplete = () => resolve(layers);
+      tx.onerror = () => reject(tx.error);
+    };
     req.onerror = () => reject(req.error);
   });
 }
 
-export async function deleteLayers(tabId: string): Promise<void> {
+export async function deleteLayers(key: string): Promise<void> {
   const db = await openDb();
   const tx = db.transaction(STORE_NAME, "readwrite");
   const store = tx.objectStore(STORE_NAME);
-  store.delete(`layers-${tabId}`);
+  store.delete(key);
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function pruneStaleEntries(activeSessionIds: string[]): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  const activeKeys = new Set(activeSessionIds.map(persistenceKey));
+  const STALE_TTL_MS = 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - STALE_TTL_MS;
+
+  const req = store.openCursor();
+  await new Promise<void>((resolve, reject) => {
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      const key = cursor.key as string;
+      // Only prune session keys that are not active
+      if (key.startsWith("layers-session-") && !activeKeys.has(key)) {
+        const value = cursor.value as PersistedEntry | SavedLayer[];
+        const lastAccessed = Array.isArray(value) ? 0 : value.lastAccessed;
+        if (lastAccessed < cutoff) {
+          cursor.delete();
+        }
+      }
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
   });
 }
