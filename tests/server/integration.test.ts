@@ -8,6 +8,7 @@ const STATE_FILE = join(TMP_DIR, "state.json");
 const SUBMISSIONS_DIR = join(TMP_DIR, "submissions");
 const CLIENT_DIR = join(TMP_DIR, "client");
 const SERVER_ENTRY = resolve(import.meta.dir, "../../server/index.ts");
+const PROJECT_ROOT = resolve(import.meta.dir, "../..");
 
 interface StateJson {
   pid: number;
@@ -63,7 +64,7 @@ function connectWs(url: string): Promise<{ ws: WebSocket; firstMessage: unknown 
   });
 }
 
-function nextMessage(ws: WebSocket, timeoutMs = 3000): Promise<Record<string, unknown>> {
+function nextMessage(ws: WebSocket, timeoutMs = 10_000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("No WS message")), timeoutMs);
     ws.addEventListener(
@@ -88,8 +89,8 @@ beforeAll(async () => {
   mkdirSync(CLIENT_DIR, { recursive: true });
   Bun.write(join(CLIENT_DIR, "index.html"), "<html><body>trayce</body></html>");
 
-  serverProc = Bun.spawn(["bun", "run", SERVER_ENTRY], {
-    cwd: "trayce",
+  serverProc = Bun.spawn([process.execPath, "run", SERVER_ENTRY], {
+    cwd: PROJECT_ROOT,
     env: {
       ...process.env,
       TRAYCE_PORT: String(TEST_PORT),

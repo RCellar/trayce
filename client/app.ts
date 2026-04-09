@@ -20,6 +20,8 @@ import { History } from "./history";
 import { InputHandler, type InputState } from "./input";
 import { LayerManager } from "./layers";
 import { LayersUI } from "./layers-ui";
+import { PermissionPromptManager } from "./permission-prompts";
+import { PowerPopover } from "./power-popover";
 import { ResponseTab } from "./response-tab";
 import { SidePanel } from "./side-panel";
 import { ThemeManager } from "./theme";
@@ -27,6 +29,7 @@ import { showToast } from "./toast";
 import { type ActionId, Toolbar, type ToolId } from "./toolbar";
 import { ImageTool } from "./tools/image";
 import { TranscriptTab } from "./transcript-tab";
+import { TransformHandler } from "./transform";
 import { UsageTab } from "./usage-tab";
 
 // -- State --
@@ -56,6 +59,8 @@ let brushParams: BrushParams = {
 };
 
 let imageTool: ImageTool | null = null;
+let transformHandler: TransformHandler | null = null;
+let permissionPrompts: PermissionPromptManager | null = null;
 
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
@@ -85,7 +90,6 @@ const connectionStatus = document.getElementById("connection-status")!;
 const toolInfo = document.getElementById("tool-info")!;
 const layerInfo = document.getElementById("layer-info")!;
 const powerBtn = document.getElementById("server-power-btn") as HTMLButtonElement;
-let powerPopover: HTMLElement | null = null;
 
 let toolbar: Toolbar | null = null;
 let layersUI: LayersUI | null = null;
@@ -258,6 +262,11 @@ async function initCanvas(
   layerManager.addLayer("Sketch");
   compositor = new Compositor(canvasManager.app, layerManager);
   history = new History(50 * 1024 * 1024); // 50MB budget
+  transformHandler = new TransformHandler({
+    layerManager: () => layerManager,
+    compositor: () => compositor,
+    canvasManager: () => canvasManager,
+  });
 
   // Add compositor container to stage (inside zoom/pan)
   canvasManager.stage.addChild(compositor.getContainer());
@@ -279,7 +288,7 @@ async function initCanvas(
       layerManager!.activeLayerIndex = index;
       layersUI?.render();
       updateLayerInfo();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
     },
     onVisibilityToggle: (index) => {
       const layer = layerManager!.layers[index];
@@ -299,7 +308,7 @@ async function initCanvas(
       compositor?.markDirty();
       layersUI?.render();
       updateLayerInfo();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
     },
     onDeleteLayer: (index) => {
       try {
@@ -307,7 +316,7 @@ async function initCanvas(
         compositor?.markDirty();
         layersUI?.render();
         updateLayerInfo();
-        updateTransformOverlay();
+        transformHandler?.updateOverlay();
       } catch (_e) {
         showToast("Cannot delete this layer");
       }
@@ -316,7 +325,7 @@ async function initCanvas(
       layerManager!.rasterizeLayer(index);
       compositor?.markDirty();
       layersUI?.render();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
       showToast("Layer rasterized");
     },
   });
@@ -334,76 +343,8 @@ async function initCanvas(
   // Render loop
   canvasManager.app.ticker.add(() => {
     compositor?.update();
-    updateTransformOverlay();
+    transformHandler?.updateOverlay();
   });
-}
-
-// -- Transform interaction state --
-
-type HandleId = "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
-type DragMode =
-  | { type: "move"; offsetX: number; offsetY: number }
-  | {
-      type: "resize";
-      handle: HandleId;
-      anchorX: number;
-      anchorY: number;
-      startW: number;
-      startH: number;
-    };
-
-let transformDrag: DragMode | null = null;
-
-const HANDLE_RADIUS_SCREEN = 6; // pixels in screen space
-
-function getHandleAtPoint(
-  t: { x: number; y: number; width: number; height: number },
-  docX: number,
-  docY: number,
-  zoom: number,
-): HandleId | null {
-  const r = HANDLE_RADIUS_SCREEN / zoom; // convert screen hit radius to doc space
-  const handles: Array<{ id: HandleId; hx: number; hy: number }> = [
-    { id: "nw", hx: t.x, hy: t.y },
-    { id: "n", hx: t.x + t.width / 2, hy: t.y },
-    { id: "ne", hx: t.x + t.width, hy: t.y },
-    { id: "w", hx: t.x, hy: t.y + t.height / 2 },
-    { id: "e", hx: t.x + t.width, hy: t.y + t.height / 2 },
-    { id: "sw", hx: t.x, hy: t.y + t.height },
-    { id: "s", hx: t.x + t.width / 2, hy: t.y + t.height },
-    { id: "se", hx: t.x + t.width, hy: t.y + t.height },
-  ];
-  for (const h of handles) {
-    if (Math.abs(docX - h.hx) <= r && Math.abs(docY - h.hy) <= r) return h.id;
-  }
-  return null;
-}
-
-function hitTestTransformBounds(
-  t: { x: number; y: number; width: number; height: number },
-  docX: number,
-  docY: number,
-): boolean {
-  return docX >= t.x && docX <= t.x + t.width && docY >= t.y && docY <= t.y + t.height;
-}
-
-function updateTransformOverlay(): void {
-  if (!compositor || !canvasManager || !layerManager) {
-    compositor?.clearOverlay();
-    return;
-  }
-  const layer = layerManager.activeLayer;
-  if (!layer.transform) {
-    compositor.clearOverlay();
-    return;
-  }
-  const stagePos = canvasManager.stage.position;
-  compositor.drawTransformOverlay(
-    stagePos.x,
-    stagePos.y,
-    canvasManager.viewport.zoom,
-    layer.transform,
-  );
 }
 
 // -- Drawing --
@@ -420,7 +361,7 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
 
   // If active layer has a transform, handle move/resize instead of drawing
   if (layer.transform) {
-    handleTransformInput(layer.transform, doc.x, doc.y, event);
+    transformHandler?.handleInput(layer.transform, doc.x, doc.y, event);
     return;
   }
 
@@ -469,111 +410,6 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
   }
 }
 
-function handleTransformInput(
-  t: import("./layers").LayerTransform,
-  docX: number,
-  docY: number,
-  event: "start" | "move" | "end",
-): void {
-  if (event === "start") {
-    const zoom = canvasManager!.viewport.zoom;
-
-    // Check handles first (higher priority than move)
-    const handle = getHandleAtPoint(t, docX, docY, zoom);
-    if (handle) {
-      // Anchor is the corner opposite to the dragged handle
-      const ax = handle.includes("e") ? t.x : handle.includes("w") ? t.x + t.width : t.x;
-      const ay = handle.includes("s") ? t.y : handle.includes("n") ? t.y + t.height : t.y;
-      transformDrag = {
-        type: "resize",
-        handle,
-        anchorX: ax,
-        anchorY: ay,
-        startW: t.width,
-        startH: t.height,
-      };
-      return;
-    }
-
-    // Check body hit for move
-    if (hitTestTransformBounds(t, docX, docY)) {
-      transformDrag = { type: "move", offsetX: docX - t.x, offsetY: docY - t.y };
-      return;
-    }
-
-    // Clicked outside — no interaction
-    transformDrag = null;
-  }
-
-  if (event === "move" && transformDrag) {
-    if (transformDrag.type === "move") {
-      t.x = docX - transformDrag.offsetX;
-      t.y = docY - transformDrag.offsetY;
-    } else {
-      applyResize(t, transformDrag, docX, docY);
-    }
-    compositor?.markDirty();
-    if (layerManager) layerManager.bumpRevision(layerManager.activeLayer.id);
-    updateTransformOverlay();
-  }
-
-  if (event === "end" && transformDrag) {
-    transformDrag = null;
-  }
-}
-
-function applyResize(
-  t: import("./layers").LayerTransform,
-  drag: Extract<DragMode, { type: "resize" }>,
-  docX: number,
-  docY: number,
-): void {
-  const MIN_SIZE = 10;
-  const { handle, anchorX, anchorY, startW, startH } = drag;
-  const aspect = startW / startH;
-
-  let newX = t.x,
-    newY = t.y,
-    newW = t.width,
-    newH = t.height;
-
-  // Horizontal component
-  if (handle.includes("e")) {
-    newW = Math.max(MIN_SIZE, docX - anchorX);
-    newX = anchorX;
-  } else if (handle.includes("w")) {
-    newW = Math.max(MIN_SIZE, anchorX - docX);
-    newX = anchorX - newW;
-  }
-
-  // Vertical component
-  if (handle.includes("s")) {
-    newH = Math.max(MIN_SIZE, docY - anchorY);
-    newY = anchorY;
-  } else if (handle.includes("n")) {
-    newH = Math.max(MIN_SIZE, anchorY - docY);
-    newY = anchorY - newH;
-  }
-
-  // Corner handles: preserve aspect ratio (default behavior)
-  if (handle.length === 2) {
-    // Fit to the smaller dimension
-    if (newW / newH > aspect) {
-      newW = newH * aspect;
-    } else {
-      newH = newW / aspect;
-    }
-    // Re-anchor after ratio adjustment
-    if (handle.includes("w")) newX = anchorX - newW;
-    if (handle.includes("n")) newY = anchorY - newH;
-  }
-
-  t.x = Math.round(newX);
-  t.y = Math.round(newY);
-  t.width = Math.round(newW);
-  t.height = Math.round(newH);
-}
-
 // -- Connection --
 
 function initConnection(): void {
@@ -594,7 +430,16 @@ function initConnection(): void {
   );
 
   connection = new Connection(wsUrl, handleConnectionStatus, handleServerMessage);
+  permissionPrompts = new PermissionPromptManager({
+    connection: () => connection,
+    container: document.getElementById("toast-container")!,
+  });
   connection.connect();
+  new PowerPopover({
+    powerBtn,
+    connection: () => connection,
+    containerMode: () => containerMode,
+  });
 }
 
 function handleConnectionStatus(status: "connected" | "disconnected" | "reconnecting"): void {
@@ -611,41 +456,6 @@ function handleConnectionStatus(status: "connected" | "disconnected" | "reconnec
 
   submitBtn.disabled = status !== "connected" || !selectedSessionId;
   powerBtn.disabled = status !== "connected";
-}
-
-// Track pending permission prompts for stale detection
-const pendingPermissions = new Map<
-  string,
-  { el: HTMLElement; timer: ReturnType<typeof setTimeout> }
->();
-
-function dismissPermissionPrompt(requestId: string, reason: string): void {
-  const pending = pendingPermissions.get(requestId);
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  pendingPermissions.delete(requestId);
-
-  const el = pending.el;
-  // Replace actions with stale message
-  const actions = el.querySelector(".perm-actions");
-  if (actions) {
-    actions.textContent = "";
-    const msg = document.createElement("span");
-    msg.className = "perm-stale";
-    msg.textContent = reason;
-    actions.appendChild(msg);
-  }
-  // Fade out after a moment
-  setTimeout(() => {
-    el.classList.remove("show");
-    setTimeout(() => el.remove(), 300);
-  }, 1500);
-}
-
-function dismissAllPermissions(reason: string): void {
-  for (const id of [...pendingPermissions.keys()]) {
-    dismissPermissionPrompt(id, reason);
-  }
 }
 
 function handleServerMessage(msg: ServerMessage): void {
@@ -671,13 +481,13 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "response") {
     responseTab?.addResponse(msg.content as string, msg.timestamp as number | undefined);
     // A response means Claude moved on — any pending prompts are stale
-    dismissAllPermissions("Resolved elsewhere");
+    permissionPrompts?.dismissAll("Resolved elsewhere");
   } else if (msg.type === "transcript-entry") {
     transcriptTab?.addEntry(msg.entry as any);
     // Tool execution or new assistant text means permission was already handled
     const entry = msg.entry as any;
     if (entry?.type === "tool-call" || entry?.type === "response") {
-      dismissAllPermissions("Resolved elsewhere");
+      permissionPrompts?.dismissAll("Resolved elsewhere");
     }
   } else if (msg.type === "canvas-push") {
     handleCanvasPush(msg);
@@ -691,79 +501,13 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "usage-update") {
     usageTab?.addUpdate(msg.usage as any);
   } else if (msg.type === "permission-request") {
-    showPermissionPrompt(msg);
+    permissionPrompts?.show({
+      requestId: msg.requestId as string,
+      toolName: msg.toolName as string,
+      description: msg.description as string,
+      inputPreview: msg.inputPreview as string,
+    });
   }
-}
-
-function showPermissionPrompt(msg: ServerMessage): void {
-  const requestId = msg.requestId as string;
-  const toolName = msg.toolName as string;
-  const description = msg.description as string;
-  const inputPreview = msg.inputPreview as string;
-
-  const container = document.getElementById("toast-container")!;
-
-  const prompt = document.createElement("div");
-  prompt.className = "permission-prompt";
-
-  const header = document.createElement("div");
-  header.className = "perm-header";
-  header.textContent = "Permission Request";
-
-  const tool = document.createElement("div");
-  tool.className = "perm-tool";
-  tool.textContent = toolName;
-
-  const desc = document.createElement("div");
-  desc.className = "perm-desc";
-  desc.textContent = description;
-
-  const preview = document.createElement("div");
-  preview.className = "perm-preview";
-  preview.textContent = inputPreview;
-
-  const actions = document.createElement("div");
-  actions.className = "perm-actions";
-
-  const resolve = (behavior: "allow" | "deny") => {
-    const pending = pendingPermissions.get(requestId);
-    if (pending) {
-      clearTimeout(pending.timer);
-      pendingPermissions.delete(requestId);
-    }
-    connection?.send({ type: "permission-verdict", requestId, behavior });
-    prompt.classList.remove("show");
-    setTimeout(() => prompt.remove(), 300);
-  };
-
-  const allowBtn = document.createElement("button");
-  allowBtn.className = "perm-allow";
-  allowBtn.textContent = "Allow";
-  allowBtn.addEventListener("click", () => resolve("allow"));
-
-  const denyBtn = document.createElement("button");
-  denyBtn.className = "perm-deny";
-  denyBtn.textContent = "Deny";
-  denyBtn.addEventListener("click", () => resolve("deny"));
-
-  actions.appendChild(allowBtn);
-  actions.appendChild(denyBtn);
-
-  prompt.appendChild(header);
-  prompt.appendChild(tool);
-  prompt.appendChild(desc);
-  prompt.appendChild(preview);
-  prompt.appendChild(actions);
-
-  container.appendChild(prompt);
-  prompt.offsetHeight; // force reflow
-  prompt.classList.add("show");
-
-  // Track with 60-second timeout fallback
-  const timer = setTimeout(() => {
-    dismissPermissionPrompt(requestId, "Timed out");
-  }, 60_000);
-  pendingPermissions.set(requestId, { el: prompt, timer });
 }
 
 function handleCanvasPush(msg: ServerMessage): void {
@@ -805,7 +549,7 @@ function handleCanvasPush(msg: ServerMessage): void {
       compositor?.markDirty();
       layersUI?.render();
       updateLayerInfo();
-      updateTransformOverlay();
+      transformHandler?.updateOverlay();
     };
     imgElement.src = `data:image/png;base64,${image}`;
 
@@ -850,7 +594,7 @@ function handleImageImport(bitmap: ImageBitmap, name: string): void {
   compositor.markDirty();
   layersUI?.render();
   updateLayerInfo();
-  updateTransformOverlay();
+  transformHandler?.updateOverlay();
   showToast(`Image added as "${name}"`);
 }
 
@@ -1003,108 +747,6 @@ function updateToolInfo(): void {
 function updateLayerInfo(): void {
   if (!layerManager) return;
   layerInfo.textContent = `Layer: ${layerManager.activeLayer.name}`;
-}
-
-// -- Server power button --
-
-powerBtn.addEventListener("click", (e) => {
-  if (!connection?.isConnected) return;
-  if (e.shiftKey) {
-    // Fast path: skip popover, skip confirmation, restart immediately.
-    sendShutdownRequest(true);
-    return;
-  }
-  if (powerPopover) {
-    closePowerPopover();
-    return;
-  }
-  openPowerPopover();
-});
-
-function openPowerPopover(): void {
-  powerPopover = document.createElement("div");
-  powerPopover.className = "server-power-popover";
-
-  const restartBtn = document.createElement("button");
-  restartBtn.type = "button";
-  restartBtn.className = "popover-btn restart";
-  restartBtn.textContent = "Restart";
-  restartBtn.title = containerMode
-    ? "Exit this process; orchestrator will restart if configured"
-    : "Restart the server; this browser will reconnect automatically";
-  restartBtn.addEventListener("click", () => {
-    closePowerPopover();
-    sendShutdownRequest(true);
-  });
-
-  const shutdownBtn = document.createElement("button");
-  shutdownBtn.type = "button";
-  shutdownBtn.className = "popover-btn shutdown";
-  shutdownBtn.textContent = "Shutdown";
-  shutdownBtn.title = containerMode
-    ? "Exit this process; container will stop unless restart policy is set"
-    : "Stop the server; you'll need to start it again from a terminal";
-  shutdownBtn.addEventListener("click", () => {
-    closePowerPopover();
-    sendShutdownRequest(false);
-  });
-
-  const cancelBtn = document.createElement("button");
-  cancelBtn.type = "button";
-  cancelBtn.className = "popover-btn cancel";
-  cancelBtn.textContent = "Cancel";
-  cancelBtn.addEventListener("click", closePowerPopover);
-
-  powerPopover.append(restartBtn, shutdownBtn, cancelBtn);
-
-  // Position below the button, right-aligned with it
-  const rect = powerBtn.getBoundingClientRect();
-  powerPopover.style.top = `${rect.bottom + 4}px`;
-  powerPopover.style.right = `${window.innerWidth - rect.right}px`;
-
-  document.body.appendChild(powerPopover);
-  powerBtn.classList.add("active");
-
-  // Click-outside and escape-key dismiss, deferred by one frame so the
-  // opening click doesn't immediately close it
-  requestAnimationFrame(() => {
-    const dismissClick = (ev: MouseEvent) => {
-      if (powerPopover && !powerPopover.contains(ev.target as Node) && ev.target !== powerBtn) {
-        closePowerPopover();
-      }
-    };
-    const dismissEsc = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") closePowerPopover();
-    };
-    document.addEventListener("click", dismissClick);
-    document.addEventListener("keydown", dismissEsc);
-    // Store handlers on the popover element so closePowerPopover can find them
-    (powerPopover as unknown as { _dismissClick: typeof dismissClick })._dismissClick =
-      dismissClick;
-    (powerPopover as unknown as { _dismissEsc: typeof dismissEsc })._dismissEsc = dismissEsc;
-  });
-}
-
-function closePowerPopover(): void {
-  if (!powerPopover) return;
-  const handlers = powerPopover as unknown as {
-    _dismissClick?: (e: MouseEvent) => void;
-    _dismissEsc?: (e: KeyboardEvent) => void;
-  };
-  if (handlers._dismissClick) document.removeEventListener("click", handlers._dismissClick);
-  if (handlers._dismissEsc) document.removeEventListener("keydown", handlers._dismissEsc);
-  powerPopover.remove();
-  powerPopover = null;
-  powerBtn.classList.remove("active");
-}
-
-function sendShutdownRequest(restart: boolean): void {
-  if (!connection?.isConnected) return;
-  connection.send({ type: "shutdown-request", restart });
-  // The toast is shown by the server-exiting handler when the ack arrives
-  // (~50ms). It has more info (container mode) and confirms the request was
-  // received. Avoid showing a redundant one here.
-  powerBtn.disabled = true;
 }
 
 // -- Keyboard Shortcuts --
