@@ -93,6 +93,8 @@ function updateTabTitle(): void {
 
 async function saveCurrentCanvas(): Promise<void> {
   if (!layerManager) return;
+  // Scratchpad is ephemeral — don't persist it
+  if (currentCanvasKey === SCRATCHPAD_KEY) return;
   try {
     const layers: SavedLayer[] = await Promise.all(
       layerManager.layers.map(async (layer) => {
@@ -124,7 +126,8 @@ async function restoreCanvas(key: string): Promise<void> {
   suppressCanvasPush = true;
 
   try {
-    const saved = await loadLayers(key);
+    // Scratchpad is always a fresh blank canvas — never restore persisted state
+    const saved = key === SCRATCHPAD_KEY ? null : await loadLayers(key);
     if (!saved || saved.length === 0) {
       // No persisted state — create fresh canvas with background + sketch layer
       createFreshCanvas(layerManager);
