@@ -35,6 +35,19 @@ export class ImageTool {
 
   setupPasteHandler(): void {
     document.addEventListener("paste", async (e) => {
+      // Don't hijack paste events originating inside text inputs — users
+      // pasting a screenshot into the prompt textarea (or any other input)
+      // expect the image to land there, not on the canvas.
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      ) {
+        return;
+      }
+
       const items = e.clipboardData?.items;
       if (!items) return;
 

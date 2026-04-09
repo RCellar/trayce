@@ -890,6 +890,10 @@ function clearCanvas(): void {
 
   for (const layer of layerManager.layers) {
     layer.ctx.clearRect(0, 0, layerManager.docWidth, layerManager.docHeight);
+    // Also reset transform so image layers don't leave ghost-positioned
+    // sprites behind (the compositor reads layer.transform for positioning).
+    delete layer.transform;
+    layer.revision++;
   }
 
   // Refill background if it was white
@@ -899,7 +903,13 @@ function clearCanvas(): void {
     bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
   }
 
+  // Clear history — the confirm prompt promises the action can't be undone,
+  // and leaving stale checkpoints in the undo stack would let Ctrl+Z restore
+  // incoherent pre-clear state mixed with the now-empty layers.
+  history?.clear();
+
   compositor.markDirty();
+  layersUI?.render();
   showToast("Canvas cleared");
 }
 
