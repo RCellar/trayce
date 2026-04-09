@@ -60,3 +60,47 @@ export const UsageSchema = z.object({
 export const HeartbeatSchema = z.object({
   type: z.literal("heartbeat"),
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// Browser → Server
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * SubmitSchema is intentionally PERMISSIVE. The handler in
+ * server/websocket.ts validates `targetSessionId`, `image`, and `prompt`
+ * itself and sends user-facing error codes (`INVALID_TARGET`,
+ * `EMPTY_SUBMISSION`) when they're missing — existing tests depend on
+ * those error responses. If the schema rejected missing-field submits at
+ * the parse boundary, those responses wouldn't fire. The schema's job
+ * here is just to guarantee the overall shape and the `type` discriminant.
+ */
+export const SubmitSchema = z.object({
+  type: z.literal("submit"),
+  targetSessionId: z.string().optional(),
+  image: z.string().optional(),
+  prompt: z.string().optional(),
+});
+
+export const WatchSessionSchema = z.object({
+  type: z.literal("watch-session"),
+  sessionId: z.string().min(1),
+});
+
+export const PermissionVerdictSchema = z.object({
+  type: z.literal("permission-verdict"),
+  requestId: z.string().min(1),
+  behavior: PermissionBehaviorSchema,
+});
+
+export const ShutdownRequestSchema = z.object({
+  type: z.literal("shutdown-request"),
+  restart: z.boolean(),
+});
+
+export const BrowserToServerSchema = z.discriminatedUnion("type", [
+  HeartbeatSchema,
+  SubmitSchema,
+  WatchSessionSchema,
+  PermissionVerdictSchema,
+  ShutdownRequestSchema,
+]);
