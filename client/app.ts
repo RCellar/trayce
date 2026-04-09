@@ -85,6 +85,7 @@ let history: History | null = null;
 
 const canvasLock = new CanvasLock();
 let currentCanvasKey: string = SCRATCHPAD_KEY;
+let suppressCanvasPush = false;
 
 function updateTabTitle(): void {
   document.title = formatTabTitle(sessions, selectedSessionId);
@@ -117,6 +118,10 @@ async function saveCurrentCanvas(): Promise<void> {
 
 async function restoreCanvas(key: string): Promise<void> {
   if (!layerManager || !compositor) return;
+
+  // Suppress canvas-push messages during restore — the server replays buffered
+  // pushes on watch-session, but those layers are already in the persisted state.
+  suppressCanvasPush = true;
 
   try {
     const saved = await loadLayers(key);
@@ -161,6 +166,13 @@ async function restoreCanvas(key: string): Promise<void> {
   updateLayerInfo();
   transformHandler?.updateOverlay();
   currentCanvasKey = key;
+
+  // Allow canvas-push messages again after a tick — buffer replay is synchronous
+  // from the server's perspective but arrives via WebSocket message events which
+  // are queued in the microtask/event loop. Use setTimeout to wait for them.
+  setTimeout(() => {
+    suppressCanvasPush = false;
+  }, 500);
 }
 
 function createFreshCanvas(lm: LayerManager): void {
@@ -678,6 +690,7 @@ function handleServerMessage(msg: ServerMessage): void {
 
 function handleCanvasPush(msg: ServerMessage): void {
   if (!layerManager || !compositor) return;
+  if (suppressCanvasPush) return;
 
   const image = msg.image as string;
   const label = (msg.label as string) || `Claude: ${new Date().toLocaleTimeString()}`;
