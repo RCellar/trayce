@@ -115,135 +115,135 @@ describe("integration", () => {
   });
 
   describe("state file", () => {
-  it("contains pid, port, host, token, url", () => {
-    expect(state.pid).toBeGreaterThan(0);
-    expect(state.port).toBe(TEST_PORT);
-    expect(state.host).toBe("127.0.0.1");
-    expect(typeof state.token).toBe("string");
-    expect((state.token as string).length).toBeGreaterThan(0);
-    expect(state.url).toContain(`token=${state.token}`);
-  });
-});
-
-describe("HTTP", () => {
-  it("GET / serves index.html", async () => {
-    const res = await fetch(`${baseUrl}/`);
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).toContain("trayce");
-  });
-
-  it("GET /missing returns 404", async () => {
-    const res = await fetch(`${baseUrl}/missing.html`);
-    expect(res.status).toBe(404);
-    await res.body?.cancel();
-  });
-
-  it("security headers present", async () => {
-    const res = await fetch(`${baseUrl}/`);
-    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
-    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
-    await res.body?.cancel();
-  });
-});
-
-describe("WebSocket /canvas — with token", () => {
-  it("connects and receives sessions message", async () => {
-    const { ws, firstMessage } = await connectWs(
-      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
-    );
-    expect((firstMessage as any).type).toBe("server-info");
-    const sessionsMsg = await nextMessage(ws);
-    expect(sessionsMsg.type).toBe("sessions");
-    ws.close();
-  });
-
-  it("heartbeat is echoed", async () => {
-    const { ws, firstMessage } = await connectWs(
-      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
-    );
-    expect((firstMessage as any).type).toBe("server-info");
-    const sessionsMsg = await nextMessage(ws);
-    expect(sessionsMsg.type).toBe("sessions");
-    ws.send(JSON.stringify({ type: "heartbeat" }));
-    const echo = await nextMessage(ws);
-    expect(echo.type).toBe("heartbeat");
-    ws.close();
-  });
-});
-
-describe("WebSocket /canvas — auth rejection", () => {
-  it("rejects without token (401)", async () => {
-    const res = await fetch(`${baseUrl}/canvas`, {
-      headers: { Upgrade: "websocket" },
+    it("contains pid, port, host, token, url", () => {
+      expect(state.pid).toBeGreaterThan(0);
+      expect(state.port).toBe(TEST_PORT);
+      expect(state.host).toBe("127.0.0.1");
+      expect(typeof state.token).toBe("string");
+      expect((state.token as string).length).toBeGreaterThan(0);
+      expect(state.url).toContain(`token=${state.token}`);
     });
-    expect(res.status).toBe(401);
-    await res.body?.cancel();
   });
 
-  it("rejects with wrong token", async () => {
-    const res = await fetch(`${baseUrl}/canvas?token=wrong`, {
-      headers: { Upgrade: "websocket" },
-    });
-    expect(res.status).toBe(401);
-    await res.body?.cancel();
-  });
-});
-
-describe("WebSocket /bridge", () => {
-  it("connects with valid token", async () => {
-    const ws = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
-    const opened = await new Promise<boolean>((res) => {
-      ws.onopen = () => res(true);
-      ws.onerror = () => res(false);
-      setTimeout(() => res(false), 5000);
-    });
-    expect(opened).toBe(true);
-    ws.close();
-  });
-
-  it("register broadcasts to browsers", async () => {
-    const sessionId = crypto.randomUUID();
-
-    // Connect bridge and register
-    const bridge = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
-    await new Promise<void>((res, rej) => {
-      bridge.onopen = () => res();
-      bridge.onerror = () => rej(new Error("bridge failed"));
-      setTimeout(() => rej(new Error("timeout")), 5000);
+  describe("HTTP", () => {
+    it("GET / serves index.html", async () => {
+      const res = await fetch(`${baseUrl}/`);
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toContain("trayce");
     });
 
-    // Connect browser
-    const { ws: browser } = await connectWs(
-      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
-    );
-
-    // Listen for session update on browser
-    const update = new Promise<any>((res, rej) => {
-      const timer = setTimeout(() => rej(new Error("no update")), 5000);
-      browser.onmessage = (ev) => {
-        const msg = JSON.parse(ev.data as string);
-        if (msg.type === "sessions" && msg.sessions.some((s: any) => s.id === sessionId)) {
-          clearTimeout(timer);
-          res(msg);
-        }
-      };
+    it("GET /missing returns 404", async () => {
+      const res = await fetch(`${baseUrl}/missing.html`);
+      expect(res.status).toBe(404);
+      await res.body?.cancel();
     });
 
-    bridge.send(JSON.stringify({ type: "register", sessionId, label: "test-app" }));
-    const result = await update;
-    expect(result.sessions.some((s: any) => s.id === sessionId)).toBe(true);
-
-    browser.close();
-    bridge.close();
-  });
-
-  it("rejects without token", async () => {
-    const res = await fetch(`${baseUrl}/bridge`, {
-      headers: { Upgrade: "websocket" },
+    it("security headers present", async () => {
+      const res = await fetch(`${baseUrl}/`);
+      expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+      expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+      await res.body?.cancel();
     });
-    expect(res.status).toBe(401);
-    await res.body?.cancel();
   });
-});
+
+  describe("WebSocket /canvas — with token", () => {
+    it("connects and receives sessions message", async () => {
+      const { ws, firstMessage } = await connectWs(
+        `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
+      );
+      expect((firstMessage as any).type).toBe("server-info");
+      const sessionsMsg = await nextMessage(ws);
+      expect(sessionsMsg.type).toBe("sessions");
+      ws.close();
+    });
+
+    it("heartbeat is echoed", async () => {
+      const { ws, firstMessage } = await connectWs(
+        `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
+      );
+      expect((firstMessage as any).type).toBe("server-info");
+      const sessionsMsg = await nextMessage(ws);
+      expect(sessionsMsg.type).toBe("sessions");
+      ws.send(JSON.stringify({ type: "heartbeat" }));
+      const echo = await nextMessage(ws);
+      expect(echo.type).toBe("heartbeat");
+      ws.close();
+    });
+  });
+
+  describe("WebSocket /canvas — auth rejection", () => {
+    it("rejects without token (401)", async () => {
+      const res = await fetch(`${baseUrl}/canvas`, {
+        headers: { Upgrade: "websocket" },
+      });
+      expect(res.status).toBe(401);
+      await res.body?.cancel();
+    });
+
+    it("rejects with wrong token", async () => {
+      const res = await fetch(`${baseUrl}/canvas?token=wrong`, {
+        headers: { Upgrade: "websocket" },
+      });
+      expect(res.status).toBe(401);
+      await res.body?.cancel();
+    });
+  });
+
+  describe("WebSocket /bridge", () => {
+    it("connects with valid token", async () => {
+      const ws = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
+      const opened = await new Promise<boolean>((res) => {
+        ws.onopen = () => res(true);
+        ws.onerror = () => res(false);
+        setTimeout(() => res(false), 5000);
+      });
+      expect(opened).toBe(true);
+      ws.close();
+    });
+
+    it("register broadcasts to browsers", async () => {
+      const sessionId = crypto.randomUUID();
+
+      // Connect bridge and register
+      const bridge = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
+      await new Promise<void>((res, rej) => {
+        bridge.onopen = () => res();
+        bridge.onerror = () => rej(new Error("bridge failed"));
+        setTimeout(() => rej(new Error("timeout")), 5000);
+      });
+
+      // Connect browser
+      const { ws: browser } = await connectWs(
+        `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
+      );
+
+      // Listen for session update on browser
+      const update = new Promise<any>((res, rej) => {
+        const timer = setTimeout(() => rej(new Error("no update")), 5000);
+        browser.onmessage = (ev) => {
+          const msg = JSON.parse(ev.data as string);
+          if (msg.type === "sessions" && msg.sessions.some((s: any) => s.id === sessionId)) {
+            clearTimeout(timer);
+            res(msg);
+          }
+        };
+      });
+
+      bridge.send(JSON.stringify({ type: "register", sessionId, label: "test-app" }));
+      const result = await update;
+      expect(result.sessions.some((s: any) => s.id === sessionId)).toBe(true);
+
+      browser.close();
+      bridge.close();
+    });
+
+    it("rejects without token", async () => {
+      const res = await fetch(`${baseUrl}/bridge`, {
+        headers: { Upgrade: "websocket" },
+      });
+      expect(res.status).toBe(401);
+      await res.body?.cancel();
+    });
+  });
 }); // end integration
