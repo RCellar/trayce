@@ -1,13 +1,13 @@
-import { describe, expect, test, beforeEach, afterEach } from "bun:test";
-import { writeFileSync, mkdirSync, rmSync, appendFileSync } from "node:fs";
-import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import {
-  TranscriptWatcher,
-  discoverTranscriptPath,
-  discoverTranscriptByBirthtime,
-} from "../../bridge/transcript-watcher";
+import { join } from "node:path";
 import type { TranscriptEntry } from "../../bridge/transcript-watcher";
+import {
+  discoverTranscriptByBirthtime,
+  discoverTranscriptPath,
+  TranscriptWatcher,
+} from "../../bridge/transcript-watcher";
 
 const TEST_DIR = "/tmp/trayce-test-transcript";
 const TEST_FILE = `${TEST_DIR}/transcript.jsonl`;

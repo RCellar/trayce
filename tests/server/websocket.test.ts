@@ -1,9 +1,9 @@
-import { describe, expect, it, beforeEach } from "bun:test";
-import { WebSocketHub, type WsData } from "../../server/websocket";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { rmSync } from "node:fs";
+import { type Config, getConfig } from "../../server/config";
 import { SessionRegistry } from "../../server/sessions";
 import { SubmissionStore } from "../../server/submissions";
-import { getConfig, type Config } from "../../server/config";
-import { rmSync } from "node:fs";
+import { WebSocketHub, type WsData } from "../../server/websocket";
 
 // -- Mock WebSocket --
 

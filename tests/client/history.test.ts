@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { History, type Command } from "../../client/history";
+import { type Command, History } from "../../client/history";
 
 const makeCommand = (id: string, checkpointSize?: number): Command => ({
   type: "stroke",

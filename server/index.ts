@@ -1,11 +1,11 @@
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { getConfig } from "./config";
 import { generateToken, validateToken } from "./auth";
+import { getConfig } from "./config";
+import { createHttpHandler } from "./http";
 import { SessionRegistry } from "./sessions";
 import { SubmissionStore } from "./submissions";
 import { WebSocketHub, type WsData } from "./websocket";
-import { createHttpHandler } from "./http";
 
 const config = getConfig(Bun.env);
 const token = config.noAuth ? "" : (config.token ?? generateToken());

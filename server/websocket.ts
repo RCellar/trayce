@@ -1,9 +1,19 @@
 import type { ServerWebSocket } from "bun";
+import type {
+  BridgeRoutedMessage,
+  BridgeToServerMessage,
+  BrowserToServerMessage,
+  RegisterMessage,
+  SubmitMessage,
+} from "../shared/protocol";
+import type { Config } from "./config";
 import type { SessionRegistry } from "./sessions";
 import type { SubmissionStore } from "./submissions";
-import type { Config } from "./config";
 import { SessionUsage } from "./usage";
 
+/** The raw parsed shape before discriminated-union narrowing. `parseRaw`
+ * guarantees `type` is a non-empty string; everything else is unknown
+ * until runtime validation at the boundary. Kept exported for tests. */
 export interface WsMessage {
   type: string;
   [key: string]: unknown;
@@ -103,121 +113,173 @@ export class WebSocketHub {
     const msg = WebSocketHub.parseMessage(raw);
     if (!msg) return;
 
+    // Heartbeat is universal (any direction, any connection kind)
     if (msg.type === "heartbeat") {
       ws.data.lastHeartbeat = this.now();
       safeSend(ws, JSON.stringify({ type: "heartbeat" }));
       return;
     }
 
-    if (ws.data.kind === "bridge" && msg.type === "register") {
-      this.handleRegister(ws, msg);
-      return;
-    }
-
-    if (ws.data.kind === "browser" && msg.type === "submit") {
-      await this.handleSubmit(ws, msg);
-      return;
-    }
-
-    if (ws.data.kind === "browser" && msg.type === "watch-session") {
-      const sid = msg.sessionId;
-      if (typeof sid === "string") {
-        this.browserWatchSession.set(ws.data.id, sid);
-
-        // Replay buffered transcript entries for this session
-        const buffer = this.sessionBuffers.get(sid);
-        if (buffer) {
-          for (const payload of buffer) {
-            safeSend(ws, payload);
-          }
-        }
-
-        // Send current usage snapshot
-        const usage = this.sessionUsage.get(sid) ?? new SessionUsage();
-        safeSend(ws, usage.toJSON());
-      }
-      return;
-    }
-
-    // Route permission verdicts from browser to the session's bridge
-    if (ws.data.kind === "browser" && msg.type === "permission-verdict") {
-      const sid = this.browserWatchSession.get(ws.data.id);
-      if (sid) {
-        const bridge = this.bridges.get(sid);
-        if (bridge) {
-          safeSend(
-            bridge,
-            JSON.stringify({
-              type: "permission-verdict",
-              requestId: msg.requestId,
-              behavior: msg.behavior,
-            }),
-          );
-        }
-      }
-      return;
-    }
-
-    const BRIDGE_ROUTED_TYPES = [
-      "transcript-entry",
-      "response",
-      "canvas-push",
-      "transcript-status",
-      "usage-update",
-      "permission-request",
-    ];
-    // Transcript/usage messages are high-volume and should not be rate-limited;
-    // only rate-limit actionable messages like canvas-push and permission-request.
-    const RATE_LIMITED_BRIDGE_TYPES = new Set(["canvas-push", "permission-request"]);
-    if (ws.data.kind === "bridge" && BRIDGE_ROUTED_TYPES.includes(msg.type)) {
-      if (RATE_LIMITED_BRIDGE_TYPES.has(msg.type) && !this.checkRateLimit(ws.data.id)) return;
-      const sessionId = ws.data.sessionId;
-      if (!sessionId) return;
-      const payload = JSON.stringify({ ...msg, sessionId });
-
-      // Accumulate usage data
-      if (msg.type === "usage-update" && msg.usage) {
-        let usage = this.sessionUsage.get(sessionId);
-        if (!usage) {
-          usage = new SessionUsage();
-          this.sessionUsage.set(sessionId, usage);
-        }
-        const u = msg.usage as any;
-        usage.add({
-          inputTokens: u.inputTokens ?? 0,
-          outputTokens: u.outputTokens ?? 0,
-          cacheReadTokens: u.cacheReadTokens ?? 0,
-          cacheWriteTokens: u.cacheWriteTokens ?? 0,
-          model: u.model ?? "unknown",
-          timestamp: u.timestamp ?? Date.now(),
-        });
-      }
-
-      // Buffer transcript-related messages for replay on watch-session
-      if (WebSocketHub.BUFFERED_TYPES.has(msg.type)) {
-        let buffer = this.sessionBuffers.get(sessionId);
-        if (!buffer) {
-          buffer = [];
-          this.sessionBuffers.set(sessionId, buffer);
-        }
-        buffer.push(payload);
-        if (buffer.length > this.config.transcriptBufferSize) {
-          buffer.splice(0, buffer.length - this.config.transcriptBufferSize);
-        }
-      }
-
-      for (const [browserId, browser] of this.browsers) {
-        if (this.browserWatchSession.get(browserId) === sessionId) {
-          safeSend(browser, payload);
-        }
-      }
-      return;
+    if (ws.data.kind === "browser") {
+      await this.handleBrowserMessage(ws, msg as BrowserToServerMessage);
+    } else {
+      this.handleBridgeMessage(ws, msg as BridgeToServerMessage);
     }
   }
 
-  private handleRegister(ws: Ws, msg: WsMessage): void {
-    const sessionId = msg.sessionId;
-    const label = msg.label;
+  /** Route a message from a browser. The exhaustive switch is load-bearing:
+   * if someone adds a new BrowserToServerMessage variant, the compiler will
+   * refuse to build until this switch handles it (via the `assertNever`
+   * call in the default case). */
+  private async handleBrowserMessage(ws: Ws, msg: BrowserToServerMessage): Promise<void> {
+    switch (msg.type) {
+      case "heartbeat":
+        // Already handled in handleMessage; reached here only if the browser
+        // echoed a heartbeat in an unexpected direction — ignore.
+        return;
+
+      case "submit":
+        await this.handleSubmit(ws, msg);
+        return;
+
+      case "watch-session":
+        this.handleWatchSession(ws, msg.sessionId);
+        return;
+
+      case "permission-verdict": {
+        const sid = this.browserWatchSession.get(ws.data.id);
+        if (!sid) return;
+        const bridge = this.bridges.get(sid);
+        if (!bridge) return;
+        safeSend(
+          bridge,
+          JSON.stringify({
+            type: "permission-verdict",
+            requestId: msg.requestId,
+            behavior: msg.behavior,
+          }),
+        );
+        return;
+      }
+
+      default: {
+        // Compile-time exhaustiveness: a new variant added to the union
+        // without a case here becomes a type error (msg narrows to never).
+        // Runtime: silently drop — messages come from untrusted clients
+        // and may deliberately target the wrong connection kind.
+        const _exhaustive: never = msg;
+        void _exhaustive;
+      }
+    }
+  }
+
+  /** Route a message from a bridge. Exhaustive switch; same guarantee as
+   * `handleBrowserMessage`. */
+  private handleBridgeMessage(ws: Ws, msg: BridgeToServerMessage): void {
+    switch (msg.type) {
+      case "heartbeat":
+        return;
+
+      case "register":
+        this.handleRegister(ws, msg);
+        return;
+
+      case "transcript-entry":
+      case "response":
+      case "canvas-push":
+      case "transcript-status":
+      case "usage-update":
+      case "permission-request":
+        this.handleBridgeRouted(ws, msg);
+        return;
+
+      default: {
+        // Compile-time exhaustiveness: a new variant added to the union
+        // without a case here becomes a type error (msg narrows to never).
+        // Runtime: silently drop — messages come from untrusted clients
+        // and may deliberately target the wrong connection kind.
+        const _exhaustive: never = msg;
+        void _exhaustive;
+      }
+    }
+  }
+
+  private handleWatchSession(ws: Ws, rawSessionId: unknown): void {
+    if (typeof rawSessionId !== "string" || rawSessionId.length === 0) return;
+    const sid = rawSessionId;
+    this.browserWatchSession.set(ws.data.id, sid);
+
+    // Replay buffered transcript entries for this session
+    const buffer = this.sessionBuffers.get(sid);
+    if (buffer) {
+      for (const payload of buffer) {
+        safeSend(ws, payload);
+      }
+    }
+
+    // Send current usage snapshot
+    const usage = this.sessionUsage.get(sid) ?? new SessionUsage();
+    safeSend(ws, usage.toJSON());
+  }
+
+  /** Transcript/usage messages are high-volume and bypass the rate limiter;
+   * only actionable messages like canvas-push and permission-request are
+   * rate-limited. */
+  private static readonly RATE_LIMITED_BRIDGE_TYPES = new Set<BridgeRoutedMessage["type"]>([
+    "canvas-push",
+    "permission-request",
+  ]);
+
+  private handleBridgeRouted(ws: Ws, msg: BridgeRoutedMessage): void {
+    if (WebSocketHub.RATE_LIMITED_BRIDGE_TYPES.has(msg.type) && !this.checkRateLimit(ws.data.id)) {
+      return;
+    }
+    const sessionId = ws.data.sessionId;
+    if (!sessionId) return;
+    const payload = JSON.stringify({ ...msg, sessionId });
+
+    // Accumulate usage data
+    if (msg.type === "usage-update") {
+      let usage = this.sessionUsage.get(sessionId);
+      if (!usage) {
+        usage = new SessionUsage();
+        this.sessionUsage.set(sessionId, usage);
+      }
+      const u = msg.usage;
+      usage.add({
+        inputTokens: u.inputTokens ?? 0,
+        outputTokens: u.outputTokens ?? 0,
+        cacheReadTokens: u.cacheReadTokens ?? 0,
+        cacheWriteTokens: u.cacheWriteTokens ?? 0,
+        model: u.model ?? "unknown",
+        timestamp: u.timestamp ?? Date.now(),
+      });
+    }
+
+    // Buffer replay-worthy messages for late-joining browsers
+    if (WebSocketHub.BUFFERED_TYPES.has(msg.type)) {
+      let buffer = this.sessionBuffers.get(sessionId);
+      if (!buffer) {
+        buffer = [];
+        this.sessionBuffers.set(sessionId, buffer);
+      }
+      buffer.push(payload);
+      if (buffer.length > this.config.transcriptBufferSize) {
+        buffer.splice(0, buffer.length - this.config.transcriptBufferSize);
+      }
+    }
+
+    for (const [browserId, browser] of this.browsers) {
+      if (this.browserWatchSession.get(browserId) === sessionId) {
+        safeSend(browser, payload);
+      }
+    }
+  }
+
+  private handleRegister(ws: Ws, msg: RegisterMessage): void {
+    const { sessionId, label } = msg;
+    // Runtime validation — the discriminated union describes the intended
+    // shape, not what was actually received.
     if (typeof sessionId !== "string" || sessionId.length === 0) return;
     if (typeof label !== "string" || label.length === 0) return;
 
@@ -254,7 +316,7 @@ export class WebSocketHub {
     this.broadcastSessions();
   }
 
-  private async handleSubmit(ws: Ws, msg: WsMessage): Promise<void> {
+  private async handleSubmit(ws: Ws, msg: SubmitMessage): Promise<void> {
     // Rate limit
     if (!this.checkRateLimit(ws.data.id)) {
       safeSend(

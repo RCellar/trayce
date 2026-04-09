@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { getConfig, type Config } from "../../server/config";
+import { type Config, getConfig } from "../../server/config";
 
 function env(
   overrides: Record<string, string | undefined> = {},

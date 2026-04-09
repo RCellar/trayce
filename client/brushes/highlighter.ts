@@ -1,6 +1,6 @@
-import type { Brush, BrushParams } from "./types";
 import type { StrokePoint } from "../stroke";
 import { generateStrokeOutline, outlineToPath2D } from "../stroke";
+import type { Brush, BrushParams } from "./types";
 
 export class HighlighterBrush implements Brush {
   name = "Highlighter";

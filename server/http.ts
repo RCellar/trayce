@@ -1,4 +1,4 @@
-import { resolve, join, extname } from "node:path";
+import { extname, join, resolve } from "node:path";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

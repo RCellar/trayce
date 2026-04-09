@@ -1,14 +1,14 @@
+import { existsSync, readFileSync, readlinkSync } from "node:fs";
+import { basename } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { readFileSync, readlinkSync, existsSync } from "node:fs";
-import { basename } from "node:path";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
-  TranscriptWatcher,
-  discoverTranscriptPath,
   discoverTranscriptByBirthtime,
+  discoverTranscriptPath,
   type TranscriptEntry,
+  TranscriptWatcher,
   type UsageData,
 } from "./transcript-watcher";
 
