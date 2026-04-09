@@ -1346,3 +1346,20 @@ describe("shutdown-request", () => {
     expect(shutdownCalls).toHaveLength(0);
   });
 });
+
+describe("server-info on connect", () => {
+  it("sends server-info to new browsers alongside sessions", async () => {
+    const registry = new SessionRegistry();
+    const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
+    const hub = new WebSocketHub(registry, store, BASE_CONFIG, () => {});
+
+    const browser = browserWs();
+    hub.addBrowser(browser as any);
+
+    const infoMessages = browser.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "server-info");
+    expect(infoMessages).toHaveLength(1);
+    expect(typeof infoMessages[0]!.containerMode).toBe("boolean");
+  });
+});

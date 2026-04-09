@@ -152,12 +152,19 @@ describe("WebSocket /canvas — with token", () => {
     const { ws, firstMessage } = await connectWs(
       `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
     );
-    expect((firstMessage as any).type).toBe("sessions");
+    expect((firstMessage as any).type).toBe("server-info");
+    const sessionsMsg = await nextMessage(ws);
+    expect(sessionsMsg.type).toBe("sessions");
     ws.close();
   });
 
   it("heartbeat is echoed", async () => {
-    const { ws } = await connectWs(`ws://127.0.0.1:${state.port}/canvas?token=${state.token}`);
+    const { ws, firstMessage } = await connectWs(
+      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
+    );
+    expect((firstMessage as any).type).toBe("server-info");
+    const sessionsMsg = await nextMessage(ws);
+    expect(sessionsMsg.type).toBe("sessions");
     ws.send(JSON.stringify({ type: "heartbeat" }));
     const echo = await nextMessage(ws);
     expect(echo.type).toBe("heartbeat");
