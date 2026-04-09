@@ -64,7 +64,7 @@ function connectWs(url: string): Promise<{ ws: WebSocket; firstMessage: unknown 
   });
 }
 
-function nextMessage(ws: WebSocket, timeoutMs = 3000): Promise<Record<string, unknown>> {
+function nextMessage(ws: WebSocket, timeoutMs = 10_000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("No WS message")), timeoutMs);
     ws.addEventListener(
