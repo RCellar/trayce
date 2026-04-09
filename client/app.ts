@@ -912,28 +912,19 @@ function clearCanvas(): void {
   if (!layerManager || !compositor) return;
   if (!confirm("Clear the entire canvas? This cannot be undone.")) return;
 
-  for (const layer of layerManager.layers) {
-    layer.ctx.clearRect(0, 0, layerManager.docWidth, layerManager.docHeight);
-    // Also reset transform so image layers don't leave ghost-positioned
-    // sprites behind (the compositor reads layer.transform for positioning).
-    delete layer.transform;
-    layer.revision++;
-  }
-
-  // Refill background if it was white
-  const bg = layerManager.layers[0];
-  if (bg) {
-    bg.ctx.fillStyle = "#f0f0f0";
-    bg.ctx.fillRect(0, 0, layerManager.docWidth, layerManager.docHeight);
-  }
+  // Reset to a fresh Background + Sketch, removing all extra layers (image
+  // layers, duplicates, etc.) rather than just blanking their pixels.
+  createFreshCanvas(layerManager);
 
   // Clear history — the confirm prompt promises the action can't be undone,
   // and leaving stale checkpoints in the undo stack would let Ctrl+Z restore
   // incoherent pre-clear state mixed with the now-empty layers.
   history?.clear();
 
-  compositor.markDirty();
+  compositor.rebuild();
   layersUI?.render();
+  updateLayerInfo();
+  transformHandler?.updateOverlay();
   showToast("Canvas cleared");
 }
 
