@@ -11,6 +11,7 @@ import { PencilBrush } from "./brushes/pencil";
 import type { Brush, BrushParams } from "./brushes/types";
 import { WatercolorBrush } from "./brushes/watercolor";
 import { CanvasManager } from "./canvas";
+import { CanvasLock } from "./canvas-lock";
 import { ColorPicker } from "./color-picker";
 import { Compositor } from "./compositor";
 import { buildWsUrl, Connection, type ServerMessage } from "./connection";
@@ -18,12 +19,21 @@ import { blobToBase64, flattenToPng, isCanvasBlank } from "./export";
 import { FloatingPanel } from "./floating-panel";
 import { History } from "./history";
 import { InputHandler, type InputState } from "./input";
-import { LayerManager, type Layer, type BlendMode } from "./layers";
+import { type BlendMode, type Layer, LayerManager } from "./layers";
 import { LayersUI } from "./layers-ui";
 import { PermissionPromptManager } from "./permission-prompts";
+import {
+  loadLayers,
+  persistenceKey,
+  pruneStaleEntries,
+  type SavedLayer,
+  SCRATCHPAD_KEY,
+  saveLayers,
+} from "./persistence";
 import { PowerPopover } from "./power-popover";
 import { ResponseTab } from "./response-tab";
 import { SidePanel } from "./side-panel";
+import { formatTabTitle } from "./tab-title";
 import { ThemeManager } from "./theme";
 import { showToast } from "./toast";
 import { type ActionId, Toolbar, type ToolId } from "./toolbar";
@@ -31,16 +41,6 @@ import { ImageTool } from "./tools/image";
 import { TranscriptTab } from "./transcript-tab";
 import { TransformHandler } from "./transform";
 import { UsageTab } from "./usage-tab";
-import { CanvasLock } from "./canvas-lock";
-import { formatTabTitle } from "./tab-title";
-import {
-  loadLayers,
-  persistenceKey,
-  pruneStaleEntries,
-  saveLayers,
-  SCRATCHPAD_KEY,
-  type SavedLayer,
-} from "./persistence";
 
 // -- State --
 
