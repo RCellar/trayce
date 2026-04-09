@@ -17,14 +17,26 @@ export class ArrowTool {
     this.layerSnapshot = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
   }
 
-  update(ctx: OffscreenCanvasRenderingContext2D, x: number, y: number, color: string, lineWidth: number): void {
+  update(
+    ctx: OffscreenCanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+    lineWidth: number,
+  ): void {
     if (!this.isDrawing || !this.layerSnapshot) return;
 
     ctx.putImageData(this.layerSnapshot, 0, 0);
     this.drawArrow(ctx, this.startX, this.startY, x, y, color, lineWidth);
   }
 
-  commit(ctx: OffscreenCanvasRenderingContext2D, x: number, y: number, color: string, lineWidth: number): void {
+  commit(
+    ctx: OffscreenCanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+    lineWidth: number,
+  ): void {
     if (!this.isDrawing || !this.layerSnapshot) return;
 
     ctx.putImageData(this.layerSnapshot, 0, 0);
@@ -37,8 +49,12 @@ export class ArrowTool {
 
   private drawArrow(
     ctx: OffscreenCanvasRenderingContext2D,
-    x1: number, y1: number, x2: number, y2: number,
-    color: string, lineWidth: number
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color: string,
+    lineWidth: number,
   ): void {
     const headLen = Math.max(10, lineWidth * 3);
     const angle = Math.atan2(y2 - y1, x2 - x1);
@@ -59,11 +75,11 @@ export class ArrowTool {
     ctx.moveTo(x2, y2);
     ctx.lineTo(
       x2 - headLen * Math.cos(angle - Math.PI / 6),
-      y2 - headLen * Math.sin(angle - Math.PI / 6)
+      y2 - headLen * Math.sin(angle - Math.PI / 6),
     );
     ctx.lineTo(
       x2 - headLen * Math.cos(angle + Math.PI / 6),
-      y2 - headLen * Math.sin(angle + Math.PI / 6)
+      y2 - headLen * Math.sin(angle + Math.PI / 6),
     );
     ctx.closePath();
     ctx.fill();

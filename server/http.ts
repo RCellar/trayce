@@ -2,12 +2,12 @@ import { resolve, join, extname } from "node:path";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
-  ".css":  "text/css; charset=utf-8",
-  ".js":   "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
-  ".png":  "image/png",
-  ".svg":  "image/svg+xml",
-  ".ico":  "image/x-icon",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
 };
 
 const FALLBACK_MIME = "application/octet-stream";
@@ -18,14 +18,14 @@ const SECURITY_HEADERS: Record<string, string> = {
     "img-src 'self' blob: data:; connect-src 'self' ws: wss:; font-src 'self'; " +
     "object-src 'none'; frame-ancestors 'none'",
   "X-Content-Type-Options": "nosniff",
-  "X-Frame-Options":        "DENY",
-  "Referrer-Policy":        "no-referrer",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
 };
 
 function secureResponse(
   body: BodyInit | null,
   status: number,
-  extraHeaders: Record<string, string> = {}
+  extraHeaders: Record<string, string> = {},
 ): Response {
   return new Response(body, {
     status,
@@ -33,9 +33,7 @@ function secureResponse(
   });
 }
 
-export function createHttpHandler(
-  clientDir: string
-): (req: Request) => Promise<Response> {
+export function createHttpHandler(clientDir: string): (req: Request) => Promise<Response> {
   const resolvedClientDir = resolve(clientDir);
 
   return async function handler(req: Request): Promise<Response> {

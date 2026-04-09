@@ -213,7 +213,8 @@ const RESOLUTIONS = [
 function initResolutionSelector(): void {
   const select = document.createElement("select");
   select.id = "resolution-select";
-  select.style.cssText = "background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;margin-left:8px;";
+  select.style.cssText =
+    "background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 6px;font-size:11px;margin-left:8px;";
 
   for (const res of RESOLUTIONS) {
     const opt = document.createElement("option");
@@ -236,7 +237,11 @@ function initResolutionSelector(): void {
 
 // -- Canvas Initialization --
 
-async function initCanvas(width: number, height: number, background: "white" | "transparent"): Promise<void> {
+async function initCanvas(
+  width: number,
+  height: number,
+  background: "white" | "transparent",
+): Promise<void> {
   // Clean up previous
   if (canvasManager) canvasManager.destroy();
   if (compositor) compositor.destroy();
@@ -329,14 +334,27 @@ async function initCanvas(width: number, height: number, background: "white" | "
 // -- Transform interaction state --
 
 type HandleId = "nw" | "n" | "ne" | "w" | "e" | "sw" | "s" | "se";
-type DragMode = { type: "move"; offsetX: number; offsetY: number }
-  | { type: "resize"; handle: HandleId; anchorX: number; anchorY: number; startW: number; startH: number };
+type DragMode =
+  | { type: "move"; offsetX: number; offsetY: number }
+  | {
+      type: "resize";
+      handle: HandleId;
+      anchorX: number;
+      anchorY: number;
+      startW: number;
+      startH: number;
+    };
 
 let transformDrag: DragMode | null = null;
 
 const HANDLE_RADIUS_SCREEN = 6; // pixels in screen space
 
-function getHandleAtPoint(t: { x: number; y: number; width: number; height: number }, docX: number, docY: number, zoom: number): HandleId | null {
+function getHandleAtPoint(
+  t: { x: number; y: number; width: number; height: number },
+  docX: number,
+  docY: number,
+  zoom: number,
+): HandleId | null {
   const r = HANDLE_RADIUS_SCREEN / zoom; // convert screen hit radius to doc space
   const handles: Array<{ id: HandleId; hx: number; hy: number }> = [
     { id: "nw", hx: t.x, hy: t.y },
@@ -354,7 +372,11 @@ function getHandleAtPoint(t: { x: number; y: number; width: number; height: numb
   return null;
 }
 
-function hitTestTransformBounds(t: { x: number; y: number; width: number; height: number }, docX: number, docY: number): boolean {
+function hitTestTransformBounds(
+  t: { x: number; y: number; width: number; height: number },
+  docX: number,
+  docY: number,
+): boolean {
   return docX >= t.x && docX <= t.x + t.width && docY >= t.y && docY <= t.y + t.height;
 }
 
@@ -369,7 +391,12 @@ function updateTransformOverlay(): void {
     return;
   }
   const stagePos = canvasManager.stage.position;
-  compositor.drawTransformOverlay(stagePos.x, stagePos.y, canvasManager.viewport.zoom, layer.transform);
+  compositor.drawTransformOverlay(
+    stagePos.x,
+    stagePos.y,
+    canvasManager.viewport.zoom,
+    layer.transform,
+  );
 }
 
 // -- Drawing --
@@ -414,7 +441,7 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
       layerManager.bumpRevision(layer.id);
       const shouldCP = history.shouldCheckpoint();
       if (shouldCP) {
-        layer.canvas.convertToBlob().then(blob => {
+        layer.canvas.convertToBlob().then((blob) => {
           history!.push({
             type: "stroke",
             layerId: layer.id,
@@ -435,7 +462,12 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
   }
 }
 
-function handleTransformInput(t: import("./layers").LayerTransform, docX: number, docY: number, event: "start" | "move" | "end"): void {
+function handleTransformInput(
+  t: import("./layers").LayerTransform,
+  docX: number,
+  docY: number,
+  event: "start" | "move" | "end",
+): void {
   if (event === "start") {
     const zoom = canvasManager!.viewport.zoom;
 
@@ -445,7 +477,14 @@ function handleTransformInput(t: import("./layers").LayerTransform, docX: number
       // Anchor is the corner opposite to the dragged handle
       const ax = handle.includes("e") ? t.x : handle.includes("w") ? t.x + t.width : t.x;
       const ay = handle.includes("s") ? t.y : handle.includes("n") ? t.y + t.height : t.y;
-      transformDrag = { type: "resize", handle, anchorX: ax, anchorY: ay, startW: t.width, startH: t.height };
+      transformDrag = {
+        type: "resize",
+        handle,
+        anchorX: ax,
+        anchorY: ay,
+        startW: t.width,
+        startH: t.height,
+      };
       return;
     }
 
@@ -479,13 +518,17 @@ function handleTransformInput(t: import("./layers").LayerTransform, docX: number
 function applyResize(
   t: import("./layers").LayerTransform,
   drag: Extract<DragMode, { type: "resize" }>,
-  docX: number, docY: number,
+  docX: number,
+  docY: number,
 ): void {
   const MIN_SIZE = 10;
   const { handle, anchorX, anchorY, startW, startH } = drag;
   const aspect = startW / startH;
 
-  let newX = t.x, newY = t.y, newW = t.width, newH = t.height;
+  let newX = t.x,
+    newY = t.y,
+    newW = t.width,
+    newH = t.height;
 
   // Horizontal component
   if (handle.includes("e")) {
@@ -537,7 +580,11 @@ function initConnection(): void {
   }
   const storedToken = token || localStorage.getItem("trayce-token") || "";
 
-  const wsUrl = buildWsUrl(window.location.hostname, parseInt(window.location.port, 10) || 9740, storedToken);
+  const wsUrl = buildWsUrl(
+    window.location.hostname,
+    parseInt(window.location.port, 10) || 9740,
+    storedToken,
+  );
 
   connection = new Connection(wsUrl, handleConnectionStatus, handleServerMessage);
   connection.connect();
@@ -559,7 +606,10 @@ function handleConnectionStatus(status: "connected" | "disconnected" | "reconnec
 }
 
 // Track pending permission prompts for stale detection
-const pendingPermissions = new Map<string, { el: HTMLElement; timer: ReturnType<typeof setTimeout> }>();
+const pendingPermissions = new Map<
+  string,
+  { el: HTMLElement; timer: ReturnType<typeof setTimeout> }
+>();
 
 function dismissPermissionPrompt(requestId: string, reason: string): void {
   const pending = pendingPermissions.get(requestId);
@@ -711,7 +761,8 @@ function handleCanvasPush(msg: ServerMessage): void {
       const ch = layerManager!.docHeight;
 
       // Calculate display size — scale down to fit, no upscaling
-      let dw = sw, dh = sh;
+      let dw = sw,
+        dh = sh;
       if (dw > cw || dh > ch) {
         const scale = Math.min(cw / dw, ch / dh);
         dw = Math.round(dw * scale);
@@ -975,9 +1026,9 @@ document.addEventListener("keydown", (e) => {
         if (history?.canUndo()) {
           const cmd = history.undo();
           if (cmd?.checkpoint && layerManager) {
-            const layer = layerManager.layers.find(l => l.id === cmd.layerId);
+            const layer = layerManager.layers.find((l) => l.id === cmd.layerId);
             if (layer) {
-              createImageBitmap(cmd.checkpoint).then(bitmap => {
+              createImageBitmap(cmd.checkpoint).then((bitmap) => {
                 layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
                 layer.ctx.drawImage(bitmap, 0, 0);
                 layerManager!.bumpRevision(layer.id);
@@ -994,9 +1045,9 @@ document.addEventListener("keydown", (e) => {
         if (history?.canRedo()) {
           const cmd = history.redo();
           if (cmd?.checkpoint && layerManager) {
-            const layer = layerManager.layers.find(l => l.id === cmd.layerId);
+            const layer = layerManager.layers.find((l) => l.id === cmd.layerId);
             if (layer) {
-              createImageBitmap(cmd.checkpoint).then(bitmap => {
+              createImageBitmap(cmd.checkpoint).then((bitmap) => {
                 layer.ctx.clearRect(0, 0, layer.canvas.width, layer.canvas.height);
                 layer.ctx.drawImage(bitmap, 0, 0);
                 layerManager!.bumpRevision(layer.id);
@@ -1013,13 +1064,17 @@ document.addEventListener("keydown", (e) => {
 
 // -- Zoom with mouse wheel --
 
-canvasContainer.addEventListener("wheel", (e) => {
-  e.preventDefault();
-  if (!canvasManager) return;
-  const delta = e.deltaY > 0 ? -0.1 : 0.1;
-  canvasManager.zoomBy(delta);
-  canvasInfo.textContent = canvasManager.getCanvasInfo();
-}, { passive: false });
+canvasContainer.addEventListener(
+  "wheel",
+  (e) => {
+    e.preventDefault();
+    if (!canvasManager) return;
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    canvasManager.zoomBy(delta);
+    canvasInfo.textContent = canvasManager.getCanvasInfo();
+  },
+  { passive: false },
+);
 
 // -- Init --
 

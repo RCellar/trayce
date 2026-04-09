@@ -1,19 +1,12 @@
-import {
-  describe,
-  expect,
-  test,
-  beforeEach,
-  afterEach,
-} from "bun:test";
-import {
-  writeFileSync,
-  mkdirSync,
-  rmSync,
-  appendFileSync,
-} from "node:fs";
+import { describe, expect, test, beforeEach, afterEach } from "bun:test";
+import { writeFileSync, mkdirSync, rmSync, appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { TranscriptWatcher, discoverTranscriptPath, discoverTranscriptByBirthtime } from "../../bridge/transcript-watcher";
+import {
+  TranscriptWatcher,
+  discoverTranscriptPath,
+  discoverTranscriptByBirthtime,
+} from "../../bridge/transcript-watcher";
 import type { TranscriptEntry } from "../../bridge/transcript-watcher";
 
 const TEST_DIR = "/tmp/trayce-test-transcript";
@@ -51,9 +44,7 @@ const TOOL_RESULT_MSG = JSON.stringify({
   type: "user",
   message: {
     role: "user",
-    content: [
-      { type: "tool_result", tool_use_id: "tu_123", content: "file contents here" },
-    ],
+    content: [{ type: "tool_result", tool_use_id: "tu_123", content: "file contents here" }],
   },
   timestamp: "2026-03-27T19:00:03.000Z",
 });
@@ -71,7 +62,9 @@ describe("TranscriptWatcher", () => {
   test("classifies user text messages as type 'message' with role 'user'", () => {
     writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
@@ -83,7 +76,9 @@ describe("TranscriptWatcher", () => {
   test("classifies assistant text as type 'response' with role 'assistant'", () => {
     writeFileSync(TEST_FILE, `${ASSISTANT_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
@@ -95,7 +90,9 @@ describe("TranscriptWatcher", () => {
   test("classifies tool_use block as type 'tool-call' with toolName and toolInput", () => {
     writeFileSync(TEST_FILE, `${TOOL_USE_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     const toolCallEntry = entries.find((e) => e.type === "tool-call");
@@ -108,7 +105,9 @@ describe("TranscriptWatcher", () => {
   test("classifies tool_result block as type 'tool-result' with toolUseId", () => {
     writeFileSync(TEST_FILE, `${TOOL_RESULT_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
@@ -120,7 +119,9 @@ describe("TranscriptWatcher", () => {
   test("reads incrementally from byte offset", () => {
     writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
 
     // First read
     watcher.readNewEntries();
@@ -139,7 +140,9 @@ describe("TranscriptWatcher", () => {
   test("does not re-emit already-read entries on second readNewEntries call", () => {
     writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
 
     watcher.readNewEntries();
     watcher.readNewEntries(); // second call with no new content
@@ -150,7 +153,9 @@ describe("TranscriptWatcher", () => {
   test("emits both response and tool-call for mixed assistant message", () => {
     writeFileSync(TEST_FILE, `${TOOL_USE_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     const responseEntry = entries.find((e) => e.type === "response");
@@ -168,15 +173,15 @@ describe("TranscriptWatcher", () => {
       type: "assistant",
       message: {
         role: "assistant",
-        content: [
-          { type: "tool_use", id: "tu_long", name: "Write", input: longInput },
-        ],
+        content: [{ type: "tool_use", id: "tu_long", name: "Write", input: longInput }],
       },
     });
     writeFileSync(TEST_FILE, `${msg}\n`);
 
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     const toolEntry = entries.find((e) => e.type === "tool-call");
@@ -190,15 +195,15 @@ describe("TranscriptWatcher", () => {
       type: "user",
       message: {
         role: "user",
-        content: [
-          { type: "tool_result", tool_use_id: "tu_long", content: longContent },
-        ],
+        content: [{ type: "tool_result", tool_use_id: "tu_long", content: longContent }],
       },
     });
     writeFileSync(TEST_FILE, `${msg}\n`);
 
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(entries[0]!.content.length).toBeLessThanOrEqual(500);
@@ -207,7 +212,9 @@ describe("TranscriptWatcher", () => {
   test("entries have a numeric timestamp", () => {
     writeFileSync(TEST_FILE, `${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(typeof entries[0]!.timestamp).toBe("number");
@@ -217,7 +224,9 @@ describe("TranscriptWatcher", () => {
   test("ignores malformed JSON lines gracefully", () => {
     writeFileSync(TEST_FILE, `not-valid-json\n${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
 
     expect(() => watcher.readNewEntries()).not.toThrow();
     expect(entries).toHaveLength(1);
@@ -228,7 +237,9 @@ describe("TranscriptWatcher", () => {
     const snapshot = JSON.stringify({ type: "file-history-snapshot", snapshot: {} });
     writeFileSync(TEST_FILE, `${snapshot}\n${USER_MSG}\n`);
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
@@ -261,7 +272,13 @@ describe("TranscriptWatcher", () => {
     writeFileSync(TEST_FILE, `${assistantWithUsage}\n`);
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      TEST_FILE,
+      TEST_DIR,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     expect(usageUpdates).toHaveLength(1);
@@ -276,7 +293,13 @@ describe("TranscriptWatcher", () => {
     writeFileSync(TEST_FILE, `${USER_MSG}\n`);
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      TEST_FILE,
+      TEST_DIR,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     expect(usageUpdates).toHaveLength(0);
@@ -286,7 +309,9 @@ describe("TranscriptWatcher", () => {
     writeFileSync(TEST_FILE, `${ASSISTANT_MSG}\n`);
 
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     expect(entries).toHaveLength(1);
@@ -300,7 +325,14 @@ describe("rediscovery bounds", () => {
 
     const entries: TranscriptEntry[] = [];
     // Pass discoveredByBirthtime=true to simulate birthtime-confirmed discovery
-    const watcher = new TranscriptWatcher(TEST_FILE, TEST_DIR, Date.now(), (e) => entries.push(e), undefined, true);
+    const watcher = new TranscriptWatcher(
+      TEST_FILE,
+      TEST_DIR,
+      Date.now(),
+      (e) => entries.push(e),
+      undefined,
+      true,
+    );
     watcher.start();
     await Bun.sleep(100);
 
@@ -394,7 +426,14 @@ describe("TranscriptWatcher rediscovery", () => {
     const startTime = Date.now();
     const entries: TranscriptEntry[] = [];
     // discoveredByBirthtime=true — simulates birthtime-confirmed discovery
-    const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) => entries.push(entry), undefined, true);
+    const watcher = new TranscriptWatcher(
+      oldFile,
+      testCwd,
+      startTime,
+      (entry) => entries.push(entry),
+      undefined,
+      true,
+    );
     watcher.start();
 
     // Should have read the old file and set confirmed = true
@@ -426,7 +465,9 @@ describe("TranscriptWatcher rediscovery", () => {
     const startTime = Date.now();
     const entries: TranscriptEntry[] = [];
     // discoveredByBirthtime=false — cwd fallback, should allow rediscovery
-    const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(oldFile, testCwd, startTime, (entry) =>
+      entries.push(entry),
+    );
     watcher.start();
 
     expect(entries.length).toBeGreaterThanOrEqual(1);
@@ -471,7 +512,13 @@ describe("TranscriptWatcher subagent tracking", () => {
   const MAIN_TRANSCRIPT = `${SUBAGENT_DIR_BASE}/session-uuid.jsonl`;
   const SUBAGENTS_DIR = `${SUBAGENT_DIR_BASE}/session-uuid/subagents`;
 
-  const mkSubagentEntry = (model: string, input: number, output: number, cacheRead: number, cacheWrite: number) =>
+  const mkSubagentEntry = (
+    model: string,
+    input: number,
+    output: number,
+    cacheRead: number,
+    cacheWrite: number,
+  ) =>
     JSON.stringify({
       type: "assistant",
       message: {
@@ -502,7 +549,13 @@ describe("TranscriptWatcher subagent tracking", () => {
     writeFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      MAIN_TRANSCRIPT,
+      SUBAGENT_DIR_BASE,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     const sonnetUsage = usageUpdates.find((u) => u.model === "claude-sonnet-4-6");
@@ -514,11 +567,23 @@ describe("TranscriptWatcher subagent tracking", () => {
   });
 
   test("tracks multiple subagent files with different models", () => {
-    writeFileSync(join(SUBAGENTS_DIR, "agent-001.jsonl"), `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
-    writeFileSync(join(SUBAGENTS_DIR, "agent-002.jsonl"), `${mkSubagentEntry("claude-haiku-3-5", 50, 200, 1000, 100)}\n`);
+    writeFileSync(
+      join(SUBAGENTS_DIR, "agent-001.jsonl"),
+      `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`,
+    );
+    writeFileSync(
+      join(SUBAGENTS_DIR, "agent-002.jsonl"),
+      `${mkSubagentEntry("claude-haiku-3-5", 50, 200, 1000, 100)}\n`,
+    );
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      MAIN_TRANSCRIPT,
+      SUBAGENT_DIR_BASE,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     const models = usageUpdates.map((u) => u.model);
@@ -531,7 +596,13 @@ describe("TranscriptWatcher subagent tracking", () => {
     writeFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      MAIN_TRANSCRIPT,
+      SUBAGENT_DIR_BASE,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     // Append another entry to the same file
@@ -549,13 +620,22 @@ describe("TranscriptWatcher subagent tracking", () => {
   test("discovers subagent files that appear after initial read", () => {
     // Remove subagent files (dir exists but is empty)
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      MAIN_TRANSCRIPT,
+      SUBAGENT_DIR_BASE,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     const countBefore = usageUpdates.length;
 
     // Now create a subagent file after initial read
-    writeFileSync(join(SUBAGENTS_DIR, "agent-late.jsonl"), `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
+    writeFileSync(
+      join(SUBAGENTS_DIR, "agent-late.jsonl"),
+      `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`,
+    );
     watcher.readNewEntries();
 
     expect(usageUpdates.length).toBeGreaterThan(countBefore);
@@ -576,7 +656,13 @@ describe("TranscriptWatcher subagent tracking", () => {
     writeFileSync(join(SUBAGENTS_DIR, "agent-001.meta.json"), JSON.stringify({ some: "metadata" }));
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      MAIN_TRANSCRIPT,
+      SUBAGENT_DIR_BASE,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     // No subagent usage should be emitted (only main transcript usage, if any)
@@ -592,7 +678,13 @@ describe("TranscriptWatcher subagent tracking", () => {
     writeFileSync(subFile, half);
 
     const usageUpdates: any[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), () => {}, (usage) => usageUpdates.push(usage));
+    const watcher = new TranscriptWatcher(
+      MAIN_TRANSCRIPT,
+      SUBAGENT_DIR_BASE,
+      Date.now(),
+      () => {},
+      (usage) => usageUpdates.push(usage),
+    );
     watcher.readNewEntries();
 
     // No complete line yet — should get nothing from the subagent file
@@ -615,7 +707,9 @@ describe("TranscriptWatcher subagent tracking", () => {
     writeFileSync(subFile, `${mkSubagentEntry("claude-sonnet-4-6", 100, 500, 5000, 200)}\n`);
 
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), (entry) => entries.push(entry));
+    const watcher = new TranscriptWatcher(MAIN_TRANSCRIPT, SUBAGENT_DIR_BASE, Date.now(), (entry) =>
+      entries.push(entry),
+    );
     watcher.readNewEntries();
 
     // Should have entries from both main transcript and subagent

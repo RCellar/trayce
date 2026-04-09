@@ -68,16 +68,19 @@ export class UsageTab {
     const s = this.snapshot;
     const cost = estimateCost(s);
     const totalInput = s.inputTokens + s.cacheReadTokens + s.cacheWriteTokens;
-    const cacheHitRate = totalInput > 0
-      ? Math.round((s.cacheReadTokens / totalInput) * 100)
-      : 0;
+    const cacheHitRate = totalInput > 0 ? Math.round((s.cacheReadTokens / totalInput) * 100) : 0;
 
-    const duration = s.lastTimestamp && s.firstTimestamp
-      ? Math.max(1, Math.round((s.lastTimestamp - s.firstTimestamp) / 1000))
-      : 0;
-    const tokPerSec = duration > 0
-      ? ((s.inputTokens + s.outputTokens + s.cacheReadTokens + s.cacheWriteTokens) / duration).toFixed(1)
-      : "--";
+    const duration =
+      s.lastTimestamp && s.firstTimestamp
+        ? Math.max(1, Math.round((s.lastTimestamp - s.firstTimestamp) / 1000))
+        : 0;
+    const tokPerSec =
+      duration > 0
+        ? (
+            (s.inputTokens + s.outputTokens + s.cacheReadTokens + s.cacheWriteTokens) /
+            duration
+          ).toFixed(1)
+        : "--";
 
     this.container.textContent = "";
 

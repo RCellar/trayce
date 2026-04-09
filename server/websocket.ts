@@ -35,7 +35,12 @@ export class WebSocketHub {
   private readonly browserWatchSession = new Map<string, string>();
   private readonly sessionBuffers = new Map<string, string[]>();
   private readonly sessionUsage = new Map<string, SessionUsage>();
-  private static readonly BUFFERED_TYPES = new Set(["transcript-entry", "response", "transcript-status", "canvas-push"]);
+  private static readonly BUFFERED_TYPES = new Set([
+    "transcript-entry",
+    "response",
+    "transcript-status",
+    "canvas-push",
+  ]);
 
   constructor(
     private readonly registry: SessionRegistry,
@@ -140,17 +145,27 @@ export class WebSocketHub {
       if (sid) {
         const bridge = this.bridges.get(sid);
         if (bridge) {
-          safeSend(bridge, JSON.stringify({
-            type: "permission-verdict",
-            requestId: msg.requestId,
-            behavior: msg.behavior,
-          }));
+          safeSend(
+            bridge,
+            JSON.stringify({
+              type: "permission-verdict",
+              requestId: msg.requestId,
+              behavior: msg.behavior,
+            }),
+          );
         }
       }
       return;
     }
 
-    const BRIDGE_ROUTED_TYPES = ["transcript-entry", "response", "canvas-push", "transcript-status", "usage-update", "permission-request"];
+    const BRIDGE_ROUTED_TYPES = [
+      "transcript-entry",
+      "response",
+      "canvas-push",
+      "transcript-status",
+      "usage-update",
+      "permission-request",
+    ];
     // Transcript/usage messages are high-volume and should not be rate-limited;
     // only rate-limit actionable messages like canvas-push and permission-request.
     const RATE_LIMITED_BRIDGE_TYPES = new Set(["canvas-push", "permission-request"]);
@@ -221,7 +236,9 @@ export class WebSocketHub {
       const existingBridge = this.bridges.get(sessionId);
       if (existingBridge) {
         existingBridge.data.sessionId = undefined;
-        try { existingBridge.close(); } catch {}
+        try {
+          existingBridge.close();
+        } catch {}
       }
       this.bridges.delete(sessionId);
       this.sessionToBridgeId.delete(sessionId);
@@ -240,11 +257,14 @@ export class WebSocketHub {
   private async handleSubmit(ws: Ws, msg: WsMessage): Promise<void> {
     // Rate limit
     if (!this.checkRateLimit(ws.data.id)) {
-      safeSend(ws, JSON.stringify({
-        type: "error",
-        code: "RATE_LIMITED",
-        message: "Too many submissions. Please wait before submitting again.",
-      }));
+      safeSend(
+        ws,
+        JSON.stringify({
+          type: "error",
+          code: "RATE_LIMITED",
+          message: "Too many submissions. Please wait before submitting again.",
+        }),
+      );
       return;
     }
 
@@ -253,16 +273,26 @@ export class WebSocketHub {
     const prompt = typeof msg.prompt === "string" ? msg.prompt : "";
 
     if (typeof targetSessionId !== "string" || targetSessionId.length === 0) {
-      safeSend(ws, JSON.stringify({
-        type: "error", code: "INVALID_TARGET", message: "Missing targetSessionId.",
-      }));
+      safeSend(
+        ws,
+        JSON.stringify({
+          type: "error",
+          code: "INVALID_TARGET",
+          message: "Missing targetSessionId.",
+        }),
+      );
       return;
     }
 
     if (!image && !prompt) {
-      safeSend(ws, JSON.stringify({
-        type: "error", code: "EMPTY_SUBMISSION", message: "Submission must include an image or prompt text.",
-      }));
+      safeSend(
+        ws,
+        JSON.stringify({
+          type: "error",
+          code: "EMPTY_SUBMISSION",
+          message: "Submission must include an image or prompt text.",
+        }),
+      );
       return;
     }
 
@@ -299,12 +329,15 @@ export class WebSocketHub {
     }
 
     // Ack the browser with delivery status
-    safeSend(ws, JSON.stringify({
-      type: "ack",
-      submissionId: submission.id,
-      timestamp: submission.timestamp,
-      status: delivered ? "delivered" : "queued",
-    }));
+    safeSend(
+      ws,
+      JSON.stringify({
+        type: "ack",
+        submissionId: submission.id,
+        timestamp: submission.timestamp,
+        status: delivered ? "delivered" : "queued",
+      }),
+    );
   }
 
   // -- Broadcasting --
@@ -347,7 +380,9 @@ export class WebSocketHub {
 
     for (const ws of this.browsers.values()) {
       if (now - ws.data.lastHeartbeat > timeout) {
-        try { ws.close(1000, "heartbeat timeout"); } catch {}
+        try {
+          ws.close(1000, "heartbeat timeout");
+        } catch {}
       }
     }
 
@@ -358,13 +393,19 @@ export class WebSocketHub {
     ]);
     for (const ws of allBridges.values()) {
       if (now - ws.data.lastHeartbeat > timeout) {
-        try { ws.close(1000, "heartbeat timeout"); } catch {}
+        try {
+          ws.close(1000, "heartbeat timeout");
+        } catch {}
       }
     }
   }
 
   // -- Introspection (for tests) --
 
-  get browserCount(): number { return this.browsers.size; }
-  get bridgeCount(): number { return this.bridges.size; }
+  get browserCount(): number {
+    return this.browsers.size;
+  }
+  get bridgeCount(): number {
+    return this.bridges.size;
+  }
 }

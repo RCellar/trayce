@@ -1,12 +1,4 @@
-import {
-  existsSync,
-  openSync,
-  readSync,
-  closeSync,
-  readdirSync,
-  statSync,
-  watch,
-} from "node:fs";
+import { existsSync, openSync, readSync, closeSync, readdirSync, statSync, watch } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
@@ -57,7 +49,14 @@ export class TranscriptWatcher {
   private confirmed = false;
   private discoveredByBirthtime = false;
 
-  constructor(filePath: string, cwd: string, startTime: number, onEntry: (entry: TranscriptEntry) => void, onUsage?: (usage: UsageData) => void, discoveredByBirthtime = false) {
+  constructor(
+    filePath: string,
+    cwd: string,
+    startTime: number,
+    onEntry: (entry: TranscriptEntry) => void,
+    onUsage?: (usage: UsageData) => void,
+    discoveredByBirthtime = false,
+  ) {
     this.filePath = filePath;
     this.cwd = cwd;
     this.startTime = startTime;
@@ -303,7 +302,11 @@ export class TranscriptWatcher {
           toolUseId: toolBlock.id,
         });
       } else if (block.type === "tool_result") {
-        const resultBlock = block as { type: "tool_result"; tool_use_id: string; content: string | ContentBlock[] };
+        const resultBlock = block as {
+          type: "tool_result";
+          tool_use_id: string;
+          content: string | ContentBlock[];
+        };
         // tool_result content can be a string or an array of blocks
         let rawContent: string;
         if (typeof resultBlock.content === "string") {

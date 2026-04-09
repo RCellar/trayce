@@ -15,7 +15,7 @@ export class LayersUI {
   constructor(
     container: HTMLElement,
     private layerManager: LayerManager,
-    private config: LayersUIConfig
+    private config: LayersUIConfig,
   ) {
     this.container = container;
     this.render();
@@ -26,13 +26,15 @@ export class LayersUI {
 
     // Header
     const header = document.createElement("div");
-    header.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;";
+    header.style.cssText =
+      "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;";
     const label = document.createElement("div");
     label.className = "panel-label";
     label.textContent = "Layers";
     const addBtn = document.createElement("button");
     addBtn.textContent = "+";
-    addBtn.style.cssText = "background:none;border:none;color:var(--accent);font-size:16px;cursor:pointer;";
+    addBtn.style.cssText =
+      "background:none;border:none;color:var(--accent);font-size:16px;cursor:pointer;";
     addBtn.addEventListener("click", () => this.config.onAddLayer());
     header.appendChild(label);
     header.appendChild(addBtn);

@@ -18,7 +18,7 @@ export class TextTool {
     docX: number,
     docY: number,
     color: string,
-    fontSize: number
+    fontSize: number,
   ): void {
     this.remove();
     this.targetCtx = ctx;

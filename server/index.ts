@@ -75,14 +75,18 @@ const stateUrl = config.noAuth
 await mkdir(dirname(config.stateFile), { recursive: true });
 await writeFile(
   config.stateFile,
-  JSON.stringify({
-    pid: process.pid,
-    port: actualPort,
-    host: config.host,
-    token: config.noAuth ? null : token,
-    url: stateUrl,
-  }, null, 2),
-  { mode: 0o600 }
+  JSON.stringify(
+    {
+      pid: process.pid,
+      port: actualPort,
+      host: config.host,
+      token: config.noAuth ? null : token,
+      url: stateUrl,
+    },
+    null,
+    2,
+  ),
+  { mode: 0o600 },
 );
 
 console.log(`[trayce] Server running on port ${actualPort}`);
@@ -106,9 +110,15 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(cleanupTimer);
   server.stop(true);
   submissions.removeAll();
-  try { await unlink(config.stateFile); } catch {}
+  try {
+    await unlink(config.stateFile);
+  } catch {}
   process.exit(0);
 }
 
-process.on("SIGTERM", () => { void shutdown("SIGTERM"); });
-process.on("SIGINT", () => { void shutdown("SIGINT"); });
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
+});
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});

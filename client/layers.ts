@@ -1,14 +1,21 @@
 export type BlendMode =
-  | "normal" | "multiply" | "screen" | "overlay"
-  | "soft-light" | "hard-light" | "darken" | "lighten"
-  | "color-dodge" | "color-burn";
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "soft-light"
+  | "hard-light"
+  | "darken"
+  | "lighten"
+  | "color-dodge"
+  | "color-burn";
 
 export interface LayerTransform {
-  x: number;            // document-space X (top-left of bounding box)
-  y: number;            // document-space Y
-  width: number;        // display width in document pixels
-  height: number;       // display height in document pixels
-  sourceWidth: number;  // original image width
+  x: number; // document-space X (top-left of bounding box)
+  y: number; // document-space Y
+  width: number; // display width in document pixels
+  height: number; // display height in document pixels
+  sourceWidth: number; // original image width
   sourceHeight: number; // original image height
 }
 
@@ -36,7 +43,7 @@ export class LayerManager {
   constructor(
     public docWidth: number,
     public docHeight: number,
-    background: "white" | "transparent"
+    background: "white" | "transparent",
   ) {
     const bg = this.createLayer("Background", false);
     if (background === "white") {
@@ -142,7 +149,7 @@ export class LayerManager {
   }
 
   bumpRevision(layerId: string): void {
-    const layer = this.layers.find(l => l.id === layerId);
+    const layer = this.layers.find((l) => l.id === layerId);
     if (layer) layer.revision++;
   }
 
@@ -165,14 +172,14 @@ export class LayerManager {
 
   blendToComposite(mode: BlendMode): GlobalCompositeOperation {
     const map: Record<BlendMode, GlobalCompositeOperation> = {
-      "normal": "source-over",
-      "multiply": "multiply",
-      "screen": "screen",
-      "overlay": "overlay",
+      normal: "source-over",
+      multiply: "multiply",
+      screen: "screen",
+      overlay: "overlay",
       "soft-light": "soft-light",
       "hard-light": "hard-light",
-      "darken": "darken",
-      "lighten": "lighten",
+      darken: "darken",
+      lighten: "lighten",
       "color-dodge": "color-dodge",
       "color-burn": "color-burn",
     };

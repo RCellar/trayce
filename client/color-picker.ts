@@ -7,7 +7,10 @@ export class ColorPicker {
   private recentColors: string[] = [];
   private element: HTMLElement;
 
-  constructor(container: HTMLElement, private config: ColorPickerConfig) {
+  constructor(
+    container: HTMLElement,
+    private config: ColorPickerConfig,
+  ) {
     this.element = document.createElement("div");
     this.element.className = "color-picker";
     container.appendChild(this.element);

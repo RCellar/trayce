@@ -31,7 +31,7 @@ export class Connection {
   constructor(
     private url: string,
     private onStatus: StatusCallback,
-    private onMessage: MessageCallback
+    private onMessage: MessageCallback,
   ) {}
 
   connect(): void {

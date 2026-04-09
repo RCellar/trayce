@@ -22,7 +22,7 @@ export class PenBrush implements Brush {
   drawStroke(
     ctx: OffscreenCanvasRenderingContext2D,
     points: StrokePoint[],
-    params: BrushParams
+    params: BrushParams,
   ): void {
     if (!this.strokeCtx || !this.strokeBuffer || !this.layerSnapshot) return;
 

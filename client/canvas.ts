@@ -25,7 +25,7 @@ export class CanvasManager {
   static async create(
     container: HTMLElement,
     docWidth: number,
-    docHeight: number
+    docHeight: number,
   ): Promise<CanvasManager> {
     const app = new Application();
     await app.init({
@@ -34,7 +34,7 @@ export class CanvasManager {
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
-      eventMode: "none",       // Disable PixiJS event system — we handle input ourselves
+      eventMode: "none", // Disable PixiJS event system — we handle input ourselves
       eventFeatures: {
         move: false,
         globalMove: false,
@@ -82,7 +82,7 @@ export class CanvasManager {
     this.stage.scale.set(this.viewport.zoom);
     this.stage.position.set(
       this.viewport.panX + (this.app.screen.width - this.docWidth * this.viewport.zoom) / 2,
-      this.viewport.panY + (this.app.screen.height - this.docHeight * this.viewport.zoom) / 2
+      this.viewport.panY + (this.app.screen.height - this.docHeight * this.viewport.zoom) / 2,
     );
   }
 

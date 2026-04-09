@@ -14,14 +14,14 @@ export class SubmissionStore {
 
   constructor(
     private dir: string,
-    private maxBytes: number
+    private maxBytes: number,
   ) {}
 
   async save(base64Image: string, prompt: string): Promise<Submission> {
     const buffer = Buffer.from(base64Image, "base64");
     if (buffer.byteLength > this.maxBytes) {
       throw new Error(
-        `Submission exceeds max size: ${buffer.byteLength} bytes > ${this.maxBytes} bytes`
+        `Submission exceeds max size: ${buffer.byteLength} bytes > ${this.maxBytes} bytes`,
       );
     }
 

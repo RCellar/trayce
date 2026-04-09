@@ -4,23 +4,33 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprot
 import { readFileSync, readlinkSync, existsSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
-import { TranscriptWatcher, discoverTranscriptPath, discoverTranscriptByBirthtime, type TranscriptEntry, type UsageData } from "./transcript-watcher";
+import {
+  TranscriptWatcher,
+  discoverTranscriptPath,
+  discoverTranscriptByBirthtime,
+  type TranscriptEntry,
+  type UsageData,
+} from "./transcript-watcher";
 
 // Zod schemas for MCP SDK ≥1.27 (requires method literal)
-const ChannelNotificationSchema = z.object({
-  method: z.literal("notifications/claude/channel"),
-  params: z.object({}).passthrough().optional(),
-}).passthrough();
+const ChannelNotificationSchema = z
+  .object({
+    method: z.literal("notifications/claude/channel"),
+    params: z.object({}).passthrough().optional(),
+  })
+  .passthrough();
 
-const PermissionRequestSchema = z.object({
-  method: z.literal("notifications/claude/channel/permission_request"),
-  params: z.object({
-    request_id: z.string(),
-    tool_name: z.string(),
-    description: z.string(),
-    input_preview: z.string(),
-  }),
-}).passthrough();
+const PermissionRequestSchema = z
+  .object({
+    method: z.literal("notifications/claude/channel/permission_request"),
+    params: z.object({
+      request_id: z.string(),
+      tool_name: z.string(),
+      description: z.string(),
+      input_preview: z.string(),
+    }),
+  })
+  .passthrough();
 
 /** Resolve the project directory. The bridge is spawned as an MCP subprocess —
  *  its own cwd may not match the project. On Linux, read the parent process
@@ -76,7 +86,7 @@ const mcpServer = new Server(
       },
     },
     instructions: `When you receive a trayce channel notification, read the PNG image at the provided path using the Read tool. The image is a hand-drawn sketch from the user. Treat the accompanying prompt text as the user's request about or relating to the sketch.`,
-  }
+  },
 );
 
 // Track current WebSocket, watcher, and the last known good transcript path
@@ -87,15 +97,24 @@ let lastTranscriptPath: string | null = null;
 // MCP reverse notification handler — receives canvas-push from Claude, forwards to server
 mcpServer.setNotificationHandler(ChannelNotificationSchema, async (params: any) => {
   const meta = params?.params?.meta;
-  if (meta?.type === "canvas-push" && typeof meta.image === "string" && currentWs?.readyState === WebSocket.OPEN) {
-    const imageSize = Math.ceil(meta.image.length * 3 / 4);
+  if (
+    meta?.type === "canvas-push" &&
+    typeof meta.image === "string" &&
+    currentWs?.readyState === WebSocket.OPEN
+  ) {
+    const imageSize = Math.ceil((meta.image.length * 3) / 4);
     if (imageSize <= 20 * 1024 * 1024) {
-      currentWs.send(JSON.stringify({
-        type: "canvas-push",
-        image: meta.image,
-        label: typeof meta.label === "string" ? meta.label : `Claude: ${new Date().toLocaleTimeString()}`,
-        visible: false,
-      }));
+      currentWs.send(
+        JSON.stringify({
+          type: "canvas-push",
+          image: meta.image,
+          label:
+            typeof meta.label === "string"
+              ? meta.label
+              : `Claude: ${new Date().toLocaleTimeString()}`,
+          visible: false,
+        }),
+      );
     }
   }
 });
@@ -103,13 +122,15 @@ mcpServer.setNotificationHandler(ChannelNotificationSchema, async (params: any) 
 // Permission request handler — forwards from Claude Code to server/browser
 mcpServer.setNotificationHandler(PermissionRequestSchema, async ({ params }) => {
   if (currentWs?.readyState === WebSocket.OPEN) {
-    currentWs.send(JSON.stringify({
-      type: "permission-request",
-      requestId: params.request_id,
-      toolName: params.tool_name,
-      description: params.description,
-      inputPreview: params.input_preview,
-    }));
+    currentWs.send(
+      JSON.stringify({
+        type: "permission-request",
+        requestId: params.request_id,
+        toolName: params.tool_name,
+        description: params.description,
+        inputPreview: params.input_preview,
+      }),
+    );
   }
 });
 
@@ -118,17 +139,20 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: "push_image",
-      description: "Push an image to the trayce canvas as a new layer. Provide either a file_path to an image on disk (preferred for large images) or image_base64 for inline data. Use this to send generated images, diagrams, or reference photos to the user's canvas.",
+      description:
+        "Push an image to the trayce canvas as a new layer. Provide either a file_path to an image on disk (preferred for large images) or image_base64 for inline data. Use this to send generated images, diagrams, or reference photos to the user's canvas.",
       inputSchema: {
         type: "object" as const,
         properties: {
           file_path: {
             type: "string",
-            description: "Absolute path to an image file on disk (PNG, JPEG, etc). Preferred over image_base64 for large images.",
+            description:
+              "Absolute path to an image file on disk (PNG, JPEG, etc). Preferred over image_base64 for large images.",
           },
           image_base64: {
             type: "string",
-            description: "Base64-encoded image data (no data: URI prefix). Use file_path instead for large images.",
+            description:
+              "Base64-encoded image data (no data: URI prefix). Use file_path instead for large images.",
           },
           label: {
             type: "string",
@@ -154,15 +178,19 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         const buf = readFileSync(filePath);
         image = buf.toString("base64");
       } catch (err) {
-        return { content: [{ type: "text", text: `Error: failed to read file "${filePath}": ${err}` }] };
+        return {
+          content: [{ type: "text", text: `Error: failed to read file "${filePath}": ${err}` }],
+        };
       }
     } else if (typeof inlineB64 === "string" && inlineB64.length > 0) {
       image = inlineB64;
     } else {
-      return { content: [{ type: "text", text: "Error: provide either file_path or image_base64" }] };
+      return {
+        content: [{ type: "text", text: "Error: provide either file_path or image_base64" }],
+      };
     }
 
-    const imageSize = Math.ceil(image.length * 3 / 4);
+    const imageSize = Math.ceil((image.length * 3) / 4);
     if (imageSize > 20 * 1024 * 1024) {
       return { content: [{ type: "text", text: "Error: image exceeds 20MB limit" }] };
     }
@@ -171,19 +199,26 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
       return { content: [{ type: "text", text: "Error: not connected to trayce server" }] };
     }
 
-    const pushLabel = typeof (args as any)?.label === "string"
-      ? (args as any).label
-      : `Claude: ${new Date().toLocaleTimeString()}`;
+    const pushLabel =
+      typeof (args as any)?.label === "string"
+        ? (args as any).label
+        : `Claude: ${new Date().toLocaleTimeString()}`;
 
-    currentWs.send(JSON.stringify({
-      type: "canvas-push",
-      image,
-      label: pushLabel,
-      visible: false,
-    }));
+    currentWs.send(
+      JSON.stringify({
+        type: "canvas-push",
+        image,
+        label: pushLabel,
+        visible: false,
+      }),
+    );
 
     const sizeMB = (imageSize / (1024 * 1024)).toFixed(1);
-    return { content: [{ type: "text", text: `Image pushed to canvas as layer "${pushLabel}" (${sizeMB}MB)` }] };
+    return {
+      content: [
+        { type: "text", text: `Image pushed to canvas as layer "${pushLabel}" (${sizeMB}MB)` },
+      ],
+    };
   }
 
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
@@ -193,7 +228,8 @@ function startTranscriptWatcher(ws: WebSocket): void {
   // On reconnect, reuse the previously discovered path if it still exists.
   // Otherwise: birthtime correlation (cwd-independent), then cwd-based fallback.
   let discoveredByBirthtime = false;
-  let transcriptPath = lastTranscriptPath && existsSync(lastTranscriptPath) ? lastTranscriptPath : null;
+  let transcriptPath =
+    lastTranscriptPath && existsSync(lastTranscriptPath) ? lastTranscriptPath : null;
   if (!transcriptPath) {
     transcriptPath = discoverTranscriptByBirthtime(bridgeStartTime);
     if (transcriptPath) discoveredByBirthtime = true;
@@ -201,7 +237,9 @@ function startTranscriptWatcher(ws: WebSocket): void {
   if (!transcriptPath) {
     transcriptPath = discoverTranscriptPath(projectDir);
   }
-  console.error(`[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"} birthtime=${discoveredByBirthtime}`);
+  console.error(
+    `[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"} birthtime=${discoveredByBirthtime}`,
+  );
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
     return;
@@ -209,12 +247,14 @@ function startTranscriptWatcher(ws: WebSocket): void {
 
   lastTranscriptPath = transcriptPath;
 
-  ws.send(JSON.stringify({
-    type: "transcript-status",
-    available: true,
-    transcriptPath,
-    projectDir,
-  }));
+  ws.send(
+    JSON.stringify({
+      type: "transcript-status",
+      available: true,
+      transcriptPath,
+      projectDir,
+    }),
+  );
 
   transcriptWatcher = new TranscriptWatcher(
     transcriptPath,
@@ -224,13 +264,15 @@ function startTranscriptWatcher(ws: WebSocket): void {
       if (ws.readyState !== WebSocket.OPEN) return;
       ws.send(JSON.stringify({ type: "transcript-entry", entry }));
       if (entry.type === "response") {
-        ws.send(JSON.stringify({
-          type: "response",
-          content: entry.content,
-          timestamp: entry.timestamp,
-          format: "markdown",
-          final: true,
-        }));
+        ws.send(
+          JSON.stringify({
+            type: "response",
+            content: entry.content,
+            timestamp: entry.timestamp,
+            format: "markdown",
+            final: true,
+          }),
+        );
       }
     },
     (usage: UsageData) => {
@@ -285,7 +327,7 @@ function connect() {
         if (msg.pngPath) meta.image_path = msg.pngPath;
 
         const content = msg.pngPath
-          ? (msg.prompt || "[sketch submitted — see attached image]")
+          ? msg.prompt || "[sketch submitted — see attached image]"
           : msg.prompt;
 
         mcpServer.notification({

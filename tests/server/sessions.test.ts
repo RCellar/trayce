@@ -95,7 +95,10 @@ describe("list", () => {
   it("returns all added sessions", () => {
     registry.add("id-1", "alpha");
     registry.add("id-2", "beta");
-    const labels = registry.list().map((s) => s.label).sort();
+    const labels = registry
+      .list()
+      .map((s) => s.label)
+      .sort();
     expect(labels).toEqual(["alpha", "beta"]);
   });
 

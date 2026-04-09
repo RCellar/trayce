@@ -14,7 +14,7 @@ function getCssBlock(css: string, selector: string): string | null {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(`${escaped}\\s*\\{([^}]+)\\}`, "m");
   const match = css.match(re);
-  return match ? match[1] ?? null : null;
+  return match ? (match[1] ?? null) : null;
 }
 
 describe("panel scrolling — CSS requirements", () => {
@@ -70,7 +70,7 @@ describe("panel scrolling — auto-scroll behavior", () => {
         role: "assistant",
         content: "test",
         timestamp: Date.now(),
-      })
+      }),
     ).not.toThrow();
   });
 });
