@@ -22,12 +22,12 @@ const DEFAULTS: Config = {
   submissionsDir: "/tmp/trayce/submissions",
   stateFile: "/tmp/trayce/state.json",
   clientDir: "dist/client",
-  maxSubmissionBytes: 20 * 1024 * 1024,   // 20 MB
-  maxWsPayloadBytes: 30 * 1024 * 1024,    // 30 MB
-  submissionTtlMs: 60 * 60 * 1000,        // 1 hour
-  cleanupIntervalMs: 15 * 60 * 1000,      // 15 minutes
-  heartbeatIntervalMs: 10 * 1000,         // 10 seconds
-  heartbeatTimeoutMs: 30 * 1000,          // 30 seconds
+  maxSubmissionBytes: 20 * 1024 * 1024, // 20 MB
+  maxWsPayloadBytes: 30 * 1024 * 1024, // 30 MB
+  submissionTtlMs: 60 * 60 * 1000, // 1 hour
+  cleanupIntervalMs: 15 * 60 * 1000, // 15 minutes
+  heartbeatIntervalMs: 10 * 1000, // 10 seconds
+  heartbeatTimeoutMs: 30 * 1000, // 30 seconds
   rateLimitPerMinute: 10,
   transcriptBufferSize: 500,
   noAuth: false,
@@ -42,7 +42,7 @@ function parsePort(raw: string | undefined, defaultPort: number): number {
   if (!Number.isInteger(n) || n < 1 || n > 65535) {
     console.warn(
       `[trayce] Invalid TRAYCE_PORT value "${raw}" — must be an integer between 1 and 65535. ` +
-        `Falling back to default port ${defaultPort}.`
+        `Falling back to default port ${defaultPort}.`,
     );
     return defaultPort;
   }

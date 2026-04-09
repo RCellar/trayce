@@ -8,7 +8,11 @@ export class BrushSettingsUI {
   private container: HTMLElement;
   private params: BrushParams;
 
-  constructor(container: HTMLElement, initialParams: BrushParams, private config: BrushSettingsConfig) {
+  constructor(
+    container: HTMLElement,
+    initialParams: BrushParams,
+    private config: BrushSettingsConfig,
+  ) {
     this.container = container;
     this.params = { ...initialParams };
     this.render();
@@ -49,7 +53,7 @@ export class BrushSettingsUI {
     max: number,
     value: number,
     unit: string,
-    onChange: (value: number) => void
+    onChange: (value: number) => void,
   ): void {
     const row = document.createElement("div");
     row.className = "slider-row";

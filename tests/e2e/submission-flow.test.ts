@@ -65,19 +65,32 @@ async function waitForHttp(url: string, timeoutMs = 10_000): Promise<void> {
 function connectWs(url: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
-    const timer = setTimeout(() => { ws.close(); reject(new Error("WS timeout")); }, 5000);
-    ws.onopen = () => { clearTimeout(timer); resolve(ws); };
-    ws.onerror = () => { clearTimeout(timer); reject(new Error("WS error")); };
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error("WS timeout"));
+    }, 5000);
+    ws.onopen = () => {
+      clearTimeout(timer);
+      resolve(ws);
+    };
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error("WS error"));
+    };
   });
 }
 
 function nextMessage(ws: WebSocket, timeoutMs = 5000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("No message")), timeoutMs);
-    ws.addEventListener("message", (ev) => {
-      clearTimeout(timer);
-      resolve(JSON.parse(ev.data as string) as Record<string, unknown>);
-    }, { once: true });
+    ws.addEventListener(
+      "message",
+      (ev) => {
+        clearTimeout(timer);
+        resolve(JSON.parse(ev.data as string) as Record<string, unknown>);
+      },
+      { once: true },
+    );
   });
 }
 
@@ -105,7 +118,9 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(() => {
-  try { serverProc.kill("SIGTERM"); } catch {}
+  try {
+    serverProc.kill("SIGTERM");
+  } catch {}
   rmSync(TMP_DIR, { recursive: true, force: true });
 });
 
@@ -129,12 +144,14 @@ describe("E2E submission flow", () => {
     expect((sessionsMsg.sessions as any[]).some((s: any) => s.id === sessionId)).toBe(true);
 
     // 3. Browser submits
-    browser.send(JSON.stringify({
-      type: "submit",
-      targetSessionId: sessionId,
-      image: TINY_PNG_B64,
-      prompt: "implement this layout",
-    }));
+    browser.send(
+      JSON.stringify({
+        type: "submit",
+        targetSessionId: sessionId,
+        image: TINY_PNG_B64,
+        prompt: "implement this layout",
+      }),
+    );
 
     // 4. Bridge receives submission
     const submission = await nextMessage(bridge);
@@ -179,12 +196,14 @@ describe("E2E submission flow", () => {
     const browser = await connectWs(`${wsBase}/canvas?token=${token}`);
     await nextMessage(browser); // consume sessions
 
-    browser.send(JSON.stringify({
-      type: "submit",
-      targetSessionId: sessionId,
-      image: TINY_PNG_B64,
-      prompt: "to nobody",
-    }));
+    browser.send(
+      JSON.stringify({
+        type: "submit",
+        targetSessionId: sessionId,
+        image: TINY_PNG_B64,
+        prompt: "to nobody",
+      }),
+    );
 
     // Browser should still get an ack (PNG saved on disk)
     const response = await nextMessage(browser);

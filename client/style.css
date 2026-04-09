@@ -19,13 +19,16 @@
   --bottombar-height: 64px;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
   font-family: var(--font-family);
@@ -226,7 +229,7 @@ body {
 
 #canvas-container {
   background:
-    radial-gradient(circle, var(--canvas-dot, rgba(255,255,255,0.08)) 1px, transparent 1px),
+    radial-gradient(circle, var(--canvas-dot, rgba(255, 255, 255, 0.08)) 1px, transparent 1px),
     var(--canvas-bg);
   background-size: 20px 20px;
   overflow: hidden;
@@ -606,15 +609,22 @@ body {
   border-radius: 50%;
 }
 
-.status.connected .dot { background: var(--success); }
-.status.disconnected .dot { background: var(--danger); }
-.status.reconnecting .dot { background: var(--warning); }
+.status.connected .dot {
+  background: var(--success);
+}
+.status.disconnected .dot {
+  background: var(--danger);
+}
+.status.reconnecting .dot {
+  background: var(--warning);
+}
 
 .status .text {
   color: var(--text-muted);
 }
 
-#tool-info, #layer-info {
+#tool-info,
+#layer-info {
   color: var(--text-muted);
   font-size: 11px;
 }
@@ -735,7 +745,9 @@ dialog .bg-choice label {
   font-size: 13px;
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
   pointer-events: auto;
 }
 
@@ -756,7 +768,9 @@ dialog .bg-choice label {
   max-width: 420px;
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 0.2s, transform 0.2s;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
   pointer-events: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
 }
@@ -989,7 +1003,9 @@ dialog .bg-choice label {
   cursor: pointer;
   opacity: 0.7;
   z-index: 4;
-  transition: opacity 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    background 0.15s;
 }
 
 .autoscroll-btn:hover {
@@ -1003,14 +1019,22 @@ dialog .bg-choice label {
   opacity: 0.9;
 }
 
-.response-content h1, .response-content h2, .response-content h3 {
+.response-content h1,
+.response-content h2,
+.response-content h3 {
   margin: 12px 0 6px;
   color: var(--text);
 }
 
-.response-content h1 { font-size: 16px; }
-.response-content h2 { font-size: 14px; }
-.response-content h3 { font-size: 13px; }
+.response-content h1 {
+  font-size: 16px;
+}
+.response-content h2 {
+  font-size: 14px;
+}
+.response-content h3 {
+  font-size: 13px;
+}
 
 .response-content pre {
   background: var(--bg);
@@ -1032,7 +1056,8 @@ dialog .bg-choice label {
   border-radius: 3px;
 }
 
-.response-content ul, .response-content ol {
+.response-content ul,
+.response-content ol {
   padding-left: 20px;
   margin: 6px 0;
 }

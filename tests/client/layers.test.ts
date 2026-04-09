@@ -157,7 +157,14 @@ describe("duplicateLayer copies all properties", () => {
     layer.visible = false;
 
     const copy = lm.duplicateLayer(1);
-    expect(copy.transform).toEqual({ x: 10, y: 20, width: 50, height: 50, sourceWidth: 50, sourceHeight: 50 });
+    expect(copy.transform).toEqual({
+      x: 10,
+      y: 20,
+      width: 50,
+      height: 50,
+      sourceWidth: 50,
+      sourceHeight: 50,
+    });
     expect(copy.locked).toBe(true);
     expect(copy.visible).toBe(false);
   });
@@ -222,9 +229,16 @@ describe("LayerManager — blendToComposite", () => {
   test("maps all blend modes", () => {
     const lm = new LayerManager(100, 100, "white");
     const modes: BlendMode[] = [
-      "normal", "multiply", "screen", "overlay",
-      "soft-light", "hard-light", "darken", "lighten",
-      "color-dodge", "color-burn",
+      "normal",
+      "multiply",
+      "screen",
+      "overlay",
+      "soft-light",
+      "hard-light",
+      "darken",
+      "lighten",
+      "color-dodge",
+      "color-burn",
     ];
     for (const mode of modes) {
       expect(typeof lm.blendToComposite(mode)).toBe("string");

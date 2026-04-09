@@ -63,7 +63,10 @@ export function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
-export async function downloadPng(layerManager: LayerManager, filename = "trayce.png"): Promise<void> {
+export async function downloadPng(
+  layerManager: LayerManager,
+  filename = "trayce.png",
+): Promise<void> {
   const blob = await flattenToPng(layerManager);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

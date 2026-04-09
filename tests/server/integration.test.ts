@@ -48,22 +48,32 @@ async function waitForHttp(url: string, timeoutMs = 10_000): Promise<void> {
 function connectWs(url: string): Promise<{ ws: WebSocket; firstMessage: unknown }> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
-    const timer = setTimeout(() => { ws.close(); reject(new Error(`WS timeout: ${url}`)); }, 5000);
+    const timer = setTimeout(() => {
+      ws.close();
+      reject(new Error(`WS timeout: ${url}`));
+    }, 5000);
     ws.onmessage = (ev) => {
       clearTimeout(timer);
       resolve({ ws, firstMessage: JSON.parse(ev.data as string) });
     };
-    ws.onerror = () => { clearTimeout(timer); reject(new Error(`WS error: ${url}`)); };
+    ws.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error(`WS error: ${url}`));
+    };
   });
 }
 
 function nextMessage(ws: WebSocket, timeoutMs = 3000): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("No WS message")), timeoutMs);
-    ws.addEventListener("message", (ev) => {
-      clearTimeout(timer);
-      resolve(JSON.parse(ev.data as string) as Record<string, unknown>);
-    }, { once: true });
+    ws.addEventListener(
+      "message",
+      (ev) => {
+        clearTimeout(timer);
+        resolve(JSON.parse(ev.data as string) as Record<string, unknown>);
+      },
+      { once: true },
+    );
   });
 }
 
@@ -98,7 +108,9 @@ beforeAll(async () => {
 }, 30_000);
 
 afterAll(() => {
-  try { serverProc.kill("SIGTERM"); } catch {}
+  try {
+    serverProc.kill("SIGTERM");
+  } catch {}
   rmSync(TMP_DIR, { recursive: true, force: true });
 });
 
@@ -138,16 +150,14 @@ describe("HTTP", () => {
 describe("WebSocket /canvas — with token", () => {
   it("connects and receives sessions message", async () => {
     const { ws, firstMessage } = await connectWs(
-      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`
+      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
     );
     expect((firstMessage as any).type).toBe("sessions");
     ws.close();
   });
 
   it("heartbeat is echoed", async () => {
-    const { ws } = await connectWs(
-      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`
-    );
+    const { ws } = await connectWs(`ws://127.0.0.1:${state.port}/canvas?token=${state.token}`);
     ws.send(JSON.stringify({ type: "heartbeat" }));
     const echo = await nextMessage(ws);
     expect(echo.type).toBe("heartbeat");
@@ -198,7 +208,7 @@ describe("WebSocket /bridge", () => {
 
     // Connect browser
     const { ws: browser } = await connectWs(
-      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`
+      `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
     );
 
     // Listen for session update on browser

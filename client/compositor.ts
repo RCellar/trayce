@@ -1,15 +1,23 @@
-import { Sprite, Texture, Container, Graphics, ImageSource, type Application, type BLEND_MODES } from "pixi.js";
+import {
+  Sprite,
+  Texture,
+  Container,
+  Graphics,
+  ImageSource,
+  type Application,
+  type BLEND_MODES,
+} from "pixi.js";
 import type { LayerManager, BlendMode, LayerTransform } from "./layers";
 
 const BLEND_MAP: Record<BlendMode, BLEND_MODES> = {
-  "normal": "normal",
-  "multiply": "multiply",
-  "screen": "screen",
-  "overlay": "overlay",
+  normal: "normal",
+  multiply: "multiply",
+  screen: "screen",
+  overlay: "overlay",
   "soft-light": "soft-light",
   "hard-light": "hard-light",
-  "darken": "darken",
-  "lighten": "lighten",
+  darken: "darken",
+  lighten: "lighten",
   "color-dodge": "color-dodge",
   "color-burn": "color-burn",
 };
@@ -21,7 +29,10 @@ export class Compositor {
   private overlay: Graphics;
   private dirty = true;
 
-  constructor(private app: Application, private layerManager: LayerManager) {
+  constructor(
+    private app: Application,
+    private layerManager: LayerManager,
+  ) {
     this.container = new Container();
     this.overlay = new Graphics();
     // Overlay is added to app.stage directly so it draws in screen space
@@ -102,10 +113,7 @@ export class Compositor {
 
   /** Draw bounding box and resize handles for the active transform layer.
    *  Called from app.ts after update(), passing screen-space coordinates. */
-  drawTransformOverlay(
-    stageX: number, stageY: number, zoom: number,
-    t: LayerTransform,
-  ): void {
+  drawTransformOverlay(stageX: number, stageY: number, zoom: number, t: LayerTransform): void {
     const g = this.overlay;
     g.clear();
 
@@ -124,9 +132,14 @@ export class Compositor {
     // Handles — 8 points
     const hs = 4; // half-size of handle
     const handles = [
-      [sx, sy], [sx + sw / 2, sy], [sx + sw, sy],
-      [sx, sy + sh / 2], [sx + sw, sy + sh / 2],
-      [sx, sy + sh], [sx + sw / 2, sy + sh], [sx + sw, sy + sh],
+      [sx, sy],
+      [sx + sw / 2, sy],
+      [sx + sw, sy],
+      [sx, sy + sh / 2],
+      [sx + sw, sy + sh / 2],
+      [sx, sy + sh],
+      [sx + sw / 2, sy + sh],
+      [sx + sw, sy + sh],
     ];
     for (const h of handles) {
       const hx = h[0]!;

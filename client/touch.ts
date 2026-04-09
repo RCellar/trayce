@@ -14,7 +14,7 @@ export class TouchHandler {
   constructor(
     private element: HTMLElement,
     private canvasManager: CanvasManager,
-    private config: TouchConfig
+    private config: TouchConfig,
   ) {
     element.addEventListener("touchstart", this.onTouchStart, { passive: false });
     element.addEventListener("touchmove", this.onTouchMove, { passive: false });

@@ -15,8 +15,7 @@ describe("generateToken", () => {
   });
 
   it("matches UUID v4 format", () => {
-    const uuidV4 =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     for (let i = 0; i < 10; i++) {
       expect(generateToken()).toMatch(uuidV4);
     }

@@ -14,10 +14,7 @@ export interface StrokeOptions {
   simulatePressure?: boolean;
 }
 
-export function generateStrokeOutline(
-  points: StrokePoint[],
-  options: StrokeOptions
-): number[][] {
+export function generateStrokeOutline(points: StrokePoint[], options: StrokeOptions): number[][] {
   const inputPoints = points.map((p) => [p.x, p.y, p.pressure]);
 
   return getStroke(inputPoints, {
@@ -25,7 +22,7 @@ export function generateStrokeOutline(
     smoothing: options.smoothing,
     thinning: options.thinning ?? 0.5,
     streamline: options.streamline ?? 0.5,
-    simulatePressure: options.simulatePressure ?? (points[0]?.pressure === 0.5),
+    simulatePressure: options.simulatePressure ?? points[0]?.pressure === 0.5,
     start: { taper: true },
     end: { taper: true },
   });

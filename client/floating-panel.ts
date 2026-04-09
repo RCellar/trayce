@@ -175,12 +175,15 @@ export class FloatingPanel {
   }
 
   private saveState(): void {
-    localStorage.setItem("trayce-floating-panel", JSON.stringify({
-      x: this.x,
-      y: this.y,
-      tab: this.activeTab,
-      visible: this.isVisible,
-    }));
+    localStorage.setItem(
+      "trayce-floating-panel",
+      JSON.stringify({
+        x: this.x,
+        y: this.y,
+        tab: this.activeTab,
+        visible: this.isVisible,
+      }),
+    );
   }
 
   private loadState(): void {

@@ -35,7 +35,7 @@ export class SelectTool {
       Math.min(this.startX, x),
       Math.min(this.startY, y),
       Math.abs(x - this.startX),
-      Math.abs(y - this.startY)
+      Math.abs(y - this.startY),
     );
     ctx.setLineDash([]);
   }
@@ -57,8 +57,10 @@ export class SelectTool {
 
     // Cut the selected region
     this.selection = ctx.getImageData(
-      this.selectionX, this.selectionY,
-      this.selectionW, this.selectionH
+      this.selectionX,
+      this.selectionY,
+      this.selectionW,
+      this.selectionH,
     );
 
     // Clear the region on the layer

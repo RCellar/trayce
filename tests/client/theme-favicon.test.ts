@@ -10,13 +10,27 @@ beforeAll(() => {
     const attrs: Record<string, string> = {};
     return {
       nodeName: "LINK",
-      get rel() { return attrs.rel ?? ""; },
-      set rel(v: string) { attrs.rel = v; },
-      get type() { return attrs.type ?? ""; },
-      set type(v: string) { attrs.type = v; },
-      get href() { return attrs.href ?? ""; },
-      set href(v: string) { attrs.href = v; },
-      remove() { links.splice(links.indexOf(this as any), 1); },
+      get rel() {
+        return attrs.rel ?? "";
+      },
+      set rel(v: string) {
+        attrs.rel = v;
+      },
+      get type() {
+        return attrs.type ?? "";
+      },
+      set type(v: string) {
+        attrs.type = v;
+      },
+      get href() {
+        return attrs.href ?? "";
+      },
+      set href(v: string) {
+        attrs.href = v;
+      },
+      remove() {
+        links.splice(links.indexOf(this as any), 1);
+      },
     };
   };
 
@@ -25,7 +39,9 @@ beforeAll(() => {
   if (typeof globalThis.document === "undefined") {
     (globalThis as any).document = {
       head: {
-        appendChild(el: any) { links.push(el); },
+        appendChild(el: any) {
+          links.push(el);
+        },
       },
       querySelector(sel: string) {
         if (sel === 'link[rel="icon"]') {
@@ -48,7 +64,10 @@ beforeAll(() => {
 
   if (typeof globalThis.Blob === "undefined") {
     (globalThis as any).Blob = class MockBlob {
-      constructor(public parts: string[], public options: object) {}
+      constructor(
+        public parts: string[],
+        public options: object,
+      ) {}
     };
   }
 

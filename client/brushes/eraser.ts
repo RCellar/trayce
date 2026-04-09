@@ -19,7 +19,7 @@ export class EraserBrush implements Brush {
   drawStroke(
     ctx: OffscreenCanvasRenderingContext2D,
     points: StrokePoint[],
-    params: BrushParams
+    params: BrushParams,
   ): void {
     const outline = generateStrokeOutline(points, {
       size: params.size,

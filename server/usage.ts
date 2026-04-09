@@ -24,7 +24,8 @@ export class SessionUsage {
   private cacheReadTokens = 0;
   private cacheWriteTokens = 0;
   private requestCount = 0;
-  private models: Record<string, { inputTokens: number; outputTokens: number; requests: number }> = {};
+  private models: Record<string, { inputTokens: number; outputTokens: number; requests: number }> =
+    {};
   private firstTimestamp = 0;
   private lastTimestamp = 0;
 

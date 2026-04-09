@@ -29,7 +29,13 @@ export class ShapeTool {
     this.shapeType = types[(idx + 1) % types.length]!;
   }
 
-  beginShape(ctx: OffscreenCanvasRenderingContext2D, x: number, y: number, color: string, size: number): void {
+  beginShape(
+    ctx: OffscreenCanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+    size: number,
+  ): void {
     this.isDrawing = true;
     this.startX = x;
     this.startY = y;

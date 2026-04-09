@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { getConfig, type Config } from "../../server/config";
 
-function env(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
+function env(
+  overrides: Record<string, string | undefined> = {},
+): Record<string, string | undefined> {
   return overrides;
 }
 
@@ -71,11 +73,15 @@ describe("getConfig — env overrides", () => {
   });
 
   test("TRAYCE_SUBMISSIONS_DIR overrides submissionsDir", () => {
-    expect(getConfig(env({ TRAYCE_SUBMISSIONS_DIR: "/data/submissions" })).submissionsDir).toBe("/data/submissions");
+    expect(getConfig(env({ TRAYCE_SUBMISSIONS_DIR: "/data/submissions" })).submissionsDir).toBe(
+      "/data/submissions",
+    );
   });
 
   test("TRAYCE_STATE_FILE overrides stateFile", () => {
-    expect(getConfig(env({ TRAYCE_STATE_FILE: "/data/state.json" })).stateFile).toBe("/data/state.json");
+    expect(getConfig(env({ TRAYCE_STATE_FILE: "/data/state.json" })).stateFile).toBe(
+      "/data/state.json",
+    );
   });
 
   test("TRAYCE_CLIENT_DIR overrides clientDir", () => {
@@ -159,16 +165,20 @@ describe("getConfig — whitespace trimming", () => {
   });
 
   test("TRAYCE_SUBMISSIONS_DIR with spaces is trimmed", () => {
-    expect(getConfig(env({ TRAYCE_SUBMISSIONS_DIR: "  /data/subs  " })).submissionsDir).toBe("/data/subs");
+    expect(getConfig(env({ TRAYCE_SUBMISSIONS_DIR: "  /data/subs  " })).submissionsDir).toBe(
+      "/data/subs",
+    );
   });
 });
 
 describe("getConfig — internal constants not overridable", () => {
-  const cfg = getConfig(env({
-    TRAYCE_HOST: "127.0.0.1",
-    TRAYCE_PORT: "1234",
-    TRAYCE_NO_AUTH: "true",
-  }));
+  const cfg = getConfig(
+    env({
+      TRAYCE_HOST: "127.0.0.1",
+      TRAYCE_PORT: "1234",
+      TRAYCE_NO_AUTH: "true",
+    }),
+  );
 
   test("maxSubmissionBytes remains 20 MB", () => {
     expect(cfg.maxSubmissionBytes).toBe(20 * 1024 * 1024);
@@ -187,10 +197,20 @@ describe("getConfig — return type shape", () => {
   test("all Config keys are present", () => {
     const cfg: Config = getConfig(env());
     const keys: (keyof Config)[] = [
-      "host", "port", "submissionsDir", "stateFile", "clientDir",
-      "maxSubmissionBytes", "maxWsPayloadBytes", "submissionTtlMs",
-      "cleanupIntervalMs", "heartbeatIntervalMs", "heartbeatTimeoutMs",
-      "rateLimitPerMinute", "noAuth", "transcriptBufferSize",
+      "host",
+      "port",
+      "submissionsDir",
+      "stateFile",
+      "clientDir",
+      "maxSubmissionBytes",
+      "maxWsPayloadBytes",
+      "submissionTtlMs",
+      "cleanupIntervalMs",
+      "heartbeatIntervalMs",
+      "heartbeatTimeoutMs",
+      "rateLimitPerMinute",
+      "noAuth",
+      "transcriptBufferSize",
     ];
     for (const key of keys) {
       expect(cfg[key]).toBeDefined();

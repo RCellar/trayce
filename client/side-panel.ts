@@ -143,8 +143,7 @@ export class SidePanel {
         this.isOpen && this.activeTab === "transcript" ? "" : "none";
     }
     if (this.usageContent) {
-      this.usageContent.style.display =
-        this.isOpen && this.activeTab === "usage" ? "" : "none";
+      this.usageContent.style.display = this.isOpen && this.activeTab === "usage" ? "" : "none";
     }
   }
 
@@ -158,7 +157,7 @@ export class SidePanel {
       const delta = startX - e.clientX;
       const newWidth = Math.max(
         this.minWidth,
-        Math.min(window.innerWidth * 0.5, startWidth + delta)
+        Math.min(window.innerWidth * 0.5, startWidth + delta),
       );
       this.width = newWidth;
       if (this.container) {

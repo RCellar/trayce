@@ -17,11 +17,21 @@ interface MockWs {
 
 function makeMockWs(overrides: Partial<WsData> = {}): MockWs {
   return {
-    data: { kind: "browser", id: crypto.randomUUID(), sessionId: undefined, lastHeartbeat: 1_000_000, ...overrides },
+    data: {
+      kind: "browser",
+      id: crypto.randomUUID(),
+      sessionId: undefined,
+      lastHeartbeat: 1_000_000,
+      ...overrides,
+    },
     sent: [],
     closed: false,
-    send(data: string) { this.sent.push(data); },
-    close() { this.closed = true; },
+    send(data: string) {
+      this.sent.push(data);
+    },
+    close() {
+      this.closed = true;
+    },
   } as MockWs;
 }
 
@@ -50,12 +60,18 @@ beforeEach(() => {
 });
 
 // Helper: set up bridge+browser with registration and watch-session
-async function setupWatching(hub: WebSocketHub, sessionId: string = "s1"): Promise<{ bridge: MockWs; browser: MockWs }> {
+async function setupWatching(
+  hub: WebSocketHub,
+  sessionId: string = "s1",
+): Promise<{ bridge: MockWs; browser: MockWs }> {
   const bridge = bridgeWs();
   const browser = browserWs();
   hub.addBridge(bridge as any);
   hub.addBrowser(browser as any);
-  await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId, label: "app" }));
+  await hub.handleMessage(
+    bridge as any,
+    JSON.stringify({ type: "register", sessionId, label: "app" }),
+  );
   await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId }));
   browser.sent.length = 0;
   bridge.sent.length = 0;
@@ -71,10 +87,16 @@ describe("watch-session", () => {
     const bridge = bridgeWs();
     hub.addBrowser(browser as any);
     hub.addBridge(bridge as any);
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
     browser.sent.length = 0;
 
-    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
 
     // Only a usage-snapshot is sent (no errors, no other responses)
     expect(browser.sent.length).toBe(1);
@@ -98,7 +120,10 @@ describe("watch-session", () => {
     hub.addBrowser(browser as any);
     browser.sent.length = 0;
 
-    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: 42 }));
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: 42 }),
+    );
 
     expect(browser.sent.length).toBe(0);
   });
@@ -110,7 +135,10 @@ describe("watch-session", () => {
     bridge.sent.length = 0;
 
     // No error should be thrown; bridge just ignores non-bridge messages
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
 
     expect(bridge.sent.length).toBe(0);
   });
@@ -123,11 +151,14 @@ describe("bridge routing — transcript-entry", () => {
     const hub = makeHub();
     const { bridge, browser } = await setupWatching(hub, "s1");
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "transcript-entry",
-      role: "assistant",
-      text: "Hello!",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "transcript-entry",
+        role: "assistant",
+        text: "Hello!",
+      }),
+    );
 
     expect(browser.sent.length).toBe(1);
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
@@ -144,14 +175,20 @@ describe("bridge routing — transcript-entry", () => {
     // Second browser watching s2
     const browser2 = browserWs();
     hub.addBrowser(browser2 as any);
-    await hub.handleMessage(browser2 as any, JSON.stringify({ type: "watch-session", sessionId: "s2" }));
+    await hub.handleMessage(
+      browser2 as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s2" }),
+    );
     browser2.sent.length = 0;
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "transcript-entry",
-      role: "user",
-      text: "Hi",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "transcript-entry",
+        role: "user",
+        text: "Hi",
+      }),
+    );
 
     expect(browser2.sent.length).toBe(0);
   });
@@ -162,10 +199,13 @@ describe("bridge routing — response", () => {
     const hub = makeHub();
     const { bridge, browser } = await setupWatching(hub, "s1");
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "response",
-      content: "Here is the answer.",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "response",
+        content: "Here is the answer.",
+      }),
+    );
 
     expect(browser.sent.length).toBe(1);
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
@@ -180,7 +220,10 @@ describe("bridge routing — response", () => {
 
     const browser2 = browserWs();
     hub.addBrowser(browser2 as any);
-    await hub.handleMessage(browser2 as any, JSON.stringify({ type: "watch-session", sessionId: "s2" }));
+    await hub.handleMessage(
+      browser2 as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s2" }),
+    );
     browser2.sent.length = 0;
 
     await hub.handleMessage(bridge as any, JSON.stringify({ type: "response", content: "Answer" }));
@@ -194,10 +237,13 @@ describe("bridge routing — canvas-push", () => {
     const hub = makeHub();
     const { bridge, browser } = await setupWatching(hub, "s1");
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "canvas-push",
-      image: "base64data==",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "canvas-push",
+        image: "base64data==",
+      }),
+    );
 
     expect(browser.sent.length).toBe(1);
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
@@ -212,7 +258,10 @@ describe("bridge routing — canvas-push", () => {
 
     const browser2 = browserWs();
     hub.addBrowser(browser2 as any);
-    await hub.handleMessage(browser2 as any, JSON.stringify({ type: "watch-session", sessionId: "s2" }));
+    await hub.handleMessage(
+      browser2 as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s2" }),
+    );
     browser2.sent.length = 0;
 
     await hub.handleMessage(bridge as any, JSON.stringify({ type: "canvas-push", image: "data" }));
@@ -226,10 +275,13 @@ describe("bridge routing — transcript-status", () => {
     const hub = makeHub();
     const { bridge, browser } = await setupWatching(hub, "s1");
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "transcript-status",
-      status: "running",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "transcript-status",
+        status: "running",
+      }),
+    );
 
     expect(browser.sent.length).toBe(1);
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
@@ -244,10 +296,16 @@ describe("bridge routing — transcript-status", () => {
 
     const browser2 = browserWs();
     hub.addBrowser(browser2 as any);
-    await hub.handleMessage(browser2 as any, JSON.stringify({ type: "watch-session", sessionId: "s2" }));
+    await hub.handleMessage(
+      browser2 as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s2" }),
+    );
     browser2.sent.length = 0;
 
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "transcript-status", status: "idle" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "transcript-status", status: "idle" }),
+    );
 
     expect(browser2.sent.length).toBe(0);
   });
@@ -260,18 +318,30 @@ describe("bridge routing — multi-browser fan-out", () => {
     const hub = makeHub();
     const bridge = bridgeWs();
     hub.addBridge(bridge as any);
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
 
     const browser1 = browserWs();
     const browser2 = browserWs();
     hub.addBrowser(browser1 as any);
     hub.addBrowser(browser2 as any);
-    await hub.handleMessage(browser1 as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
-    await hub.handleMessage(browser2 as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(
+      browser1 as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
+    await hub.handleMessage(
+      browser2 as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
     browser1.sent.length = 0;
     browser2.sent.length = 0;
 
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "transcript-entry", role: "user", text: "hi" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "transcript-entry", role: "user", text: "hi" }),
+    );
 
     expect(browser1.sent.length).toBe(1);
     expect(browser2.sent.length).toBe(1);
@@ -281,13 +351,19 @@ describe("bridge routing — multi-browser fan-out", () => {
     const hub = makeHub();
     const bridge = bridgeWs();
     hub.addBridge(bridge as any);
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
 
     const watching = browserWs();
     const notWatching = browserWs();
     hub.addBrowser(watching as any);
     hub.addBrowser(notWatching as any);
-    await hub.handleMessage(watching as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(
+      watching as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
     // notWatching never sends watch-session
     watching.sent.length = 0;
     notWatching.sent.length = 0;
@@ -306,10 +382,13 @@ describe("bridge routing — sessionId injection", () => {
     const hub = makeHub();
     const { bridge, browser } = await setupWatching(hub, "my-session");
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "transcript-entry",
-      text: "hello",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "transcript-entry",
+        text: "hello",
+      }),
+    );
 
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.sessionId).toBe("my-session");
@@ -319,11 +398,14 @@ describe("bridge routing — sessionId injection", () => {
     const hub = makeHub();
     const { bridge, browser } = await setupWatching(hub, "real-session");
 
-    await hub.handleMessage(bridge as any, JSON.stringify({
-      type: "transcript-entry",
-      text: "hello",
-      sessionId: "spoofed-session",
-    }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({
+        type: "transcript-entry",
+        text: "hello",
+        sessionId: "spoofed-session",
+      }),
+    );
 
     const msg = JSON.parse(browser.sent[0]!) as Record<string, unknown>;
     expect(msg.sessionId).toBe("real-session");
@@ -341,10 +423,16 @@ describe("bridge routing — unregistered bridge", () => {
 
     const browser = browserWs();
     hub.addBrowser(browser as any);
-    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
     browser.sent.length = 0;
 
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "transcript-entry", text: "hi" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "transcript-entry", text: "hi" }),
+    );
 
     expect(browser.sent.length).toBe(0);
   });
@@ -370,16 +458,25 @@ describe("removeBrowser", () => {
     const hub = makeHub();
     const bridge = bridgeWs();
     hub.addBridge(bridge as any);
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "register", sessionId: "s1", label: "app" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
 
     const browser = browserWs();
     hub.addBrowser(browser as any);
-    await hub.handleMessage(browser as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
     hub.removeBrowser(browser as any);
     browser.sent.length = 0;
 
     // After removal, routing bridge messages should not try to send to removed browser
-    await hub.handleMessage(bridge as any, JSON.stringify({ type: "transcript-entry", text: "hi" }));
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "transcript-entry", text: "hi" }),
+    );
 
     expect(browser.sent.length).toBe(0);
   });
