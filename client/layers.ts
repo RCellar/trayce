@@ -156,7 +156,9 @@ export class LayerManager {
   /** Replace all layers with the given array. Used when switching session canvases. */
   replaceAll(layers: Layer[]): void {
     this.layers = layers;
-    this.activeLayerIndex = 0;
+    // Default to the first deletable (non-background) layer, matching initCanvas behavior
+    const firstDeletable = layers.findIndex((l) => l.deletable);
+    this.activeLayerIndex = firstDeletable >= 0 ? firstDeletable : 0;
     // Bump revision on every layer so the compositor rebuilds all textures
     for (const layer of this.layers) {
       layer.revision++;
