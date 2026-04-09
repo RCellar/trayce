@@ -7,3 +7,5 @@ docs-vault/
 /tmp/trayce/
 *.log
 .mcp.json
+docs/superpowers/
+backups/
