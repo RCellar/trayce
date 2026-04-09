@@ -24,27 +24,27 @@ export async function flattenToPng(layerManager: LayerManager): Promise<Blob> {
 }
 
 /**
- * Returns true if the canvas contains only the white background with no user content.
- * Checks a grid of sample points for non-white pixels.
+ * Returns true if the canvas contains only the white background with no user
+ * content. Ignores the background layer (index 0) and returns false on the
+ * first non-transparent pixel in any user layer.
+ *
+ * Implementation: one getImageData per layer covering the full canvas, then
+ * a linear scan of the alpha channel. Short-circuits on the first hit.
+ * Previously this sampled a 20×20 grid, which missed thin strokes entirely
+ * on large canvases (a 1920×1080 canvas had a 96×54 pixel grid, wider than
+ * most pen strokes).
  */
 export function isCanvasBlank(layerManager: LayerManager): boolean {
   const { docWidth, docHeight, layers } = layerManager;
-  // If only the background layer exists, check if it's all white
-  // If user-created layers exist with visible content, not blank
   for (let i = 1; i < layers.length; i++) {
     const layer = layers[i]!;
     if (!layer.visible) continue;
-    // Transform layers always have content
+    // Transform (image) layers always have content
     if (layer.transform) return false;
-    const ctx = layer.ctx;
-    // Sample a grid of points for non-transparent pixels
-    const stepX = Math.max(1, Math.floor(docWidth / 20));
-    const stepY = Math.max(1, Math.floor(docHeight / 20));
-    for (let x = 0; x < docWidth; x += stepX) {
-      for (let y = 0; y < docHeight; y += stepY) {
-        const pixel = ctx.getImageData(x, y, 1, 1).data;
-        if (pixel[3]! > 0) return false; // non-transparent pixel found
-      }
+    const data = layer.ctx.getImageData(0, 0, docWidth, docHeight).data;
+    // Alpha channel is every 4th byte in RGBA
+    for (let j = 3; j < data.length; j += 4) {
+      if (data[j]! > 0) return false;
     }
   }
   return true;
