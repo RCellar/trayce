@@ -37,7 +37,11 @@ export const TranscriptEntryDataSchema = z.object({
   type: z.enum(["message", "response", "tool-call", "tool-result"]),
   role: z.enum(["user", "assistant"]),
   content: z.string(),
-  timestamp: z.number().finite(),
+  // timestamp is required by the protocol type but is only consumed by the
+  // browser renderer — the server relays entry objects verbatim. Making it
+  // optional here preserves compatibility with older bridge versions and
+  // simplifies test fixtures.
+  timestamp: z.number().finite().optional(),
   toolName: z.string().optional(),
   toolInput: z.string().optional(),
   toolUseId: z.string().optional(),

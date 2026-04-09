@@ -7,6 +7,7 @@ import type {
   RegisterMessage,
   SubmitMessage,
 } from "../shared/protocol";
+import { BridgeToServerSchema, BrowserToServerSchema } from "../shared/protocol-schema";
 import type { Config } from "./config";
 import type { SessionRegistry } from "./sessions";
 import type { SubmissionStore } from "./submissions";
@@ -76,16 +77,44 @@ export class WebSocketHub {
     private readonly now: () => number = Date.now,
   ) {}
 
-  static parseMessage(raw: string | Buffer): WsMessage | null {
+  static parseBrowserMessage(raw: string | Buffer): BrowserToServerMessage | null {
+    return WebSocketHub.parseWithSchema<BrowserToServerMessage>(
+      raw,
+      BrowserToServerSchema,
+      "browser",
+    );
+  }
+
+  static parseBridgeMessage(raw: string | Buffer): BridgeToServerMessage | null {
+    return WebSocketHub.parseWithSchema<BridgeToServerMessage>(raw, BridgeToServerSchema, "bridge");
+  }
+
+  private static parseWithSchema<T>(
+    raw: string | Buffer,
+    schema: {
+      safeParse: (
+        data: unknown,
+      ) => { success: true; data: T } | { success: false; error: { issues: unknown } };
+    },
+    kind: "browser" | "bridge",
+  ): T | null {
+    let data: unknown;
     try {
       const text = typeof raw === "string" ? raw : raw.toString("utf8");
-      const data = JSON.parse(text);
-      if (data === null || typeof data !== "object" || Array.isArray(data)) return null;
-      if (typeof data.type !== "string" || data.type.length === 0) return null;
-      return data as WsMessage;
+      data = JSON.parse(text);
     } catch {
+      // Malformed JSON — silently drop. Untrusted input.
       return null;
     }
+    const result = schema.safeParse(data);
+    if (!result.success) {
+      // Runtime-silent, compile-loud: log the validation failure so a dev
+      // tailing server.log can see it, but don't throw — crashing on bad
+      // input from untrusted clients is the wrong runtime behavior.
+      console.warn(`[trayce] invalid ${kind} payload:`, result.error.issues);
+      return null;
+    }
+    return result.data;
   }
 
   // -- Connection lifecycle --
@@ -134,20 +163,28 @@ export class WebSocketHub {
   // -- Message routing --
 
   async handleMessage(ws: Ws, raw: string | Buffer): Promise<void> {
-    const msg = WebSocketHub.parseMessage(raw);
-    if (!msg) return;
-
-    // Heartbeat is universal (any direction, any connection kind)
-    if (msg.type === "heartbeat") {
-      ws.data.lastHeartbeat = this.now();
-      safeSend(ws, JSON.stringify({ type: "heartbeat" }));
-      return;
-    }
-
     if (ws.data.kind === "browser") {
-      await this.handleBrowserMessage(ws, msg as BrowserToServerMessage);
+      const msg = WebSocketHub.parseBrowserMessage(raw);
+      if (!msg) return;
+
+      if (msg.type === "heartbeat") {
+        ws.data.lastHeartbeat = this.now();
+        safeSend(ws, JSON.stringify({ type: "heartbeat" }));
+        return;
+      }
+
+      await this.handleBrowserMessage(ws, msg);
     } else {
-      this.handleBridgeMessage(ws, msg as BridgeToServerMessage);
+      const msg = WebSocketHub.parseBridgeMessage(raw);
+      if (!msg) return;
+
+      if (msg.type === "heartbeat") {
+        ws.data.lastHeartbeat = this.now();
+        safeSend(ws, JSON.stringify({ type: "heartbeat" }));
+        return;
+      }
+
+      this.handleBridgeMessage(ws, msg);
     }
   }
 
