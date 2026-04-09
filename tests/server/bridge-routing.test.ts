@@ -52,7 +52,7 @@ function makeHub(configOverrides: Partial<Config> = {}): WebSocketHub {
   const registry = new SessionRegistry();
   const store = new SubmissionStore(TEST_DIR, 20 * 1024 * 1024);
   const config = { ...BASE_CONFIG, ...configOverrides };
-  return new WebSocketHub(registry, store, config);
+  return new WebSocketHub(registry, store, config, () => {});
 }
 
 beforeEach(() => {

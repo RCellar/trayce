@@ -28,6 +28,11 @@ export interface WsData {
 
 type Ws = ServerWebSocket<WsData>;
 
+/** Callback invoked when a browser sends a shutdown-request. `server/index.ts`
+ * implements the real behavior (process exit + optional spawn of a detached
+ * replacement); tests pass a no-op spy. */
+export type ShutdownFn = (opts: { restart: boolean; containerMode: boolean }) => void;
+
 function safeSend(ws: Ws, payload: string): void {
   try {
     ws.send(payload);
@@ -56,8 +61,13 @@ export class WebSocketHub {
     private readonly registry: SessionRegistry,
     private readonly submissions: SubmissionStore,
     private readonly config: Config,
+    private readonly shutdownFn: ShutdownFn,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    // Touch shutdownFn so TS/Biome don't flag it as unused before Task 3
+    // wires the real call site. Compiles to a no-op.
+    void this.shutdownFn;
+  }
 
   static parseMessage(raw: string | Buffer): WsMessage | null {
     try {

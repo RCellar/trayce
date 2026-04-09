@@ -12,7 +12,10 @@ const token = config.noAuth ? "" : (config.token ?? generateToken());
 
 const registry = new SessionRegistry();
 const submissions = new SubmissionStore(config.submissionsDir, config.maxSubmissionBytes);
-const hub = new WebSocketHub(registry, submissions, config);
+// Placeholder — Task 7 replaces this with initiateShutdown
+const hub = new WebSocketHub(registry, submissions, config, () => {
+  process.exit(0);
+});
 const httpHandler = createHttpHandler(config.clientDir);
 
 const server = Bun.serve<WsData>({
