@@ -277,7 +277,7 @@ async function initCanvas(width: number, height: number, background: "white" | "
       layersUI?.render();
     },
     onAddLayer: () => {
-      layerManager!.addLayer("Layer " + (layerManager!.layers.length));
+      layerManager!.addLayer(`Layer ${layerManager!.layers.length}`);
       compositor?.markDirty();
       layersUI?.render();
       updateLayerInfo();
@@ -296,7 +296,7 @@ async function initCanvas(width: number, height: number, background: "white" | "
         layersUI?.render();
         updateLayerInfo();
         updateTransformOverlay();
-      } catch (e) {
+      } catch (_e) {
         showToast("Cannot delete this layer");
       }
     },
@@ -537,7 +537,7 @@ function initConnection(): void {
   }
   const storedToken = token || localStorage.getItem("trayce-token") || "";
 
-  const wsUrl = buildWsUrl(window.location.hostname, parseInt(window.location.port) || 9740, storedToken);
+  const wsUrl = buildWsUrl(window.location.hostname, parseInt(window.location.port, 10) || 9740, storedToken);
 
   connection = new Connection(wsUrl, handleConnectionStatus, handleServerMessage);
   connection.connect();

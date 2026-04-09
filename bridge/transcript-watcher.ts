@@ -268,7 +268,7 @@ export class TranscriptWatcher {
     // Only process user/assistant message entries
     if (!raw || (raw.type !== "user" && raw.type !== "assistant")) return;
     const msg = raw.message;
-    if (!msg || !msg.role) return;
+    if (!msg?.role) return;
 
     // Content can be a plain string (user text) or array of blocks
     const blocks: ContentBlock[] =

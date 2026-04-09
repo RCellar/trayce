@@ -53,7 +53,7 @@ export function createHttpHandler(
       const relative = decodedPathname.replace(/^\/+/, "");
       const filePath = resolve(join(resolvedClientDir, relative));
 
-      if (!filePath.startsWith(resolvedClientDir + "/") && filePath !== resolvedClientDir) {
+      if (!filePath.startsWith(`${resolvedClientDir}/`) && filePath !== resolvedClientDir) {
         return secureResponse("Forbidden", 403);
       }
 

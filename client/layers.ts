@@ -62,7 +62,7 @@ export class LayerManager {
 
   deleteLayer(index: number): void {
     const layer = this.layers[index];
-    if (!layer || !layer.deletable) {
+    if (!layer?.deletable) {
       throw new Error("Cannot delete this layer");
     }
     this.layers.splice(index, 1);

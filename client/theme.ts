@@ -196,7 +196,7 @@ export class ThemeManager {
     themeRow.className = "theme-swatches";
     for (const preset of THEME_PRESETS) {
       const swatch = document.createElement("div");
-      swatch.className = "theme-swatch" + (preset.name === this.currentPreset ? " active" : "");
+      swatch.className = `theme-swatch${preset.name === this.currentPreset ? " active" : ""}`;
       swatch.style.background = preset.vars["--bg"] ?? "";
       swatch.title = preset.name;
       swatch.addEventListener("click", () => {
@@ -213,7 +213,7 @@ export class ThemeManager {
     accentRow.className = "theme-swatches";
     for (const ac of ACCENT_COLORS) {
       const swatch = document.createElement("div");
-      swatch.className = "accent-swatch" + (ac.name === this.currentAccent ? " active" : "");
+      swatch.className = `accent-swatch${ac.name === this.currentAccent ? " active" : ""}`;
       swatch.style.background = ac.accent;
       swatch.title = ac.name;
       swatch.addEventListener("click", () => {
@@ -242,8 +242,8 @@ export class ThemeManager {
     this.popover.appendChild(fontSelect);
 
     const rect = anchor.getBoundingClientRect();
-    this.popover.style.top = rect.bottom + 4 + "px";
-    this.popover.style.right = (window.innerWidth - rect.right) + "px";
+    this.popover.style.top = `${rect.bottom + 4}px`;
+    this.popover.style.right = `${window.innerWidth - rect.right}px`;
 
     document.body.appendChild(this.popover);
 

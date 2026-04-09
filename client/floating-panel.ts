@@ -107,7 +107,9 @@ export class FloatingPanel {
   private updateTabs(): void {
     if (!this.el) return;
     const tabs = this.el.querySelectorAll<HTMLButtonElement>(".fp-tab");
-    tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === this.activeTab));
+    for (const t of tabs) {
+      t.classList.toggle("active", t.dataset.tab === this.activeTab);
+    }
 
     for (const [id, content] of this.tabContents) {
       content.style.display = id === this.activeTab ? "" : "none";
@@ -126,8 +128,8 @@ export class FloatingPanel {
     this.x = Math.max(0, Math.min(this.x, rect.width - 280));
     this.y = Math.max(0, Math.min(this.y, rect.height - 100));
 
-    this.el.style.left = this.x + "px";
-    this.el.style.top = this.y + "px";
+    this.el.style.left = `${this.x}px`;
+    this.el.style.top = `${this.y}px`;
   }
 
   private setupDrag(handle: HTMLElement): void {
@@ -149,8 +151,8 @@ export class FloatingPanel {
       }
 
       if (this.el) {
-        this.el.style.left = this.x + "px";
-        this.el.style.top = this.y + "px";
+        this.el.style.left = `${this.x}px`;
+        this.el.style.top = `${this.y}px`;
       }
     };
 
