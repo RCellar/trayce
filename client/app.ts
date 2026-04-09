@@ -27,6 +27,7 @@ import { showToast } from "./toast";
 import { type ActionId, Toolbar, type ToolId } from "./toolbar";
 import { ImageTool } from "./tools/image";
 import { TranscriptTab } from "./transcript-tab";
+import { PermissionPromptManager } from "./permission-prompts";
 import { TransformHandler } from "./transform";
 import { UsageTab } from "./usage-tab";
 
@@ -58,6 +59,7 @@ let brushParams: BrushParams = {
 
 let imageTool: ImageTool | null = null;
 let transformHandler: TransformHandler | null = null;
+let permissionPrompts: PermissionPromptManager | null = null;
 
 let sessions: Array<{ id: string; label: string; status: string }> = [];
 let selectedSessionId = "";
@@ -428,6 +430,10 @@ function initConnection(): void {
   );
 
   connection = new Connection(wsUrl, handleConnectionStatus, handleServerMessage);
+  permissionPrompts = new PermissionPromptManager({
+    connection: () => connection,
+    container: document.getElementById("toast-container")!,
+  });
   connection.connect();
 }
 
@@ -445,41 +451,6 @@ function handleConnectionStatus(status: "connected" | "disconnected" | "reconnec
 
   submitBtn.disabled = status !== "connected" || !selectedSessionId;
   powerBtn.disabled = status !== "connected";
-}
-
-// Track pending permission prompts for stale detection
-const pendingPermissions = new Map<
-  string,
-  { el: HTMLElement; timer: ReturnType<typeof setTimeout> }
->();
-
-function dismissPermissionPrompt(requestId: string, reason: string): void {
-  const pending = pendingPermissions.get(requestId);
-  if (!pending) return;
-  clearTimeout(pending.timer);
-  pendingPermissions.delete(requestId);
-
-  const el = pending.el;
-  // Replace actions with stale message
-  const actions = el.querySelector(".perm-actions");
-  if (actions) {
-    actions.textContent = "";
-    const msg = document.createElement("span");
-    msg.className = "perm-stale";
-    msg.textContent = reason;
-    actions.appendChild(msg);
-  }
-  // Fade out after a moment
-  setTimeout(() => {
-    el.classList.remove("show");
-    setTimeout(() => el.remove(), 300);
-  }, 1500);
-}
-
-function dismissAllPermissions(reason: string): void {
-  for (const id of [...pendingPermissions.keys()]) {
-    dismissPermissionPrompt(id, reason);
-  }
 }
 
 function handleServerMessage(msg: ServerMessage): void {
@@ -505,13 +476,13 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "response") {
     responseTab?.addResponse(msg.content as string, msg.timestamp as number | undefined);
     // A response means Claude moved on — any pending prompts are stale
-    dismissAllPermissions("Resolved elsewhere");
+    permissionPrompts?.dismissAll("Resolved elsewhere");
   } else if (msg.type === "transcript-entry") {
     transcriptTab?.addEntry(msg.entry as any);
     // Tool execution or new assistant text means permission was already handled
     const entry = msg.entry as any;
     if (entry?.type === "tool-call" || entry?.type === "response") {
-      dismissAllPermissions("Resolved elsewhere");
+      permissionPrompts?.dismissAll("Resolved elsewhere");
     }
   } else if (msg.type === "canvas-push") {
     handleCanvasPush(msg);
@@ -525,79 +496,13 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "usage-update") {
     usageTab?.addUpdate(msg.usage as any);
   } else if (msg.type === "permission-request") {
-    showPermissionPrompt(msg);
+    permissionPrompts?.show({
+      requestId: msg.requestId as string,
+      toolName: msg.toolName as string,
+      description: msg.description as string,
+      inputPreview: msg.inputPreview as string,
+    });
   }
-}
-
-function showPermissionPrompt(msg: ServerMessage): void {
-  const requestId = msg.requestId as string;
-  const toolName = msg.toolName as string;
-  const description = msg.description as string;
-  const inputPreview = msg.inputPreview as string;
-
-  const container = document.getElementById("toast-container")!;
-
-  const prompt = document.createElement("div");
-  prompt.className = "permission-prompt";
-
-  const header = document.createElement("div");
-  header.className = "perm-header";
-  header.textContent = "Permission Request";
-
-  const tool = document.createElement("div");
-  tool.className = "perm-tool";
-  tool.textContent = toolName;
-
-  const desc = document.createElement("div");
-  desc.className = "perm-desc";
-  desc.textContent = description;
-
-  const preview = document.createElement("div");
-  preview.className = "perm-preview";
-  preview.textContent = inputPreview;
-
-  const actions = document.createElement("div");
-  actions.className = "perm-actions";
-
-  const resolve = (behavior: "allow" | "deny") => {
-    const pending = pendingPermissions.get(requestId);
-    if (pending) {
-      clearTimeout(pending.timer);
-      pendingPermissions.delete(requestId);
-    }
-    connection?.send({ type: "permission-verdict", requestId, behavior });
-    prompt.classList.remove("show");
-    setTimeout(() => prompt.remove(), 300);
-  };
-
-  const allowBtn = document.createElement("button");
-  allowBtn.className = "perm-allow";
-  allowBtn.textContent = "Allow";
-  allowBtn.addEventListener("click", () => resolve("allow"));
-
-  const denyBtn = document.createElement("button");
-  denyBtn.className = "perm-deny";
-  denyBtn.textContent = "Deny";
-  denyBtn.addEventListener("click", () => resolve("deny"));
-
-  actions.appendChild(allowBtn);
-  actions.appendChild(denyBtn);
-
-  prompt.appendChild(header);
-  prompt.appendChild(tool);
-  prompt.appendChild(desc);
-  prompt.appendChild(preview);
-  prompt.appendChild(actions);
-
-  container.appendChild(prompt);
-  prompt.offsetHeight; // force reflow
-  prompt.classList.add("show");
-
-  // Track with 60-second timeout fallback
-  const timer = setTimeout(() => {
-    dismissPermissionPrompt(requestId, "Timed out");
-  }, 60_000);
-  pendingPermissions.set(requestId, { el: prompt, timer });
 }
 
 function handleCanvasPush(msg: ServerMessage): void {
