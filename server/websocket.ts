@@ -93,6 +93,13 @@ export class WebSocketHub {
   addBrowser(ws: Ws): void {
     this.browsers.set(ws.data.id, ws);
     this.rateBuckets.set(ws.data.id, []);
+    safeSend(
+      ws,
+      JSON.stringify({
+        type: "server-info",
+        containerMode: this.detectContainerMode(),
+      }),
+    );
     this.sendSessions(ws);
   }
 
