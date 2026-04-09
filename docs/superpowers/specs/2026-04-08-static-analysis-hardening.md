@@ -1,7 +1,7 @@
 # Static Analysis Hardening
 
 **Date:** 2026-04-08
-**Status:** Round 1 and Round 2 complete, Round 3 pending
+**Status:** Round 1, Round 2, and Round 3 complete
 **Context:** Evaluation of linting/static analysis strategies for Trayce. The project had `strict: true` in `tsconfig.json` but no additional compiler flags, no linter, no `typecheck` script, and no CI gate for type errors. Server and bridge code compiles via `bun run` which strips types at runtime, so type errors ship unnoticed until a test hits the affected code path.
 
 ## Goal
@@ -160,7 +160,111 @@ OR two PRs:
 
 The single-PR path is cleaner if the god-module refactor happens in the same session. The two-PR path is cleaner if the refactor will take multiple sessions.
 
-## Round 3 — Biome + discriminated union for WebSocket protocol (PENDING)
+## Round 3 — Biome + discriminated union for WebSocket protocol (COMPLETE)
+
+Landed across three commits following Round 2.
+
+### Biome (step 1, commits 2120052 + d6ab825)
+
+Installed `@biomejs/biome` as a dev dependency. `biome.json` configured to match the existing project style (2-space indent, double quotes, 100-col line width). Rule overrides on top of `recommended`:
+
+| Rule | Setting | Why |
+|---|---|---|
+| `suspicious/noExplicitAny` | off | Heavily used in tests with `as any` for mock WS types; 277 warnings otherwise, all noise. |
+| `suspicious/noControlCharactersInRegex` | off | `client/markdown.ts` uses `\x00` as an intentional placeholder delimiter in its inline-code pass. |
+| `style/noNonNullAssertion` | off | Round 2 deliberately added `!` assertions as the correct fix for test invariants. 167 hits otherwise, all noise. |
+| `style/noDescendingSpecificity` | off | CSS noise; not worth the churn. |
+| `assist/source/organizeImports` | on | Applied in the lint pass. |
+
+`docs-vault/` is excluded from Biome's reach (it's gitignored anyway).
+
+Auto-fixes applied across 10 files via `biome lint --write --unsafe`:
+- `useTemplate` — string concatenation → template literals in `theme.ts`, `pricing.ts`, `usage-tab.ts`, and tests
+- `useOptionalChain` — `!x || !x.foo` → `!x?.foo` in `tools/image.ts`, `layers.ts`, `transcript-watcher.ts`
+- `useParseIntRadix` — missing radix in `server/http.ts`
+- `noUnusedVariables` — one variable missed by `tsc`'s `noUnusedLocals`
+- `useIterableCallbackReturn` — in `bridge/transcript-watcher.ts`
+
+Manual fixes for the remaining 7 errors:
+- **`client/index.html`: dead `<dialog id="new-doc-dialog">` block removed.** Biome flagged 4 buttons for missing `type="button"`. Investigation showed the entire dialog was orphaned: Round 1's dead-code sweep had deleted the JS reference, and a resolution `<select>` in the top bar superseded it. Biome caught what human review had missed.
+- `client/index.html`: `<button id="submit-btn">` got explicit `type="button"`.
+- `client/index.html`: inline theme-restore script's `forEach` → `for-of`.
+- `client/floating-panel.ts`: `updateTabs()` `forEach` → `for-of` (the `classList.toggle` return value was being silently discarded).
+
+Format pass (`biome format --write`) landed as a separate commit covering 52 files, purely mechanical, so the diff stays reviewable.
+
+Scripts added to `package.json`:
+- `bun run lint` → `biome lint`
+- `bun run format` → `biome format --write`
+- `bun run check` → `biome check` (lint + format + assist combined)
+
+### WebSocket protocol discriminated union (step 2)
+
+Created `shared/protocol.ts` — a new top-level directory alongside `server/`, `bridge/`, `client/` containing type-only definitions that all three processes consume via `import type`. Because `import type` is erased at build time, no runtime code actually crosses bundle roots; each process's bundle still stands alone. `tsconfig.json` updated to include `shared/**/*.ts`.
+
+The protocol defines four message-direction unions:
+- `BrowserToServerMessage` — `heartbeat | submit | watch-session | permission-verdict`
+- `BridgeToServerMessage` — `heartbeat | register | transcript-entry | response | canvas-push | transcript-status | usage-update | permission-request`
+- `ServerToBrowserMessage` — the server-originated set plus `SessionScoped<BridgeRoutedMessage>` for bridge messages forwarded to browsers with a `sessionId` tag
+- `ServerToBridgeMessage` — `heartbeat | submission | permission-verdict`
+
+Plus supporting entity types (`Session`, `Usage`, `UsageSnapshotData`, `TranscriptEntryData`, `PermissionBehavior`).
+
+`server/websocket.ts` is the main consumer. `handleMessage` was refactored from a cascade of `if (kind === "X" && type === "Y")` branches into a top-level dispatch:
+
+```ts
+async handleMessage(ws, raw) {
+  const msg = parseMessage(raw);
+  if (!msg) return;
+  if (msg.type === "heartbeat") { ...; return; }
+
+  if (ws.data.kind === "browser") {
+    await this.handleBrowserMessage(ws, msg as BrowserToServerMessage);
+  } else {
+    this.handleBridgeMessage(ws, msg as BridgeToServerMessage);
+  }
+}
+```
+
+Each of `handleBrowserMessage` and `handleBridgeMessage` is a `switch (msg.type)` over its union, with every variant as an explicit case. The default branch uses the exhaustiveness pattern:
+
+```ts
+default: {
+  // Compile-time exhaustiveness: a new variant added to the union
+  // without a case here becomes a type error (msg narrows to never).
+  // Runtime: silently drop — messages come from untrusted clients.
+  const _exhaustive: never = msg;
+  void _exhaustive;
+}
+```
+
+**Verified the exhaustiveness check actually fires** by temporarily adding a `FoobarMessage` variant to `BrowserToServerMessage` — `tsc` immediately refused to build with `error TS2322: Type 'FoobarMessage' is not assignable to type 'never'` pointing at the browser switch's default case. Reverted.
+
+### Important design choice: runtime-silent, compile-loud
+
+The original implementation used `assertNever(msg)` in the default branch, which throws. That broke 5 existing tests that deliberately send cross-kind messages (browser sending `register`, bridge sending `submit`, unknown types) to verify graceful drop behavior. The fix was to keep the compile-time guarantee (`const _exhaustive: never = msg`) but replace the throw with `void _exhaustive`. Messages come from untrusted clients; crashing the server hub on a malformed payload is the wrong runtime behavior. The compile-time guarantee is still preserved because TypeScript still enforces the `never` assignment.
+
+**Lesson:** the exhaustiveness pattern has two layers — compile and runtime — and you can decouple them. The common idiom of using an `assertNever(x): never { throw ... }` helper conflates them. For untrusted inputs, keep the compile layer and skip the runtime throw.
+
+### Scope choice: server-only refactor
+
+The spec had suggested refactoring all three modules to use the shared types. In practice, the exhaustiveness check only pays off where a central dispatcher exists, and that's `server/websocket.ts`. The bridge has no such dispatcher — its message handling is linear. The client's `Connection.handleMessage` is small and its message handling is scattered across `app.ts` callbacks; retrofitting it would have been high-churn, low-value work.
+
+**The bridge and client can adopt `shared/protocol.ts` incrementally via `import type` when a future feature benefits from the typing.** Nothing in this refactor blocks that; the types are stable and stand alone.
+
+### Verification
+
+- `bunx tsc --noEmit` — clean
+- `bunx biome check` — clean (lint + format + assist)
+- `bun test` — 388 pass, 0 fail
+- `bun run build:client` — clean
+
+### What was skipped
+
+- **Zod / runtime validation.** The types describe intent, not guarantee. Runtime validation (checking `typeof msg.sessionId === "string"` etc.) remains the existing ad-hoc pattern inside each handler. Worth revisiting only if input-validation bugs become a pattern.
+- **Pre-commit hook / CI gate.** Out of scope for Round 3; reserved for Round 4 if someone wants it.
+
+### Original Round 3 plan (for reference)
 
 ### Install Biome
 

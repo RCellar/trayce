@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { getConfig } from "../../server/config";
 import { generateToken } from "../../server/auth";
+import { getConfig } from "../../server/config";
 
 describe("token resolution priority", () => {
   test("noAuth=true means no token regardless of TRAYCE_TOKEN", () => {

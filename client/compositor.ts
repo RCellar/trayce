@@ -1,13 +1,13 @@
 import {
-  Sprite,
-  Texture,
+  type Application,
+  type BLEND_MODES,
   Container,
   Graphics,
   ImageSource,
-  type Application,
-  type BLEND_MODES,
+  Sprite,
+  Texture,
 } from "pixi.js";
-import type { LayerManager, BlendMode, LayerTransform } from "./layers";
+import type { BlendMode, LayerManager, LayerTransform } from "./layers";
 
 const BLEND_MAP: Record<BlendMode, BLEND_MODES> = {
   normal: "normal",

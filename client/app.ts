@@ -2,32 +2,32 @@
 // without unsafe-eval (replaces new Function() with CSP-safe alternatives)
 import "pixi.js/unsafe-eval";
 
-import { CanvasManager } from "./canvas";
-import { LayerManager } from "./layers";
-import { Compositor } from "./compositor";
-import { InputHandler, type InputState } from "./input";
+import { BrushSettingsUI } from "./brush-settings-ui";
+import { EraserBrush } from "./brushes/eraser";
+import { HighlighterBrush } from "./brushes/highlighter";
+import { MarkerBrush } from "./brushes/marker";
 import { PenBrush } from "./brushes/pen";
 import { PencilBrush } from "./brushes/pencil";
-import { MarkerBrush } from "./brushes/marker";
-import { WatercolorBrush } from "./brushes/watercolor";
-import { HighlighterBrush } from "./brushes/highlighter";
-import { EraserBrush } from "./brushes/eraser";
 import type { Brush, BrushParams } from "./brushes/types";
-import { Connection, buildWsUrl, type ServerMessage } from "./connection";
-import { flattenToPng, blobToBase64, isCanvasBlank } from "./export";
-import { showToast } from "./toast";
-import { Toolbar, type ToolId, type ActionId } from "./toolbar";
-import { BrushSettingsUI } from "./brush-settings-ui";
-import { LayersUI } from "./layers-ui";
+import { WatercolorBrush } from "./brushes/watercolor";
+import { CanvasManager } from "./canvas";
 import { ColorPicker } from "./color-picker";
-import { SidePanel } from "./side-panel";
+import { Compositor } from "./compositor";
+import { buildWsUrl, Connection, type ServerMessage } from "./connection";
+import { blobToBase64, flattenToPng, isCanvasBlank } from "./export";
+import { FloatingPanel } from "./floating-panel";
+import { History } from "./history";
+import { InputHandler, type InputState } from "./input";
+import { LayerManager } from "./layers";
+import { LayersUI } from "./layers-ui";
 import { ResponseTab } from "./response-tab";
+import { SidePanel } from "./side-panel";
+import { ThemeManager } from "./theme";
+import { showToast } from "./toast";
+import { type ActionId, Toolbar, type ToolId } from "./toolbar";
+import { ImageTool } from "./tools/image";
 import { TranscriptTab } from "./transcript-tab";
 import { UsageTab } from "./usage-tab";
-import { ThemeManager } from "./theme";
-import { FloatingPanel } from "./floating-panel";
-import { ImageTool } from "./tools/image";
-import { History } from "./history";
 
 // -- State --
 

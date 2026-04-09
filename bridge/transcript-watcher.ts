@@ -1,6 +1,6 @@
-import { existsSync, openSync, readSync, closeSync, readdirSync, statSync, watch } from "node:fs";
-import { dirname, join } from "node:path";
+import { closeSync, existsSync, openSync, readdirSync, readSync, statSync, watch } from "node:fs";
 import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 
 export interface TranscriptEntry {
   type: "message" | "response" | "tool-call" | "tool-result";

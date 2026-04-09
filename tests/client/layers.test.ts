@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LayerManager, type BlendMode } from "../../client/layers";
+import { type BlendMode, LayerManager } from "../../client/layers";
 
 // Mock OffscreenCanvas for Bun test environment
 globalThis.OffscreenCanvas = class MockOffscreenCanvas {

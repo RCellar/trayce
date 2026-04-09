@@ -18,6 +18,12 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["bun-types"]
   },
-  "include": ["server/**/*.ts", "bridge/**/*.ts", "client/**/*.ts", "tests/**/*.ts"],
+  "include": [
+    "shared/**/*.ts",
+    "server/**/*.ts",
+    "bridge/**/*.ts",
+    "client/**/*.ts",
+    "tests/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist"]
 }

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from "bun:test";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 
 // Extract the pure functions we'll add to theme.ts
-import { buildFaviconSvg, applyFavicon } from "../../client/theme";
+import { applyFavicon, buildFaviconSvg } from "../../client/theme";
 
 // Minimal DOM mocks for Bun's non-browser test environment
 beforeAll(() => {

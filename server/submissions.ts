@@ -1,6 +1,6 @@
-import { mkdir, writeFile, readdir, stat, unlink } from "node:fs/promises";
-import { join } from "node:path";
 import { rmSync } from "node:fs";
+import { mkdir, readdir, stat, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export interface Submission {
   id: string;

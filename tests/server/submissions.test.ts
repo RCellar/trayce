@@ -1,6 +1,6 @@
-import { describe, expect, it, beforeEach, afterEach } from "bun:test";
-import { SubmissionStore } from "../../server/submissions";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, rmSync, utimesSync } from "node:fs";
+import { SubmissionStore } from "../../server/submissions";
 
 const TEST_DIR = "/tmp/trayce-test-submissions";
 
