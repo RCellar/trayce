@@ -235,23 +235,40 @@ describe("LayerManager — replaceAll", () => {
     const ctx = canvas.getContext("2d")!;
     const newLayers: Layer[] = [
       {
-        id: "bg", name: "Background", canvas, ctx,
-        visible: true, opacity: 100, blendMode: "normal",
-        locked: false, deletable: false, revision: 0,
+        id: "bg",
+        name: "Background",
+        canvas,
+        ctx,
+        visible: true,
+        opacity: 100,
+        blendMode: "normal",
+        locked: false,
+        deletable: false,
+        revision: 0,
       },
       {
-        id: "sketch", name: "Sketch",
+        id: "sketch",
+        name: "Sketch",
         canvas: new OffscreenCanvas(100, 100),
         ctx: new OffscreenCanvas(100, 100).getContext("2d")!,
-        visible: true, opacity: 100, blendMode: "normal",
-        locked: false, deletable: true, revision: 0,
+        visible: true,
+        opacity: 100,
+        blendMode: "normal",
+        locked: false,
+        deletable: true,
+        revision: 0,
       },
       {
-        id: "notes", name: "Notes",
+        id: "notes",
+        name: "Notes",
         canvas: new OffscreenCanvas(100, 100),
         ctx: new OffscreenCanvas(100, 100).getContext("2d")!,
-        visible: true, opacity: 80, blendMode: "multiply",
-        locked: false, deletable: true, revision: 0,
+        visible: true,
+        opacity: 80,
+        blendMode: "multiply",
+        locked: false,
+        deletable: true,
+        revision: 0,
       },
     ];
 
@@ -267,10 +284,16 @@ describe("LayerManager — replaceAll", () => {
     const lm = new LayerManager(100, 100, "white");
     const canvas = new OffscreenCanvas(100, 100);
     const layer: Layer = {
-      id: "test", name: "Test", canvas,
+      id: "test",
+      name: "Test",
+      canvas,
       ctx: canvas.getContext("2d")!,
-      visible: true, opacity: 100, blendMode: "normal",
-      locked: false, deletable: true, revision: 0,
+      visible: true,
+      opacity: 100,
+      blendMode: "normal",
+      locked: false,
+      deletable: true,
+      revision: 0,
     };
     lm.replaceAll([layer]);
     expect(lm.layers[0]!.revision).toBe(1);
