@@ -339,12 +339,141 @@ The three processes don't share a module graph — `server/`, `bridge/`, `client
 
 Recommendation: start with option 2 (`shared/protocol.ts`, type-only imports). Revisit Zod if runtime validation becomes a need.
 
-## Round 4 and beyond (IDEAS, NOT COMMITTED)
+## Round 4 — Runtime validation at the WS boundary (PENDING)
 
-- Pre-commit hook running `typecheck + lint + test` (via `bun run` — no husky/lint-staged needed)
-- GitHub Actions CI gate for the above
-- `bun test --coverage` as a quality signal (uncovered files are often disconnected modules)
+### Motivation
+
+Round 3 gave us compile-time guarantees that every server handler addresses every message variant. But the types describe INTENT, not runtime REALITY — a bridge or browser can still send `{ type: "submit", targetSessionId: 42 }` and the handler will hit its ad-hoc `typeof === "string"` check and return without explanation. Recurring issues in the analysis vault point to validation gaps:
+
+- `server-usage-no-validation` + `server-nan-timestamp-usage-update` — `usage-update` payload cast with `as any`; NaN timestamps slip through the nullish-coalescing guard and poison `firstTimestamp`/`lastTimestamp` aggregation forever
+- `server-wsmessage-permissive` — `WsMessage` is structurally `{ type: string; [key: string]: unknown }`, so every field access inside handlers has to re-validate with inline assertions
+- `server-config-token-whitespace-coerce` — whitespace-only `TRAYCE_TOKEN` silently coerces to `undefined`; a schema validator at the env boundary would surface this with a clear error
+
+### Design
+
+Add Zod (or Valibot — lighter) at the WebSocket parse boundary and the env boundary, NOT everywhere. Narrow scope:
+
+1. **`shared/protocol-schema.ts`** (new file) — Zod schemas mirroring the discriminated unions in `shared/protocol.ts`. One schema per union (`BrowserToServerSchema`, `BridgeToServerSchema`), each a `z.discriminatedUnion("type", [...])` so the schema's type narrows match the TypeScript union's.
+2. **`server/websocket.ts`** — `parseMessage` returns `BrowserToServerMessage | BridgeToServerMessage | null` instead of `WsMessage | null`. The runtime validation happens once at parse time; handlers receive already-narrowed, already-validated data. Inline `typeof === "string"` checks inside handlers can be deleted.
+3. **`server/config.ts`** — `getConfig` uses a Zod schema to parse `TRAYCE_*` env vars with explicit error messages for malformed values. Whitespace-only `TRAYCE_TOKEN` becomes a loud warning instead of a silent coercion.
+4. **`WsMessage` type deleted.** `shared/protocol.ts` is the only source of truth for inbound shapes.
+
+### Keep the runtime-silent, compile-loud idiom
+
+The Round 3 lesson applies here too. When Zod validation fails at the parse boundary, log the failure (`console.warn("[trayce] invalid payload:", error.issues)`) and drop the message — don't throw. Messages come from untrusted clients. The schemas give us:
+- A single authoritative source describing the wire format
+- Free runtime validation with structured error reports
+- Schema-derived TypeScript types (via `z.infer<typeof Schema>`) that stay in sync with the runtime checks — no possibility of drift between the type and the validator
+
+### Tradeoffs
+
+- **Bundle size (server)**: Zod is ~15KB minified. Server is Node/Bun so size is irrelevant; client isn't touched by this work.
+- **Valibot vs Zod**: Valibot is smaller (~3KB), tree-shakeable, has a similar API. For a server-only dependency Zod's ecosystem + TypeScript inference quality wins. Only consider Valibot if the client ever needs runtime validation too.
+- **Bridge cost**: Bridge currently doesn't validate anything it receives from the server (the `submission` message is trusted). Worth adding schemas for `ServerToBridgeMessage` too for symmetry, but lower priority — the server is a trusted sender.
+- **Test impact**: Tests that send malformed payloads deliberately (to verify graceful drop) will still work — Zod validation failure is a silent drop by design.
+
+### Scope
+
+**Include:**
+- `BrowserToServerMessage` + `BridgeToServerMessage` schemas at parse time
+- `Config` env schema with helpful error messages
+- Delete `WsMessage` and all the inline `typeof` checks it necessitated
+
+**Exclude:**
+- Schemas for outbound messages (`ServerToBrowserMessage`, `ServerToBridgeMessage`) — those are built by typed code we control, not untrusted input
+- Client-side schemas — client is a trusted consumer of server messages
+- Bridge-side schemas for `ServerToBridgeMessage` — lower priority, add only if a bug surfaces
+
+### Fixes this will directly enable
+
+- `server-usage-no-validation` → **resolved** by schema requiring `timestamp: z.number().finite()`
+- `server-nan-timestamp-usage-update` → **resolved** (same)
+- `server-wsmessage-permissive` → **resolved** (`WsMessage` deleted)
+- `server-config-token-whitespace-coerce` → **resolved** by env schema with `.refine()` or custom `parse`
+
+Four open issues close with one round of work. Worth it.
+
+## Round 5 — CI gate + pre-commit hook (PENDING)
+
+### Motivation
+
+Rounds 1–4 produce a lot of static guarantees (strict tsconfig, Biome, discriminated unions, runtime validation at boundaries). None of them matter if a commit bypasses the checks. Without enforcement, these rules drift into aspiration the first time someone `git commit`s without running `bun run check` locally.
+
+### Design
+
+Two layers:
+
+**Layer 1 — pre-commit hook (local, per-developer).**
+
+Use the native git hooks mechanism, not husky or lint-staged. Bun is fast enough that running the full check suite on every commit is tolerable (<15s typically). Ship a hook script in `scripts/pre-commit.sh` and a one-line `bun run install-hooks` script that copies or symlinks it into `.git/hooks/pre-commit`. Don't touch `.git/hooks` automatically on `bun install` — opt-in only, to stay polite to contributors who have their own git workflow.
+
+Hook runs:
+```bash
+#!/bin/sh
+set -e
+bun run typecheck
+bun run check
+bun test
+```
+
+`set -e` aborts the commit on any failure. Failures print the tool's normal output so developers can fix in place.
+
+**Layer 2 — GitHub Actions CI gate (server-side, authoritative).**
+
+Single workflow file at `.github/workflows/ci.yml`:
+```yaml
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run check
+      - run: bun test
+      - run: bun run build:client
+```
+
+No matrix, no caching gymnastics, no nested jobs. One check that runs everything. If it fails, PR gets a red X. Simple.
+
+Branch protection rule on `main` requiring the `check` status: applied manually in GitHub repo settings (not committed to the repo since it's a GitHub-side config).
+
+### What NOT to do
+
+- **No husky.** Native git hooks work fine. Husky adds a dependency, a postinstall step, and a config file for something that's 4 lines of shell.
+- **No lint-staged.** The staged-files optimization matters when each tool takes minutes; Biome and tsc both run on the full tree in seconds. Don't optimize what isn't slow.
+- **No branch-matrix caching dance.** `bun install --frozen-lockfile` is ~2s; not worth the complexity.
+- **No separate lint/test/typecheck jobs.** Splitting them adds parallelism but also three sets of GitHub status checks to track, three sets of bun install, and three places to debug a hung runner. One job, one status, one green/red.
+
+### Tradeoffs
+
+- **Hook opts-in, CI opts-out**: developers can skip the local hook (`git commit --no-verify`) but can't skip CI. That's the right balance — local hooks are a convenience, CI is the authority.
+- **Slow pre-commit on large commits**: if the full check suite ever exceeds ~20s, switch to running only `typecheck` + `check` in the hook and leaving tests for CI. The hook's job is catching "did I break the build"; tests catch "did I break behavior" and can tolerate running on push.
+- **`bun test --coverage` in CI**: worth adding as a second step once the gate is stable. Uncovered files are often disconnected modules (the `client-persistence-disconnected` issue would have been caught by coverage). Don't fail CI on coverage regression — just surface the delta.
+
+### Files added
+
+- `.github/workflows/ci.yml`
+- `scripts/pre-commit.sh`
+- New `install-hooks` script in `package.json` that symlinks `scripts/pre-commit.sh` → `.git/hooks/pre-commit`
+- One paragraph in `CLAUDE.md` or `README.md` pointing at the hook as an optional quality-of-life setup
+
+### Order of operations
+
+Do Round 5 AFTER Round 4. If we set up CI before runtime validation lands, the first Round 4 commit has to update both the code and the CI expectations at once, which complicates the merge. Land validation, confirm it's stable, then lock the gate.
+
+## Round 6 and beyond (IDEAS, NOT COMMITTED)
+
+- `bun test --coverage` surfaced as a CI artifact (not a gate)
 - Semgrep or similar for security-flavored rules (token in URL, innerHTML usage, etc.) — only if the signal-to-noise ratio holds up
+- Type-only adoption of `shared/protocol.ts` in `client/connection.ts` and `bridge/index.ts` when a future feature benefits
+- Pre-commit hook opt-in via a `setup-dev.sh` script that also installs the MCP channel config for Claude Code
 
 ## Open questions for the Round 2 session
 
