@@ -249,6 +249,9 @@ async function initCanvas(
 
   canvasManager = await CanvasManager.create(canvasContainer, width, height);
   layerManager = new LayerManager(width, height, background);
+  // Add a user draw layer above the background so strokes don't land on
+  // the layer that isCanvasBlank deliberately excludes from content checks.
+  layerManager.addLayer("Sketch");
   compositor = new Compositor(canvasManager.app, layerManager);
   history = new History(50 * 1024 * 1024); // 50MB budget
 
