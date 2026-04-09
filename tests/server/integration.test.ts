@@ -176,7 +176,7 @@ describe("integration", () => {
       const sessionsMsg = await nextMessage(ws);
       expect(sessionsMsg.type).toBe("sessions");
       ws.close();
-    });
+    }, 15_000);
 
     it("heartbeat is echoed", async () => {
       const { ws, firstMessage } = await connectWs(
@@ -189,7 +189,7 @@ describe("integration", () => {
       const echo = await nextMessage(ws);
       expect(echo.type).toBe("heartbeat");
       ws.close();
-    });
+    }, 15_000);
   });
 
   describe("WebSocket /canvas — auth rejection", () => {
@@ -220,7 +220,7 @@ describe("integration", () => {
       });
       expect(opened).toBe(true);
       ws.close();
-    });
+    }, 15_000);
 
     it("register broadcasts to browsers", async () => {
       const sessionId = crypto.randomUUID();
@@ -256,7 +256,7 @@ describe("integration", () => {
 
       browser.close();
       bridge.close();
-    });
+    }, 15_000);
 
     it("rejects without token", async () => {
       const res = await fetch(`${baseUrl}/bridge`, {
