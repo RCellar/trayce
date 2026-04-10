@@ -96,7 +96,8 @@ const ACTIONS: Array<{ id: ActionId; icon: string; title: string }> = [
 
 const PANEL_BUTTONS: Array<{ id: PanelId; icon: string; title: string }> = [
   { id: "floating", icon: ICONS.sliders, title: "Brush & Layers" },
-  { id: "response", icon: ICONS.chat, title: "Response Panel" },
+  // Response tab hidden — redundant with transcript which shows all responses
+  // { id: "response", icon: ICONS.chat, title: "Response Panel" },
   { id: "transcript", icon: ICONS.transcript, title: "Transcript Panel" },
   { id: "usage", icon: ICONS.chart, title: "Usage Panel" },
 ];

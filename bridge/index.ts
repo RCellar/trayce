@@ -224,7 +224,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
 });
 
-function startTranscriptWatcher(ws: WebSocket): void {
+function startTranscriptWatcher(ws: WebSocket): number | undefined {
   // On reconnect, reuse the previously discovered path if it still exists.
   // Otherwise: birthtime correlation (cwd-independent), then cwd-based fallback.
   let discoveredByBirthtime = false;
@@ -242,10 +242,14 @@ function startTranscriptWatcher(ws: WebSocket): void {
   );
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
-    return;
+    return undefined;
   }
 
   lastTranscriptPath = transcriptPath;
+
+  // Use bridge connection time, not file birthtime — this gives the toggle
+  // a useful meaning: "since you connected" vs "full transcript history"
+  const sessionStartedAt: number = bridgeStartTime;
 
   ws.send(
     JSON.stringify({
@@ -282,7 +286,17 @@ function startTranscriptWatcher(ws: WebSocket): void {
     discoveredByBirthtime,
   );
 
+  transcriptWatcher.onFileSwitch = (newPath: string) => {
+    lastTranscriptPath = newPath;
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({ type: "register", sessionId, label, sessionStartedAt: bridgeStartTime }),
+      );
+    }
+  };
+
   transcriptWatcher.start();
+  return sessionStartedAt;
 }
 
 // WebSocket connection to trayce server
@@ -297,8 +311,8 @@ function connect() {
   ws.onopen = () => {
     reconnectDelay = 1000;
     currentWs = ws;
-    ws.send(JSON.stringify({ type: "register", sessionId, label }));
-    startTranscriptWatcher(ws);
+    const sessionStartedAt = startTranscriptWatcher(ws);
+    ws.send(JSON.stringify({ type: "register", sessionId, label, sessionStartedAt }));
 
     // Clear any prior heartbeat
     if (heartbeatInterval) clearInterval(heartbeatInterval);

@@ -117,6 +117,7 @@ export const RegisterSchema = z.object({
   type: z.literal("register"),
   sessionId: z.string().min(1),
   label: z.string().min(1),
+  sessionStartedAt: z.number().optional(),
 });
 
 export const TranscriptEntryMessageSchema = z.object({

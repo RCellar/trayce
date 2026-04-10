@@ -288,7 +288,12 @@ export class WebSocketHub {
 
     // Send current usage snapshot
     const usage = this.sessionUsage.get(sid) ?? new SessionUsage();
-    safeSend(ws, usage.toJSON());
+    const session = this.registry.get(sid);
+    const snapshot = JSON.parse(usage.toJSON());
+    if (session?.sessionStartedAt) {
+      snapshot.sessionStartedAt = session.sessionStartedAt;
+    }
+    safeSend(ws, JSON.stringify(snapshot));
   }
 
   /** Transcript/usage messages are high-volume and bypass the rate limiter;
@@ -369,7 +374,7 @@ export class WebSocketHub {
     ws.data.sessionId = sessionId;
     this.bridges.set(sessionId, ws);
     this.sessionToBridgeId.set(sessionId, ws.data.id);
-    this.registry.add(sessionId, label);
+    this.registry.add(sessionId, label, msg.sessionStartedAt);
     this.broadcastSessions();
   }
 

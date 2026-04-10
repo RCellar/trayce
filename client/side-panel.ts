@@ -27,11 +27,12 @@ export class SidePanel {
     this.tabBar = document.createElement("div");
     this.tabBar.className = "panel-tabs";
 
-    const responseBtn = document.createElement("button");
-    responseBtn.className = "panel-tab";
-    responseBtn.dataset.tab = "response";
-    responseBtn.textContent = "Response";
-    responseBtn.addEventListener("click", () => this.toggle("response"));
+    // Response tab hidden — redundant with transcript
+    // const responseBtn = document.createElement("button");
+    // responseBtn.className = "panel-tab";
+    // responseBtn.dataset.tab = "response";
+    // responseBtn.textContent = "Response";
+    // responseBtn.addEventListener("click", () => this.toggle("response"));
 
     const transcriptBtn = document.createElement("button");
     transcriptBtn.className = "panel-tab";
@@ -52,7 +53,6 @@ export class SidePanel {
       if (this.activeTab) this.toggle(this.activeTab);
     });
 
-    this.tabBar.appendChild(responseBtn);
     this.tabBar.appendChild(transcriptBtn);
     this.tabBar.appendChild(usageBtn);
     this.tabBar.appendChild(closeBtn);

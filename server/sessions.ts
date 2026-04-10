@@ -2,14 +2,15 @@ export interface Session {
   id: string;
   label: string;
   status: "active";
+  sessionStartedAt?: number | undefined;
 }
 
 export class SessionRegistry {
   private readonly sessions = new Map<string, Session>();
 
-  add(id: string, label: string): Session {
+  add(id: string, label: string, sessionStartedAt?: number): Session {
     const resolvedLabel = this.resolveLabel(label);
-    const session: Session = { id, label: resolvedLabel, status: "active" };
+    const session: Session = { id, label: resolvedLabel, status: "active", sessionStartedAt };
     this.sessions.set(id, session);
     return session;
   }

@@ -20,6 +20,10 @@ export class TranscriptTab {
   private autoScroll = true;
   private autoScrollBtn: HTMLButtonElement | null = null;
   private toolCallElements = new Map<string, HTMLElement>();
+  private entries: TranscriptEntry[] = [];
+  private mode: "recent" | "complete" = "recent";
+  private sessionStartedAt: number | null = null;
+  private toggleEl: HTMLElement | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -54,9 +58,80 @@ export class TranscriptTab {
     this.autoScrollBtn.classList.toggle("active", this.autoScroll);
   }
 
+  setSessionStartedAt(ts: number | null): void {
+    this.sessionStartedAt = ts;
+    if (this.container && !this.toggleEl && ts !== null) {
+      this.toggleEl = this.createToggle();
+      this.autoScrollBtn?.insertAdjacentElement("afterend", this.toggleEl);
+    }
+    if (this.mode === "recent") {
+      this.rerender();
+    }
+  }
+
+  private setMode(mode: "recent" | "complete"): void {
+    this.mode = mode;
+    this.updateToggleUI();
+    this.rerender();
+  }
+
+  private createToggle(): HTMLElement {
+    const toggle = document.createElement("div");
+    toggle.className = "tab-toggle";
+
+    const recentBtn = document.createElement("button");
+    recentBtn.textContent = "Recent";
+    recentBtn.classList.toggle("active", this.mode === "recent");
+    recentBtn.addEventListener("click", () => this.setMode("recent"));
+
+    const completeBtn = document.createElement("button");
+    completeBtn.textContent = "Complete";
+    completeBtn.classList.toggle("active", this.mode === "complete");
+    completeBtn.addEventListener("click", () => this.setMode("complete"));
+
+    toggle.appendChild(recentBtn);
+    toggle.appendChild(completeBtn);
+    return toggle;
+  }
+
+  private updateToggleUI(): void {
+    if (!this.toggleEl) return;
+    const buttons = this.toggleEl.querySelectorAll("button");
+    buttons[0]?.classList.toggle("active", this.mode === "recent");
+    buttons[1]?.classList.toggle("active", this.mode === "complete");
+  }
+
+  private rerender(): void {
+    if (!this.container) return;
+    this.container.textContent = "";
+    this.toolCallElements.clear();
+
+    if (this.autoScrollBtn) {
+      this.container.appendChild(this.autoScrollBtn);
+    }
+    if (this.toggleEl) {
+      this.container.appendChild(this.toggleEl);
+    }
+
+    for (const entry of this.entries) {
+      if (this.mode === "recent" && this.sessionStartedAt !== null) {
+        if (entry.timestamp && entry.timestamp < this.sessionStartedAt) continue;
+      }
+      this.renderEntry(entry);
+    }
+  }
+
   addEntry(entry: TranscriptEntry): void {
     if (!this.container) return;
+    this.entries.push(entry);
+    if (this.mode === "recent" && this.sessionStartedAt !== null) {
+      if (entry.timestamp && entry.timestamp < this.sessionStartedAt) return;
+    }
+    this.renderEntry(entry);
+    this.scrollToBottomIfEnabled();
+  }
 
+  private renderEntry(entry: TranscriptEntry): void {
     if (entry.type === "message" || entry.type === "response") {
       this.addMessage(entry.role, entry.content, entry.timestamp);
     } else if (entry.type === "tool-call") {
@@ -64,8 +139,6 @@ export class TranscriptTab {
     } else if (entry.type === "tool-result") {
       this.addToolResult(entry);
     }
-
-    this.scrollToBottomIfEnabled();
   }
 
   showUnavailable(): void {
@@ -80,6 +153,9 @@ export class TranscriptTab {
     if (!this.container) return;
     this.container.textContent = "";
     this.toolCallElements.clear();
+    this.entries = [];
+    this.mode = "recent";
+    this.toggleEl = null;
   }
 
   private addMessage(role: "user" | "assistant", content: string, timestamp?: number): void {

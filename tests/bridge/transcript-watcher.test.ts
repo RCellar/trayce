@@ -316,6 +316,20 @@ describe("TranscriptWatcher", () => {
 
     expect(entries).toHaveLength(1);
   });
+
+  test("onFileSwitch is settable on TranscriptWatcher", () => {
+    const watcher = new TranscriptWatcher(
+      "/tmp/fake.jsonl",
+      "/tmp",
+      Date.now(),
+      () => {},
+      undefined,
+      false,
+    );
+    watcher.onFileSwitch = () => {};
+    expect(watcher.onFileSwitch).toBeDefined();
+    watcher.stop();
+  });
 });
 
 describe("rediscovery bounds", () => {

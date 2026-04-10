@@ -72,8 +72,9 @@ let imageTool: ImageTool | null = null;
 let transformHandler: TransformHandler | null = null;
 let permissionPrompts: PermissionPromptManager | null = null;
 
-let sessions: Array<{ id: string; label: string; status: string }> = [];
+let sessions: Array<{ id: string; label: string; status: string; sessionStartedAt?: number }> = [];
 let selectedSessionId = "";
+let sessionStartedAt: number | null = null;
 
 let containerMode = false; // Set by the server-info message on connect
 
@@ -643,6 +644,15 @@ function handleServerMessage(msg: ServerMessage): void {
     sessions = msg.sessions as typeof sessions;
     updateSessionSelect();
     pruneStaleEntries(sessions.map((s) => s.id));
+    // Set sessionStartedAt to "now" when we first see the selected session —
+    // this means "Recent" = since you started watching, "Complete" = full history.
+    // Only set once per session selection (not on every broadcast).
+    if (selectedSessionId && sessionStartedAt === null) {
+      sessionStartedAt = Date.now();
+      transcriptTab?.setSessionStartedAt(sessionStartedAt);
+      responseTab?.setSessionStartedAt(sessionStartedAt);
+      usageTab?.setSessionStartedAt(sessionStartedAt);
+    }
   } else if (msg.type === "server-info") {
     if (typeof msg.containerMode === "boolean") {
       containerMode = msg.containerMode;
@@ -679,6 +689,10 @@ function handleServerMessage(msg: ServerMessage): void {
     }
   } else if (msg.type === "usage-snapshot") {
     usageTab?.setSnapshot(msg.usage as any);
+    if ((msg as any).sessionStartedAt) {
+      sessionStartedAt = (msg as any).sessionStartedAt;
+      usageTab?.setSessionStartedAt(sessionStartedAt);
+    }
   } else if (msg.type === "usage-update") {
     usageTab?.addUpdate(msg.usage as any);
   } else if (msg.type === "permission-request") {
@@ -847,6 +861,7 @@ sessionSelect.addEventListener("change", async () => {
   responseTab?.clear();
   transcriptTab?.clear();
   usageTab?.clear();
+  sessionStartedAt = null;
   updateTabTitle();
 });
 
