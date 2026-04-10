@@ -30,7 +30,9 @@ export class UsageTab {
           cacheReadTokens: snapshot.cacheReadTokens,
           cacheWriteTokens: snapshot.cacheWriteTokens,
           model: Object.keys(snapshot.models)[0] ?? "unknown",
-          timestamp: snapshot.firstTimestamp || Date.now(),
+          // Use firstTimestamp (not Date.now()) so the snapshot is treated as
+          // historical data — only incremental usage-updates get recent timestamps
+          timestamp: snapshot.firstTimestamp,
         },
       ];
     }
