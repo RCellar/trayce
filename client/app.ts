@@ -644,9 +644,11 @@ function handleServerMessage(msg: ServerMessage): void {
     sessions = msg.sessions as typeof sessions;
     updateSessionSelect();
     pruneStaleEntries(sessions.map((s) => s.id));
-    const selected = sessions.find((s: any) => s.id === selectedSessionId);
-    if (selected?.sessionStartedAt) {
-      sessionStartedAt = selected.sessionStartedAt;
+    // Set sessionStartedAt to "now" when we first see the selected session —
+    // this means "Recent" = since you started watching, "Complete" = full history.
+    // Only set once per session selection (not on every broadcast).
+    if (selectedSessionId && sessionStartedAt === null) {
+      sessionStartedAt = Date.now();
       transcriptTab?.setSessionStartedAt(sessionStartedAt);
       responseTab?.setSessionStartedAt(sessionStartedAt);
       usageTab?.setSessionStartedAt(sessionStartedAt);
