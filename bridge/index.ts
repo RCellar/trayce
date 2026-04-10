@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync, readlinkSync, statSync } from "node:fs";
 import { basename } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -224,7 +224,7 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
 });
 
-function startTranscriptWatcher(ws: WebSocket): void {
+function startTranscriptWatcher(ws: WebSocket): number | undefined {
   // On reconnect, reuse the previously discovered path if it still exists.
   // Otherwise: birthtime correlation (cwd-independent), then cwd-based fallback.
   let discoveredByBirthtime = false;
@@ -242,10 +242,15 @@ function startTranscriptWatcher(ws: WebSocket): void {
   );
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
-    return;
+    return undefined;
   }
 
   lastTranscriptPath = transcriptPath;
+
+  let sessionStartedAt: number | undefined;
+  try {
+    sessionStartedAt = statSync(transcriptPath).birthtimeMs;
+  } catch {}
 
   ws.send(
     JSON.stringify({
@@ -282,7 +287,21 @@ function startTranscriptWatcher(ws: WebSocket): void {
     discoveredByBirthtime,
   );
 
+  transcriptWatcher.onFileSwitch = (newPath: string) => {
+    lastTranscriptPath = newPath;
+    let newStartedAt: number | undefined;
+    try {
+      newStartedAt = statSync(newPath).birthtimeMs;
+    } catch {}
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(
+        JSON.stringify({ type: "register", sessionId, label, sessionStartedAt: newStartedAt }),
+      );
+    }
+  };
+
   transcriptWatcher.start();
+  return sessionStartedAt;
 }
 
 // WebSocket connection to trayce server
@@ -297,8 +316,8 @@ function connect() {
   ws.onopen = () => {
     reconnectDelay = 1000;
     currentWs = ws;
-    ws.send(JSON.stringify({ type: "register", sessionId, label }));
-    startTranscriptWatcher(ws);
+    const sessionStartedAt = startTranscriptWatcher(ws);
+    ws.send(JSON.stringify({ type: "register", sessionId, label, sessionStartedAt }));
 
     // Clear any prior heartbeat
     if (heartbeatInterval) clearInterval(heartbeatInterval);

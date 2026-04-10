@@ -48,6 +48,7 @@ export class TranscriptWatcher {
   private subagentOffsets = new Map<string, number>();
   private confirmed = false;
   private discoveredByBirthtime = false;
+  onFileSwitch: ((newPath: string) => void) | null = null;
 
   constructor(
     filePath: string,
@@ -140,6 +141,7 @@ export class TranscriptWatcher {
     this.subagentOffsets.clear();
     if (birthtimePath) this.discoveredByBirthtime = true;
     this.startFileWatcher();
+    this.onFileSwitch?.(newPath);
     this.readNewEntries();
   }
 
