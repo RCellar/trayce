@@ -10,6 +10,11 @@ export interface TranscriptEntry {
   toolName?: string;
   toolInput?: string;
   toolUseId?: string;
+  /** Per-message token counts (only on assistant entries) */
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
 }
 
 export interface UsageData {
@@ -282,6 +287,18 @@ export class TranscriptWatcher {
     const timestamp = raw.timestamp ? new Date(raw.timestamp).getTime() : Date.now();
     const role = msg.role;
 
+    // Extract per-message usage for assistant entries
+    const usage = raw.type === "assistant" ? (msg as any).usage : undefined;
+    const tokenFields =
+      usage && typeof usage.output_tokens === "number"
+        ? {
+            inputTokens: usage.input_tokens ?? 0,
+            outputTokens: usage.output_tokens ?? 0,
+            cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+            cacheWriteTokens: usage.cache_creation_input_tokens ?? 0,
+          }
+        : {};
+
     for (const block of blocks) {
       if (block.type === "text") {
         const textBlock = block as { type: "text"; text: string };
@@ -290,6 +307,7 @@ export class TranscriptWatcher {
           role,
           content: textBlock.text,
           timestamp,
+          ...tokenFields,
         });
       } else if (block.type === "tool_use") {
         const toolBlock = block as { type: "tool_use"; id: string; name: string; input: unknown };
@@ -302,6 +320,7 @@ export class TranscriptWatcher {
           toolName: toolBlock.name,
           toolInput: rawInput.length > 200 ? rawInput.slice(0, 200) : rawInput,
           toolUseId: toolBlock.id,
+          ...tokenFields,
         });
       } else if (block.type === "tool_result") {
         const resultBlock = block as {
