@@ -72,7 +72,7 @@ let imageTool: ImageTool | null = null;
 let transformHandler: TransformHandler | null = null;
 let permissionPrompts: PermissionPromptManager | null = null;
 
-let sessions: Array<{ id: string; label: string; status: string }> = [];
+let sessions: Array<{ id: string; label: string; status: string; sessionStartedAt?: number }> = [];
 let selectedSessionId = "";
 let sessionStartedAt: number | null = null;
 
