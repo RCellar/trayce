@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { BridgeToServerSchema, BrowserToServerSchema } from "../../shared/protocol-schema";
+import {
+  BridgeToServerSchema,
+  BrowserToServerSchema,
+  RegisterSchema,
+} from "../../shared/protocol-schema";
 
 describe("BrowserToServerSchema — heartbeat", () => {
   test("accepts bare heartbeat", () => {
@@ -206,6 +210,16 @@ describe("BridgeToServerSchema — register", () => {
       label: 42,
     });
     expect(r.success).toBe(false);
+  });
+
+  test("accepts register with sessionStartedAt", () => {
+    const result = RegisterSchema.safeParse({
+      type: "register",
+      sessionId: "s1",
+      label: "test",
+      sessionStartedAt: 1700000000000,
+    });
+    expect(result.success).toBe(true);
   });
 });
 

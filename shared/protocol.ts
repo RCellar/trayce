@@ -26,6 +26,7 @@ export interface Session {
   id: string;
   label: string;
   status?: string;
+  sessionStartedAt?: number | undefined;
 }
 
 export interface Usage {
@@ -123,6 +124,7 @@ export interface RegisterMessage {
   type: "register";
   sessionId: string;
   label: string;
+  sessionStartedAt?: number | undefined;
 }
 
 export interface TranscriptEntryMessage {
@@ -198,6 +200,7 @@ export interface UsageSnapshotMessage {
   type: "usage-snapshot";
   sessionId?: string;
   usage: UsageSnapshotData;
+  sessionStartedAt?: number | undefined;
 }
 
 export interface ServerExitingMessage {
