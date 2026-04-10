@@ -14,7 +14,6 @@ export class UsageTab {
   private updates: UsageEntry[] = [];
   private mode: "recent" | "complete" = "recent";
   private sessionStartedAt: number | null = null;
-  private toggleEl: HTMLElement | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -54,38 +53,6 @@ export class UsageTab {
     // after connection DO have timestamps and will be filtered if the toggle is
     // re-enabled in the future.
     this.render();
-  }
-
-  private setMode(mode: "recent" | "complete"): void {
-    this.mode = mode;
-    this.updateToggleUI();
-    this.render();
-  }
-
-  private createToggle(): HTMLElement {
-    const toggle = document.createElement("div");
-    toggle.className = "tab-toggle";
-
-    const recentBtn = document.createElement("button");
-    recentBtn.textContent = "Recent";
-    recentBtn.classList.toggle("active", this.mode === "recent");
-    recentBtn.addEventListener("click", () => this.setMode("recent"));
-
-    const completeBtn = document.createElement("button");
-    completeBtn.textContent = "Complete";
-    completeBtn.classList.toggle("active", this.mode === "complete");
-    completeBtn.addEventListener("click", () => this.setMode("complete"));
-
-    toggle.appendChild(recentBtn);
-    toggle.appendChild(completeBtn);
-    return toggle;
-  }
-
-  private updateToggleUI(): void {
-    if (!this.toggleEl) return;
-    const buttons = this.toggleEl.querySelectorAll("button");
-    buttons[0]?.classList.toggle("active", this.mode === "recent");
-    buttons[1]?.classList.toggle("active", this.mode === "complete");
   }
 
   private computeSnapshot(): UsageSnapshot {
@@ -134,7 +101,6 @@ export class UsageTab {
   clear(): void {
     this.updates = [];
     this.mode = "recent";
-    this.toggleEl = null;
     this.render();
   }
 

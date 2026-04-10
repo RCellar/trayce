@@ -326,10 +326,7 @@ describe("TranscriptWatcher", () => {
       undefined,
       false,
     );
-    let _switched: string | null = null;
-    watcher.onFileSwitch = (p: string) => {
-      _switched = p;
-    };
+    watcher.onFileSwitch = () => {};
     expect(watcher.onFileSwitch).toBeDefined();
     watcher.stop();
   });

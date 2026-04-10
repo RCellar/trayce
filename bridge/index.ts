@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readlinkSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readlinkSync } from "node:fs";
 import { basename } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";

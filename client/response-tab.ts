@@ -10,7 +10,7 @@ export class ResponseTab {
   private autoScroll = true;
   private autoScrollBtn: HTMLButtonElement | null = null;
   private entries: Array<
-    | { type: "response"; content: string; timestamp?: number }
+    | { type: "response"; content: string; timestamp?: number | undefined }
     | { type: "canvas-push"; image: string; label: string }
   > = [];
   private mode: "recent" | "complete" = "recent";

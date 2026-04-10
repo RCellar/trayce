@@ -2,7 +2,7 @@ export interface Session {
   id: string;
   label: string;
   status: "active";
-  sessionStartedAt?: number;
+  sessionStartedAt?: number | undefined;
 }
 
 export class SessionRegistry {
