@@ -9,6 +9,13 @@ export class ResponseTab {
   private container: HTMLElement | null = null;
   private autoScroll = true;
   private autoScrollBtn: HTMLButtonElement | null = null;
+  private entries: Array<
+    | { type: "response"; content: string; timestamp?: number }
+    | { type: "canvas-push"; image: string; label: string }
+  > = [];
+  private mode: "recent" | "complete" = "recent";
+  private sessionStartedAt: number | null = null;
+  private toggleEl: HTMLElement | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -43,7 +50,83 @@ export class ResponseTab {
     this.autoScrollBtn.classList.toggle("active", this.autoScroll);
   }
 
+  setSessionStartedAt(ts: number | null): void {
+    this.sessionStartedAt = ts;
+    if (this.container && !this.toggleEl && ts !== null) {
+      this.toggleEl = this.createToggle();
+      this.autoScrollBtn?.insertAdjacentElement("afterend", this.toggleEl);
+    }
+    if (this.mode === "recent") {
+      this.rerender();
+    }
+  }
+
+  private setMode(mode: "recent" | "complete"): void {
+    this.mode = mode;
+    this.updateToggleUI();
+    this.rerender();
+  }
+
+  private createToggle(): HTMLElement {
+    const toggle = document.createElement("div");
+    toggle.className = "tab-toggle";
+
+    const recentBtn = document.createElement("button");
+    recentBtn.textContent = "Recent";
+    recentBtn.classList.toggle("active", this.mode === "recent");
+    recentBtn.addEventListener("click", () => this.setMode("recent"));
+
+    const completeBtn = document.createElement("button");
+    completeBtn.textContent = "Complete";
+    completeBtn.classList.toggle("active", this.mode === "complete");
+    completeBtn.addEventListener("click", () => this.setMode("complete"));
+
+    toggle.appendChild(recentBtn);
+    toggle.appendChild(completeBtn);
+    return toggle;
+  }
+
+  private updateToggleUI(): void {
+    if (!this.toggleEl) return;
+    const buttons = this.toggleEl.querySelectorAll("button");
+    buttons[0]?.classList.toggle("active", this.mode === "recent");
+    buttons[1]?.classList.toggle("active", this.mode === "complete");
+  }
+
+  private rerender(): void {
+    if (!this.container) return;
+    this.container.textContent = "";
+
+    if (this.autoScrollBtn) {
+      this.container.appendChild(this.autoScrollBtn);
+    }
+    if (this.toggleEl) {
+      this.container.appendChild(this.toggleEl);
+    }
+
+    for (const entry of this.entries) {
+      if (entry.type === "response") {
+        if (this.mode === "recent" && this.sessionStartedAt !== null) {
+          if (entry.timestamp && entry.timestamp < this.sessionStartedAt) continue;
+        }
+        this.renderResponse(entry.content, entry.timestamp);
+      } else {
+        this.renderCanvasPush(entry.image, entry.label);
+      }
+    }
+  }
+
   addResponse(content: string, timestamp?: number): void {
+    if (!this.container) return;
+    this.entries.push({ type: "response", content, timestamp });
+    if (this.mode === "recent" && this.sessionStartedAt !== null) {
+      if (timestamp && timestamp < this.sessionStartedAt) return;
+    }
+    this.renderResponse(content, timestamp);
+    this.scrollToBottomIfEnabled();
+  }
+
+  private renderResponse(content: string, timestamp?: number): void {
     if (!this.container) return;
 
     const block = document.createElement("div");
@@ -62,18 +145,21 @@ export class ResponseTab {
 
     const body = document.createElement("div");
     body.className = "msg-body";
-    // Safe: renderMarkdown escapes all HTML entities before rendering,
-    // preventing XSS. See client/markdown.ts — escapeHtml runs on all input.
     body.innerHTML = renderMarkdown(content);
 
     block.appendChild(label);
     block.appendChild(body);
     this.container.appendChild(block);
-
-    this.scrollToBottomIfEnabled();
   }
 
   addCanvasPushNotification(imageBase64: string, layerLabel: string): void {
+    if (!this.container) return;
+    this.entries.push({ type: "canvas-push", image: imageBase64, label: layerLabel });
+    this.renderCanvasPush(imageBase64, layerLabel);
+    this.scrollToBottomIfEnabled();
+  }
+
+  private renderCanvasPush(imageBase64: string, layerLabel: string): void {
     if (!this.container) return;
 
     const notification = document.createElement("div");
@@ -88,8 +174,6 @@ export class ResponseTab {
     notification.appendChild(img);
     notification.appendChild(span);
     this.container.appendChild(notification);
-
-    this.scrollToBottomIfEnabled();
   }
 
   showUnavailable(): void {
@@ -106,6 +190,9 @@ export class ResponseTab {
   clear(): void {
     if (!this.container) return;
     this.container.textContent = "";
+    this.entries = [];
+    this.mode = "recent";
+    this.toggleEl = null;
   }
 
   private scrollRAF: number | null = null;
