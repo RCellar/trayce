@@ -22,7 +22,11 @@ export class UsageTab {
   }
 
   setSnapshot(snapshot: UsageSnapshot): void {
-    if (snapshot.requestCount > 0) {
+    // The server sends usage-snapshot AFTER buffer replay. If we already have
+    // individual usage-update entries from the replay, keep those (they have
+    // real timestamps for filtering). Only use the snapshot if we have no
+    // individual entries yet.
+    if (this.updates.length === 0 && snapshot.requestCount > 0) {
       this.updates = [
         {
           inputTokens: snapshot.inputTokens,
@@ -30,8 +34,6 @@ export class UsageTab {
           cacheReadTokens: snapshot.cacheReadTokens,
           cacheWriteTokens: snapshot.cacheWriteTokens,
           model: Object.keys(snapshot.models)[0] ?? "unknown",
-          // Use firstTimestamp (not Date.now()) so the snapshot is treated as
-          // historical data — only incremental usage-updates get recent timestamps
           timestamp: snapshot.firstTimestamp,
         },
       ];
@@ -46,9 +48,11 @@ export class UsageTab {
 
   setSessionStartedAt(ts: number | null): void {
     this.sessionStartedAt = ts;
-    if (this.container && !this.toggleEl && ts !== null) {
-      this.toggleEl = this.createToggle();
-    }
+    // Toggle is hidden for usage — usage-update messages are not buffered by the
+    // server, so the only data source is the cumulative usage-snapshot which can't
+    // be split into recent vs historical. Individual usage-updates that arrive
+    // after connection DO have timestamps and will be filtered if the toggle is
+    // re-enabled in the future.
     this.render();
   }
 
@@ -154,10 +158,6 @@ export class UsageTab {
         : "--";
 
     this.container.textContent = "";
-
-    if (this.toggleEl && this.sessionStartedAt !== null) {
-      this.container.appendChild(this.toggleEl);
-    }
 
     this.addSection("Cost Estimate", (section) => {
       const costEl = document.createElement("div");
