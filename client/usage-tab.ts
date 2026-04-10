@@ -1,19 +1,20 @@
 import { estimateCost, formatCost, formatTokens, type UsageSnapshot } from "./pricing";
 
-const EMPTY_SNAPSHOT: UsageSnapshot = {
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheWriteTokens: 0,
-  requestCount: 0,
-  models: {},
-  firstTimestamp: 0,
-  lastTimestamp: 0,
+type UsageEntry = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  model: string;
+  timestamp: number;
 };
 
 export class UsageTab {
   private container: HTMLElement | null = null;
-  private snapshot: UsageSnapshot = { ...EMPTY_SNAPSHOT, models: {} };
+  private updates: UsageEntry[] = [];
+  private mode: "recent" | "complete" = "recent";
+  private sessionStartedAt: number | null = null;
+  private toggleEl: HTMLElement | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -21,51 +22,119 @@ export class UsageTab {
   }
 
   setSnapshot(snapshot: UsageSnapshot): void {
-    this.snapshot = snapshot;
+    if (snapshot.requestCount > 0) {
+      this.updates = [
+        {
+          inputTokens: snapshot.inputTokens,
+          outputTokens: snapshot.outputTokens,
+          cacheReadTokens: snapshot.cacheReadTokens,
+          cacheWriteTokens: snapshot.cacheWriteTokens,
+          model: Object.keys(snapshot.models)[0] ?? "unknown",
+          timestamp: snapshot.firstTimestamp || Date.now(),
+        },
+      ];
+    }
     this.render();
   }
 
-  addUpdate(usage: {
-    inputTokens: number;
-    outputTokens: number;
-    cacheReadTokens: number;
-    cacheWriteTokens: number;
-    model: string;
-    timestamp: number;
-  }): void {
-    this.snapshot.inputTokens += usage.inputTokens;
-    this.snapshot.outputTokens += usage.outputTokens;
-    this.snapshot.cacheReadTokens += usage.cacheReadTokens;
-    this.snapshot.cacheWriteTokens += usage.cacheWriteTokens;
-    this.snapshot.requestCount++;
-
-    let entry = this.snapshot.models[usage.model];
-    if (!entry) {
-      entry = { inputTokens: 0, outputTokens: 0, requests: 0 };
-      this.snapshot.models[usage.model] = entry;
-    }
-    entry.inputTokens += usage.inputTokens;
-    entry.outputTokens += usage.outputTokens;
-    entry.requests++;
-
-    if (this.snapshot.firstTimestamp === 0 || usage.timestamp < this.snapshot.firstTimestamp) {
-      this.snapshot.firstTimestamp = usage.timestamp;
-    }
-    if (usage.timestamp > this.snapshot.lastTimestamp) {
-      this.snapshot.lastTimestamp = usage.timestamp;
-    }
-
+  addUpdate(usage: UsageEntry): void {
+    this.updates.push(usage);
     this.render();
+  }
+
+  setSessionStartedAt(ts: number | null): void {
+    this.sessionStartedAt = ts;
+    if (this.container && !this.toggleEl && ts !== null) {
+      this.toggleEl = this.createToggle();
+    }
+    this.render();
+  }
+
+  private setMode(mode: "recent" | "complete"): void {
+    this.mode = mode;
+    this.updateToggleUI();
+    this.render();
+  }
+
+  private createToggle(): HTMLElement {
+    const toggle = document.createElement("div");
+    toggle.className = "tab-toggle";
+
+    const recentBtn = document.createElement("button");
+    recentBtn.textContent = "Recent";
+    recentBtn.classList.toggle("active", this.mode === "recent");
+    recentBtn.addEventListener("click", () => this.setMode("recent"));
+
+    const completeBtn = document.createElement("button");
+    completeBtn.textContent = "Complete";
+    completeBtn.classList.toggle("active", this.mode === "complete");
+    completeBtn.addEventListener("click", () => this.setMode("complete"));
+
+    toggle.appendChild(recentBtn);
+    toggle.appendChild(completeBtn);
+    return toggle;
+  }
+
+  private updateToggleUI(): void {
+    if (!this.toggleEl) return;
+    const buttons = this.toggleEl.querySelectorAll("button");
+    buttons[0]?.classList.toggle("active", this.mode === "recent");
+    buttons[1]?.classList.toggle("active", this.mode === "complete");
+  }
+
+  private computeSnapshot(): UsageSnapshot {
+    const snapshot: UsageSnapshot = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      requestCount: 0,
+      models: {},
+      firstTimestamp: 0,
+      lastTimestamp: 0,
+    };
+
+    for (const entry of this.updates) {
+      if (this.mode === "recent" && this.sessionStartedAt !== null) {
+        if (entry.timestamp < this.sessionStartedAt) continue;
+      }
+
+      snapshot.inputTokens += entry.inputTokens;
+      snapshot.outputTokens += entry.outputTokens;
+      snapshot.cacheReadTokens += entry.cacheReadTokens;
+      snapshot.cacheWriteTokens += entry.cacheWriteTokens;
+      snapshot.requestCount++;
+
+      let modelEntry = snapshot.models[entry.model];
+      if (!modelEntry) {
+        modelEntry = { inputTokens: 0, outputTokens: 0, requests: 0 };
+        snapshot.models[entry.model] = modelEntry;
+      }
+      modelEntry.inputTokens += entry.inputTokens;
+      modelEntry.outputTokens += entry.outputTokens;
+      modelEntry.requests++;
+
+      if (snapshot.firstTimestamp === 0 || entry.timestamp < snapshot.firstTimestamp) {
+        snapshot.firstTimestamp = entry.timestamp;
+      }
+      if (entry.timestamp > snapshot.lastTimestamp) {
+        snapshot.lastTimestamp = entry.timestamp;
+      }
+    }
+
+    return snapshot;
   }
 
   clear(): void {
-    this.snapshot = { ...EMPTY_SNAPSHOT, models: {} };
+    this.updates = [];
+    this.mode = "recent";
+    this.toggleEl = null;
     this.render();
   }
 
   private render(): void {
     if (!this.container) return;
-    const s = this.snapshot;
+    const s = this.computeSnapshot();
     const cost = estimateCost(s);
     const totalInput = s.inputTokens + s.cacheReadTokens + s.cacheWriteTokens;
     const cacheHitRate = totalInput > 0 ? Math.round((s.cacheReadTokens / totalInput) * 100) : 0;
@@ -83,6 +152,10 @@ export class UsageTab {
         : "--";
 
     this.container.textContent = "";
+
+    if (this.toggleEl && this.sessionStartedAt !== null) {
+      this.container.appendChild(this.toggleEl);
+    }
 
     this.addSection("Cost Estimate", (section) => {
       const costEl = document.createElement("div");
