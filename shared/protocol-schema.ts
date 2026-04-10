@@ -45,6 +45,10 @@ export const TranscriptEntryDataSchema = z.object({
   toolName: z.string().optional(),
   toolInput: z.string().optional(),
   toolUseId: z.string().optional(),
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+  cacheReadTokens: z.number().optional(),
+  cacheWriteTokens: z.number().optional(),
 });
 
 export const UsageSchema = z.object({
