@@ -247,10 +247,9 @@ function startTranscriptWatcher(ws: WebSocket): number | undefined {
 
   lastTranscriptPath = transcriptPath;
 
-  let sessionStartedAt: number | undefined;
-  try {
-    sessionStartedAt = statSync(transcriptPath).birthtimeMs;
-  } catch {}
+  // Use bridge connection time, not file birthtime — this gives the toggle
+  // a useful meaning: "since you connected" vs "full transcript history"
+  const sessionStartedAt: number = bridgeStartTime;
 
   ws.send(
     JSON.stringify({
@@ -289,13 +288,9 @@ function startTranscriptWatcher(ws: WebSocket): number | undefined {
 
   transcriptWatcher.onFileSwitch = (newPath: string) => {
     lastTranscriptPath = newPath;
-    let newStartedAt: number | undefined;
-    try {
-      newStartedAt = statSync(newPath).birthtimeMs;
-    } catch {}
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(
-        JSON.stringify({ type: "register", sessionId, label, sessionStartedAt: newStartedAt }),
+        JSON.stringify({ type: "register", sessionId, label, sessionStartedAt: bridgeStartTime }),
       );
     }
   };
