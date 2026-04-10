@@ -8,11 +8,37 @@ export interface TranscriptEntry {
   toolName?: string;
   toolInput?: string;
   toolUseId?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
 }
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function formatCompactTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function createTokenBadge(entry: TranscriptEntry): HTMLElement {
+  const badge = document.createElement("span");
+  badge.className = "token-badge";
+  const inTok =
+    (entry.inputTokens ?? 0) + (entry.cacheReadTokens ?? 0) + (entry.cacheWriteTokens ?? 0);
+  const outTok = entry.outputTokens ?? 0;
+  badge.textContent = `${formatCompactTokens(inTok)} in · ${formatCompactTokens(outTok)} out`;
+  badge.title = [
+    `Input: ${(entry.inputTokens ?? 0).toLocaleString()}`,
+    `Output: ${(entry.outputTokens ?? 0).toLocaleString()}`,
+    `Cache read: ${(entry.cacheReadTokens ?? 0).toLocaleString()}`,
+    `Cache write: ${(entry.cacheWriteTokens ?? 0).toLocaleString()}`,
+  ].join("\n");
+  return badge;
 }
 
 export class TranscriptTab {
@@ -133,7 +159,7 @@ export class TranscriptTab {
 
   private renderEntry(entry: TranscriptEntry): void {
     if (entry.type === "message" || entry.type === "response") {
-      this.addMessage(entry.role, entry.content, entry.timestamp);
+      this.addMessage(entry);
     } else if (entry.type === "tool-call") {
       this.addToolCall(entry);
     } else if (entry.type === "tool-result") {
@@ -158,37 +184,41 @@ export class TranscriptTab {
     this.toggleEl = null;
   }
 
-  private addMessage(role: "user" | "assistant", content: string, timestamp?: number): void {
+  private addMessage(te: TranscriptEntry): void {
     if (!this.container) return;
 
-    const entry = document.createElement("div");
-    entry.className = "entry";
+    const el = document.createElement("div");
+    el.className = "entry";
 
     const label = document.createElement("div");
-    label.className = `entry-label ${role}`;
-    label.textContent = role === "user" ? "You" : "Claude";
+    label.className = `entry-label ${te.role}`;
+    label.textContent = te.role === "user" ? "You" : "Claude";
 
-    if (timestamp) {
+    if (te.timestamp) {
       const time = document.createElement("span");
       time.className = "entry-time";
-      time.textContent = formatTime(timestamp);
+      time.textContent = formatTime(te.timestamp);
       label.appendChild(time);
+    }
+
+    if (te.outputTokens) {
+      label.appendChild(createTokenBadge(te));
     }
 
     const body = document.createElement("div");
     body.className = "entry-body";
 
-    if (role === "assistant") {
+    if (te.role === "assistant") {
       // Safe: renderMarkdown escapes all HTML entities before rendering,
       // preventing XSS. See client/markdown.ts — escapeHtml runs on all input.
-      body.innerHTML = renderMarkdown(content);
+      body.innerHTML = renderMarkdown(te.content);
     } else {
-      body.textContent = content;
+      body.textContent = te.content;
     }
 
-    entry.appendChild(label);
-    entry.appendChild(body);
-    this.container.appendChild(entry);
+    el.appendChild(label);
+    el.appendChild(body);
+    this.container.appendChild(el);
   }
 
   private addToolCall(entry: TranscriptEntry): void {
@@ -220,6 +250,10 @@ export class TranscriptTab {
 
     summary.appendChild(nameSpan);
     summary.appendChild(summarySpan);
+
+    if (entry.outputTokens) {
+      summary.appendChild(createTokenBadge(entry));
+    }
 
     const detail = document.createElement("div");
     detail.className = "tool-detail";

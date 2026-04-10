@@ -64,6 +64,10 @@ export interface TranscriptEntryData {
   toolName?: string | undefined;
   toolInput?: string | undefined;
   toolUseId?: string | undefined;
+  inputTokens?: number | undefined;
+  outputTokens?: number | undefined;
+  cacheReadTokens?: number | undefined;
+  cacheWriteTokens?: number | undefined;
 }
 
 export type PermissionBehavior = "allow" | "allow_once" | "deny";
