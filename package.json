@@ -15,7 +15,7 @@
     "build:image": "bash scripts/build-image.sh"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.10",
+    "@biomejs/biome": "2.4.11",
     "@types/bun": "^1.3.11"
   },
   "peerDependencies": {
