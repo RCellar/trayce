@@ -42,6 +42,14 @@ import { TranscriptTab } from "./transcript-tab";
 import { TransformHandler } from "./transform";
 import { UsageTab } from "./usage-tab";
 
+// -- Type Declarations --
+
+declare global {
+  interface Window {
+    __trayceReady?: boolean;
+  }
+}
+
 // -- State --
 
 let canvasManager: CanvasManager | null = null;
@@ -1064,3 +1072,6 @@ initUIComponents();
 initResolutionSelector();
 initCanvas(1920, 1080, "white");
 initConnection();
+
+// Signal successful bootstrap completion to tests and tooling
+window.__trayceReady = true;
