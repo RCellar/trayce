@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { createHash } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHttpHandler } from "../../server/http";
+import { testDir } from "../helpers/paths";
 
-const TEST_DIR = "/tmp/trayce-test-http-static";
+const TEST_DIR = testDir("http-static");
 
 function req(path: string): Request {
   return new Request(`http://localhost${path}`);
@@ -185,5 +187,69 @@ describe("path traversal protection", () => {
     const handler = createHttpHandler(TEST_DIR);
     const res = await handler(req("/assets/nested.js"));
     expect(res.status).toBe(200);
+  });
+});
+
+describe("CSP auto-hashing", () => {
+  const INLINE_DIR = testDir("http-csp-inline");
+  const EXTERNAL_DIR = testDir("http-csp-external");
+  const HANDLER_DIR = testDir("http-csp-handler");
+  const MISSING_DIR = testDir("http-csp-missing");
+
+  beforeAll(() => {
+    rmSync(INLINE_DIR, { recursive: true, force: true });
+    rmSync(EXTERNAL_DIR, { recursive: true, force: true });
+    rmSync(HANDLER_DIR, { recursive: true, force: true });
+
+    mkdirSync(INLINE_DIR, { recursive: true });
+    mkdirSync(EXTERNAL_DIR, { recursive: true });
+    mkdirSync(HANDLER_DIR, { recursive: true });
+    // MISSING_DIR intentionally not created — no index.html
+
+    writeFileSync(join(INLINE_DIR, "index.html"), "<html><script>FOO</script></html>");
+    writeFileSync(join(EXTERNAL_DIR, "index.html"), '<html><script src="foo.js"></script></html>');
+    writeFileSync(
+      join(HANDLER_DIR, "index.html"),
+      '<html><button onclick="x()">click</button></html>',
+    );
+  });
+
+  afterAll(() => {
+    rmSync(INLINE_DIR, { recursive: true, force: true });
+    rmSync(EXTERNAL_DIR, { recursive: true, force: true });
+    rmSync(HANDLER_DIR, { recursive: true, force: true });
+    rmSync(MISSING_DIR, { recursive: true, force: true });
+  });
+
+  it("inline <script> body is hashed and appended to script-src", async () => {
+    const handler = createHttpHandler(INLINE_DIR);
+    const res = await handler(new Request("http://localhost/index.html"));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    const expectedHash = createHash("sha256").update("FOO").digest("base64");
+    expect(csp).toContain(`'sha256-${expectedHash}'`);
+    expect(csp).toContain("script-src 'self'");
+  });
+
+  it("<script src=...> does NOT add a hash", async () => {
+    const handler = createHttpHandler(EXTERNAL_DIR);
+    const res = await handler(new Request("http://localhost/index.html"));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("sha256-");
+  });
+
+  it("inline event handler attribute causes createHttpHandler to throw", () => {
+    expect(() => createHttpHandler(HANDLER_DIR)).toThrow(/inline event handler/i);
+  });
+
+  it("missing index.html does not throw and serves default CSP without extra hashes", async () => {
+    let handler: (req: Request) => Promise<Response>;
+    expect(() => {
+      handler = createHttpHandler(MISSING_DIR);
+    }).not.toThrow();
+    const res = await handler!(new Request("http://localhost/index.html"));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("sha256-");
   });
 });
