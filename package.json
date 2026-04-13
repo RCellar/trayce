@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "bun run --watch server/index.ts",
     "dev:client": "bun build client/app.ts --outdir dist/client --target browser --watch",
-    "build:client": "bun build client/app.ts --outdir dist/client --target browser --minify-syntax --minify-whitespace && cp client/index.html client/style.css dist/client/",
+    "build:client": "bun build client/app.ts --outdir dist/client --target browser --minify-syntax --minify-whitespace && cp client/index.html client/style.css client/theme-preload.js dist/client/",
     "start": "bun run server/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint",

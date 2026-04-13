@@ -4,16 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>trayce</title>
-  <script>
-    try {
-      const saved = localStorage.getItem("trayce-theme");
-      if (saved) {
-        const t = JSON.parse(saved);
-        const r = document.documentElement.style;
-        if (t.vars) for (const [k, v] of Object.entries(t.vars)) r.setProperty(k, v);
-      }
-    } catch {}
-  </script>
+  <script src="theme-preload.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
