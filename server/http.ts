@@ -21,12 +21,13 @@ export function createHttpHandler(clientDir: string): (req: Request) => Promise<
   let html = "";
   try {
     html = readFileSync(join(resolvedClientDir, "index.html"), "utf-8");
-  } catch {
+  } catch (err) {
+    if (!(err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ENOENT")) throw err;
     // index.html not present (e.g. in tests) — proceed with default CSP, no hashes.
   }
 
-  if (html && /\son[a-z]+\s*=/i.test(html)) {
-    const match = html.match(/\son([a-z]+)\s*=/i);
+  if (html && /<(?!!--)(?:[^>]|\n)*?\son[a-z]+\s*=/i.test(html)) {
+    const match = html.match(/<(?!!--)(?:[^>]|\n)*?\son([a-z]+)\s*=/i);
     const attr = match ? `on${match[1]}` : "on*";
     throw new Error(
       `CSP: inline event handlers cannot be expressed without 'unsafe-inline'. Found: ${attr} in index.html. Move them into an external script.`,
@@ -40,6 +41,7 @@ export function createHttpHandler(clientDir: string): (req: Request) => Promise<
     const attrs = m[1] ?? "";
     if (/\bsrc\s*=/i.test(attrs)) continue; // external script — no hash needed
     const body = m[2] ?? "";
+    if (!body) continue; // empty script tag — no hash needed
     const hash = createHash("sha256").update(body).digest("base64");
     scriptHashes.push(`'sha256-${hash}'`);
   }
