@@ -91,3 +91,84 @@ describe("Annotation types", () => {
     expect(r.from).toBe("claude");
   });
 });
+
+import { AnnotationSchema, AnnotationStatusSchema } from "../../shared/protocol-schema";
+
+describe("Annotation Zod schemas", () => {
+  test("accepts a valid pin", () => {
+    const r = AnnotationSchema.safeParse({
+      id: "id-1",
+      kind: "pin",
+      author: "user",
+      status: "open",
+      createdAt: 1,
+      updatedAt: 1,
+      replies: [],
+      number: 1,
+      at: [10, 20],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  test("accepts a valid text", () => {
+    const r = AnnotationSchema.safeParse({
+      id: "id-2",
+      kind: "text",
+      author: "user",
+      status: "open",
+      createdAt: 1,
+      updatedAt: 1,
+      replies: [],
+      text: "hi",
+      bbox: [0, 0, 10, 10],
+      style: { fontSize: 14, color: "#dc2626", weight: "normal" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  test("accepts a valid callout", () => {
+    const r = AnnotationSchema.safeParse({
+      id: "id-3",
+      kind: "callout",
+      author: "claude",
+      status: "addressed",
+      createdAt: 1,
+      updatedAt: 2,
+      replies: [{ from: "claude", text: "done", at: 2 }],
+      text: "move",
+      bbox: [0, 0, 10, 10],
+      target: [50, 50],
+      style: { fontSize: 14, color: "#dc2626" },
+    });
+    expect(r.success).toBe(true);
+  });
+
+  test("rejects wrong kind", () => {
+    const r = AnnotationSchema.safeParse({ id: "x", kind: "foo" });
+    expect(r.success).toBe(false);
+  });
+
+  test("rejects missing discriminant-required fields", () => {
+    const r = AnnotationSchema.safeParse({
+      id: "id-4",
+      kind: "pin",
+      author: "user",
+      status: "open",
+      createdAt: 1,
+      updatedAt: 1,
+      replies: [],
+      at: [0, 0],
+      // missing `number`
+    });
+    expect(r.success).toBe(false);
+  });
+
+  test("status enum is exactly the five values", () => {
+    expect(AnnotationStatusSchema.safeParse("open").success).toBe(true);
+    expect(AnnotationStatusSchema.safeParse("addressed").success).toBe(true);
+    expect(AnnotationStatusSchema.safeParse("rejected").success).toBe(true);
+    expect(AnnotationStatusSchema.safeParse("needs-clarification").success).toBe(true);
+    expect(AnnotationStatusSchema.safeParse("deleted").success).toBe(true);
+    expect(AnnotationStatusSchema.safeParse("in-progress").success).toBe(false);
+  });
+});
