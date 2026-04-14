@@ -45,8 +45,9 @@ describe("AnnotationRegistry", () => {
     const updated = r.get(p.id);
     expect(updated?.status).toBe("addressed");
     expect(updated?.replies.length).toBe(1);
-    expect(updated?.replies[0]!.from).toBe("claude");
-    expect(updated?.replies[0]!.text).toBe("done");
+    const firstReply = updated?.replies[0];
+    expect(firstReply?.from).toBe("claude");
+    expect(firstReply?.text).toBe("done");
   });
 
   test("applyUpdate without reply does not append empty reply", () => {
@@ -97,7 +98,9 @@ describe("AnnotationRegistry", () => {
     ]);
     const all = r.visible();
     expect(all.length).toBe(2);
-    const numbers = all.filter((a) => a.kind === "pin").map((a) => (a as { number: number }).number);
+    const numbers = all
+      .filter((a) => a.kind === "pin")
+      .map((a) => (a as { number: number }).number);
     expect(new Set(numbers).size).toBe(2);
   });
 

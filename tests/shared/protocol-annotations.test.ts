@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { SubmitSchema, BridgeToServerSchema } from "../../shared/protocol-schema";
-import type { AnnotationUpdateMessage, AnnotationsPushMessage } from "../../shared/protocol";
+import type { AnnotationsPushMessage, AnnotationUpdateMessage } from "../../shared/protocol";
+import { BridgeToServerSchema, SubmitSchema } from "../../shared/protocol-schema";
 
 describe("SubmitSchema annotations extension", () => {
   test("accepts submit with no annotations field (backwards compat)", () => {

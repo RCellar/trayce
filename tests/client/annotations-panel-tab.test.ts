@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { AnnotationRegistry } from "../../client/annotations/registry";
 import { AnnotationsTab } from "../../client/annotations/panel-tab";
+import { AnnotationRegistry } from "../../client/annotations/registry";
 
 // Use a minimal DOM shim via globalThis.document if bun-test environment
 // lacks it; trayce's tests have historically relied on real DOM via Playwright
@@ -27,22 +27,35 @@ function setupDOM(): HTMLElement {
         type: "",
         href: "",
         download: "",
-        appendChild(c: any) { el.children.push(c); c.parentElement = el; return c; },
-        append(...cs: any[]) { for (const c of cs) el.children.push(c); },
-        removeChild(c: any) { const i = el.children.indexOf(c); if (i >= 0) el.children.splice(i, 1); },
+        appendChild(c: any) {
+          el.children.push(c);
+          c.parentElement = el;
+          return c;
+        },
+        append(...cs: any[]) {
+          for (const c of cs) el.children.push(c);
+        },
+        removeChild(c: any) {
+          const i = el.children.indexOf(c);
+          if (i >= 0) el.children.splice(i, 1);
+        },
         remove() {
           const parent = el.parentElement;
           if (!parent) return;
           const i = parent.children.indexOf(el);
           if (i >= 0) parent.children.splice(i, 1);
           // Also remove from tracked arrays
-          const hi = headChildren.indexOf(el); if (hi >= 0) headChildren.splice(hi, 1);
-          const bi = bodyChildren.indexOf(el); if (bi >= 0) bodyChildren.splice(bi, 1);
+          const hi = headChildren.indexOf(el);
+          if (hi >= 0) headChildren.splice(hi, 1);
+          const bi = bodyChildren.indexOf(el);
+          if (bi >= 0) bodyChildren.splice(bi, 1);
         },
         insertAdjacentElement() {},
         addEventListener() {},
         removeEventListener() {},
-        setAttribute(k: string, v: string) { el[k] = v; },
+        setAttribute(k: string, v: string) {
+          el[k] = v;
+        },
         click() {},
         querySelectorAll: () => [] as any[],
         querySelector: () => null,
@@ -51,12 +64,26 @@ function setupDOM(): HTMLElement {
     };
 
     const headEl = stubElement("HEAD");
-    headEl.appendChild = (c: any) => { headChildren.push(c); c.parentElement = headEl; return c; };
-    headEl.removeChild = (c: any) => { const i = headChildren.indexOf(c); if (i >= 0) headChildren.splice(i, 1); };
+    headEl.appendChild = (c: any) => {
+      headChildren.push(c);
+      c.parentElement = headEl;
+      return c;
+    };
+    headEl.removeChild = (c: any) => {
+      const i = headChildren.indexOf(c);
+      if (i >= 0) headChildren.splice(i, 1);
+    };
 
     const bodyEl = stubElement("BODY");
-    bodyEl.appendChild = (c: any) => { bodyChildren.push(c); c.parentElement = bodyEl; return c; };
-    bodyEl.removeChild = (c: any) => { const i = bodyChildren.indexOf(c); if (i >= 0) bodyChildren.splice(i, 1); };
+    bodyEl.appendChild = (c: any) => {
+      bodyChildren.push(c);
+      c.parentElement = bodyEl;
+      return c;
+    };
+    bodyEl.removeChild = (c: any) => {
+      const i = bodyChildren.indexOf(c);
+      if (i >= 0) bodyChildren.splice(i, 1);
+    };
 
     const matchesSelector = (el: any, sel: string): boolean => {
       // Very minimal: handle 'link[rel="icon"]' pattern
@@ -96,10 +123,16 @@ function setupDOM(): HTMLElement {
     // Stub Blob and URL if needed (for exportJSON)
     if (typeof (globalThis as any).Blob === "undefined") {
       (globalThis as any).Blob = class MockBlob {
-        constructor(public parts: string[], public options: object) {}
+        constructor(
+          public parts: string[],
+          public options: object,
+        ) {}
       };
     }
-    if (typeof (globalThis as any).URL === "undefined" || !(globalThis as any).URL.createObjectURL) {
+    if (
+      typeof (globalThis as any).URL === "undefined" ||
+      !(globalThis as any).URL.createObjectURL
+    ) {
       (globalThis as any).URL = {
         createObjectURL: (_blob: any) => "blob:mock-url",
         revokeObjectURL: (_url: string) => {},

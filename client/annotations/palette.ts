@@ -68,8 +68,12 @@ export class AnnotationPalette {
 
   private render(state: { active: boolean; tool: AnnotationToolKind }): void {
     this.el.style.display = state.active ? "flex" : "none";
-    for (const [kind, btn] of Object.entries(this.buttons) as [AnnotationToolKind, HTMLButtonElement][]) {
-      btn.style.borderColor = kind === state.tool ? "var(--accent, #dc2626)" : "var(--border, #333)";
+    for (const [kind, btn] of Object.entries(this.buttons) as [
+      AnnotationToolKind,
+      HTMLButtonElement,
+    ][]) {
+      btn.style.borderColor =
+        kind === state.tool ? "var(--accent, #dc2626)" : "var(--border, #333)";
       btn.style.color = kind === state.tool ? "var(--accent, #dc2626)" : "var(--fg, #eee)";
     }
   }

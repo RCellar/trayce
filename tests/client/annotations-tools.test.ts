@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { AnnotationRegistry } from "../../client/annotations/registry";
-import { placePin } from "../../client/annotations/tools/pin-tool";
 import { CalloutPlacement } from "../../client/annotations/tools/callout-tool";
+import { placePin } from "../../client/annotations/tools/pin-tool";
 
 describe("placePin", () => {
   test("creates a pin in the registry at given coords", () => {
@@ -22,7 +22,12 @@ describe("CalloutPlacement", () => {
     const placement = new CalloutPlacement();
     const opened: Array<{ x: number; y: number }> = [];
     const overlay = {
-      open: (opts: { x: number; y: number; onCommit: (t: string) => void; onCancel: () => void }) => {
+      open: (opts: {
+        x: number;
+        y: number;
+        onCommit: (t: string) => void;
+        onCancel: () => void;
+      }) => {
         opened.push({ x: opts.x, y: opts.y });
         opts.onCommit("label");
       },
@@ -36,7 +41,12 @@ describe("CalloutPlacement", () => {
     const r = new AnnotationRegistry();
     const placement = new CalloutPlacement();
     const overlay = {
-      open: (opts: { x: number; y: number; onCommit: (t: string) => void; onCancel: () => void }) => {
+      open: (opts: {
+        x: number;
+        y: number;
+        onCommit: (t: string) => void;
+        onCancel: () => void;
+      }) => {
         opts.onCommit("hello");
       },
     };
@@ -56,7 +66,12 @@ describe("CalloutPlacement", () => {
     const r = new AnnotationRegistry();
     const placement = new CalloutPlacement();
     const overlay = {
-      open: (opts: { x: number; y: number; onCommit: (t: string) => void; onCancel: () => void }) => {
+      open: (opts: {
+        x: number;
+        y: number;
+        onCommit: (t: string) => void;
+        onCancel: () => void;
+      }) => {
         opts.onCommit("   ");
       },
     };
@@ -69,7 +84,12 @@ describe("CalloutPlacement", () => {
     const r = new AnnotationRegistry();
     const placement = new CalloutPlacement();
     const overlay = {
-      open: (opts: { x: number; y: number; onCommit: (t: string) => void; onCancel: () => void }) => {
+      open: (opts: {
+        x: number;
+        y: number;
+        onCommit: (t: string) => void;
+        onCancel: () => void;
+      }) => {
         opts.onCommit("x");
       },
     };

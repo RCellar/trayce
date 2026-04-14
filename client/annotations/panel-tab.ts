@@ -1,5 +1,5 @@
-import type { Annotation } from "./types";
 import type { AnnotationRegistry } from "./registry";
+import type { Annotation } from "./types";
 
 type StatusGlyph = { char: string; color: string };
 

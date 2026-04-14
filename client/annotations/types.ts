@@ -1,12 +1,12 @@
 export type {
   Annotation,
-  AnnotationKind,
   AnnotationAuthor,
-  AnnotationStatus,
-  AnnotationReply,
   AnnotationBase,
-  TextAnnotation,
-  PinAnnotation,
-  CalloutAnnotation,
+  AnnotationKind,
+  AnnotationReply,
+  AnnotationStatus,
   AnnotationUpdateEntry,
+  CalloutAnnotation,
+  PinAnnotation,
+  TextAnnotation,
 } from "../../shared/protocol";

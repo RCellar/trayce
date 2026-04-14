@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { rmSync } from "node:fs";
-import { type Config, getConfig } from "../../server/config";
+import { getConfig } from "../../server/config";
 import { SessionRegistry } from "../../server/sessions";
 import { SubmissionStore } from "../../server/submissions";
 import { WebSocketHub, type WsData } from "../../server/websocket";

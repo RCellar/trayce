@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { AnnotationRenderer } from "../../client/annotations/render";
 import { AnnotationRegistry } from "../../client/annotations/registry";
-import { drawAnnotationsOnto } from "../../client/export";
+import { AnnotationRenderer } from "../../client/annotations/render";
 import type { Annotation } from "../../client/annotations/types";
+import { drawAnnotationsOnto } from "../../client/export";
 
 function makeStubStage() {
   const children: unknown[] = [];

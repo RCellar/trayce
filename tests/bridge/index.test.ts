@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { testDir } from "../helpers/paths";
 import { formatAnnotationsForNotification } from "../../bridge/index";
 import type { Annotation } from "../../shared/protocol";
+import { testDir } from "../helpers/paths";
 
 const TEST_STATE_DIR = testDir("bridge");
 const TEST_STATE_FILE = join(TEST_STATE_DIR, "state.json");
@@ -109,12 +109,26 @@ describe("formatAnnotationsForNotification", () => {
   test("summary lists only open items; JSON includes all statuses", () => {
     const anns: Annotation[] = [
       {
-        id: "id-1", kind: "pin", author: "user", status: "open",
-        createdAt: 1, updatedAt: 1, replies: [], number: 1, at: [0, 0],
+        id: "id-1",
+        kind: "pin",
+        author: "user",
+        status: "open",
+        createdAt: 1,
+        updatedAt: 1,
+        replies: [],
+        number: 1,
+        at: [0, 0],
       },
       {
-        id: "id-2", kind: "pin", author: "user", status: "addressed",
-        createdAt: 1, updatedAt: 2, replies: [], number: 2, at: [10, 10],
+        id: "id-2",
+        kind: "pin",
+        author: "user",
+        status: "addressed",
+        createdAt: 1,
+        updatedAt: 2,
+        replies: [],
+        number: 2,
+        at: [10, 10],
       },
     ];
     const out = formatAnnotationsForNotification(anns);

@@ -7,7 +7,11 @@ import type { Annotation } from "../../client/annotations/types";
 function installFakeIDB(): void {
   const stores = new Map<string, Map<string, unknown>>();
 
-  function makeReq<T>(result: T): { onsuccess: ((e?: unknown) => void) | null; onerror: ((e?: unknown) => void) | null; result: T } {
+  function makeReq<T>(result: T): {
+    onsuccess: ((e?: unknown) => void) | null;
+    onerror: ((e?: unknown) => void) | null;
+    result: T;
+  } {
     const req = { onsuccess: null, onerror: null, result } as {
       onsuccess: ((e?: unknown) => void) | null;
       onerror: ((e?: unknown) => void) | null;

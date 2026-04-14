@@ -52,6 +52,15 @@ extensions.add(
   FilterPipe,
 );
 
+import { AnnotationMode } from "./annotations/mode";
+import { AnnotationPalette } from "./annotations/palette";
+import { AnnotationsTab } from "./annotations/panel-tab";
+import { AnnotationPersistence } from "./annotations/persistence";
+import { AnnotationRegistry } from "./annotations/registry";
+import { AnnotationRenderer } from "./annotations/render";
+import { CalloutPlacement } from "./annotations/tools/callout-tool";
+import { placePin } from "./annotations/tools/pin-tool";
+import { type EditOverlay, startTextPlacement } from "./annotations/tools/text-tool";
 import { BrushSettingsUI } from "./brush-settings-ui";
 import { EraserBrush } from "./brushes/eraser";
 import { HighlighterBrush } from "./brushes/highlighter";
@@ -81,15 +90,6 @@ import {
   saveLayers,
 } from "./persistence";
 import { PowerPopover } from "./power-popover";
-import { AnnotationMode } from "./annotations/mode";
-import { AnnotationPalette } from "./annotations/palette";
-import { AnnotationPersistence } from "./annotations/persistence";
-import { AnnotationRegistry } from "./annotations/registry";
-import { AnnotationRenderer } from "./annotations/render";
-import { AnnotationsTab } from "./annotations/panel-tab";
-import { CalloutPlacement } from "./annotations/tools/callout-tool";
-import { placePin } from "./annotations/tools/pin-tool";
-import { startTextPlacement, type EditOverlay } from "./annotations/tools/text-tool";
 import { ResponseTab } from "./response-tab";
 import { SidePanel } from "./side-panel";
 import { formatTabTitle } from "./tab-title";
@@ -161,7 +161,8 @@ const editOverlay: EditOverlay = {
   open: ({ x, y, onCommit, onCancel }) => {
     const container = document.getElementById("app") ?? document.body;
     const ta = document.createElement("textarea");
-    ta.style.cssText = `position:absolute;left:${x}px;top:${y}px;z-index:200;` +
+    ta.style.cssText =
+      `position:absolute;left:${x}px;top:${y}px;z-index:200;` +
       `background:transparent;border:1px dashed #dc2626;color:#dc2626;` +
       `font-size:14px;padding:4px;min-width:100px;outline:none;`;
     let committed = false;
@@ -854,7 +855,8 @@ function handleServerMessage(msg: ServerMessage): void {
     handleCanvasPush(msg);
   } else if (msg.type === "annotation-update") {
     if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
-    const updates = (msg as { updates?: Array<{ id: string; status: string; reply?: string }> }).updates ?? [];
+    const updates =
+      (msg as { updates?: Array<{ id: string; status: string; reply?: string }> }).updates ?? [];
     for (const u of updates) {
       annotationRegistry.applyUpdate({
         id: u.id,
@@ -866,7 +868,9 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "annotations-push") {
     if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
     const annotations = (msg as { annotations?: unknown[] }).annotations ?? [];
-    annotationRegistry.ingestPushed(annotations as Parameters<typeof annotationRegistry.ingestPushed>[0]);
+    annotationRegistry.ingestPushed(
+      annotations as Parameters<typeof annotationRegistry.ingestPushed>[0],
+    );
     return;
   } else if (msg.type === "transcript-status") {
     if (!(msg as any).available) {

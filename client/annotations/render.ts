@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from "pixi.js";
-import type { Annotation, AnnotationStatus } from "./types";
 import type { AnnotationRegistry } from "./registry";
+import type { Annotation, AnnotationStatus } from "./types";
 
 const STATUS_COLORS: Record<AnnotationStatus, number> = {
   open: 0xdc2626,
@@ -113,7 +113,9 @@ export class AnnotationRenderer {
 
       const labelCenterX = a.bbox[0] + a.bbox[2] / 2;
       const labelCenterY = a.bbox[1] + a.bbox[3] / 2;
-      g.moveTo(labelCenterX, labelCenterY).lineTo(a.target[0], a.target[1]).stroke({ color, width: 1.5 });
+      g.moveTo(labelCenterX, labelCenterY)
+        .lineTo(a.target[0], a.target[1])
+        .stroke({ color, width: 1.5 });
       g.circle(a.target[0], a.target[1], 3).fill({ color });
       root.addChild(g);
 

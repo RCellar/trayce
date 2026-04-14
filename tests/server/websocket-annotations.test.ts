@@ -10,7 +10,7 @@ describe("WebSocketHub annotation message parsing", () => {
     const parsed = WebSocketHub.parseBridgeMessage(raw);
     expect(parsed?.type).toBe("annotation-update");
     if (parsed?.type === "annotation-update") {
-      expect(parsed.updates[0].id).toBe("a1");
+      expect(parsed.updates[0]?.id).toBe("a1");
     }
   });
 

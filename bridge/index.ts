@@ -139,7 +139,12 @@ export function handleResolveAnnotations(
 type PushAnnotationInput =
   | { kind: "text"; text: string; bbox: [number, number, number, number] }
   | { kind: "pin"; at: [number, number]; note?: string }
-  | { kind: "callout"; text: string; bbox: [number, number, number, number]; target: [number, number] };
+  | {
+      kind: "callout";
+      text: string;
+      bbox: [number, number, number, number];
+      target: [number, number];
+    };
 
 export function handlePushAnnotations(
   args: { annotations?: PushAnnotationInput[] } | undefined,
@@ -187,9 +192,7 @@ export function handlePushAnnotations(
   });
   ws.send(JSON.stringify({ type: "annotations-push", annotations }));
   return {
-    content: [
-      { type: "text", text: `Pushed ${annotations.length} annotation(s) to canvas.` },
-    ],
+    content: [{ type: "text", text: `Pushed ${annotations.length} annotation(s) to canvas.` }],
   };
 }
 
@@ -277,12 +280,18 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
             items: {
               type: "object",
               properties: {
-                id: { type: "string", description: "Annotation ID from the submission's annotation list" },
+                id: {
+                  type: "string",
+                  description: "Annotation ID from the submission's annotation list",
+                },
                 status: {
                   type: "string",
                   enum: ["addressed", "rejected", "needs-clarification"],
                 },
-                reply: { type: "string", description: "Optional short note attached to the annotation" },
+                reply: {
+                  type: "string",
+                  description: "Optional short note attached to the annotation",
+                },
               },
               required: ["id", "status"],
             },
@@ -387,7 +396,11 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     // The bridge has no visibility into the browser's pin counter, so we
     // always start numbering at 1. The browser's AnnotationRegistry.ingestPushed
     // (Task 10) renumbers any colliding pins.
-    return handlePushAnnotations(args as { annotations?: PushAnnotationInput[] }, currentWs, () => 1);
+    return handlePushAnnotations(
+      args as { annotations?: PushAnnotationInput[] },
+      currentWs,
+      () => 1,
+    );
   }
 
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
@@ -514,9 +527,7 @@ function connect() {
           : msg.prompt;
 
         const annotationBlock = formatAnnotationsForNotification(msg.annotations ?? []);
-        const content = annotationBlock
-          ? `${baseContent}\n\n${annotationBlock}`
-          : baseContent;
+        const content = annotationBlock ? `${baseContent}\n\n${annotationBlock}` : baseContent;
 
         mcpServer.notification({
           method: "notifications/claude/channel",

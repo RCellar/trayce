@@ -1,5 +1,5 @@
-import type { LayerManager } from "./layers";
 import type { Annotation, AnnotationStatus } from "./annotations/types";
+import type { LayerManager } from "./layers";
 
 const STATUS_HEX: Record<AnnotationStatus, string> = {
   open: "#dc2626",
