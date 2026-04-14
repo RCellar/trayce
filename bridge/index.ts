@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { defaultStateFile } from "../shared/paths";
+import type { Annotation } from "../shared/protocol";
 import {
   discoverTranscriptByBirthtime,
   discoverTranscriptPath,
@@ -32,6 +33,28 @@ const PermissionRequestSchema = z
     }),
   })
   .passthrough();
+
+export function formatAnnotationsForNotification(annotations: Annotation[]): string {
+  if (annotations.length === 0) return "";
+  const open = annotations.filter((a) => a.status === "open");
+  const lines: string[] = [`📍 Annotations (${open.length} open):`];
+  for (const a of open) {
+    const shortId = a.id.slice(0, 8);
+    if (a.kind === "pin") {
+      const label = a.note ? `  "${a.note}"` : "";
+      lines.push(`  #${a.number} pin  (${a.at[0]}, ${a.at[1]})${label}       [id: ${shortId}…]`);
+    } else if (a.kind === "text") {
+      lines.push(`  text  "${a.text}" @ (${a.bbox[0]}, ${a.bbox[1]})       [id: ${shortId}…]`);
+    } else {
+      lines.push(`  callout → (${a.target[0]}, ${a.target[1]})  "${a.text}"  [id: ${shortId}…]`);
+    }
+  }
+  lines.push("");
+  lines.push("<annotations-json>");
+  lines.push(JSON.stringify(annotations, null, 2));
+  lines.push("</annotations-json>");
+  return lines.join("\n");
+}
 
 /** Resolve the project directory. The bridge is spawned as an MCP subprocess —
  *  its own cwd may not match the project. On Linux, read the parent process
@@ -486,9 +509,14 @@ function connect() {
         const meta: Record<string, unknown> = { submission_id: msg.id };
         if (msg.pngPath) meta.image_path = msg.pngPath;
 
-        const content = msg.pngPath
+        const baseContent = msg.pngPath
           ? msg.prompt || "[sketch submitted — see attached image]"
           : msg.prompt;
+
+        const annotationBlock = formatAnnotationsForNotification(msg.annotations ?? []);
+        const content = annotationBlock
+          ? `${baseContent}\n\n${annotationBlock}`
+          : baseContent;
 
         mcpServer.notification({
           method: "notifications/claude/channel",
