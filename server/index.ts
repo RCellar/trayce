@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
+import { mkdirSync, openSync } from "node:fs";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
+import { defaultLogFile } from "../shared/paths";
 import { generateToken, validateToken } from "./auth";
 import { getConfig } from "./config";
 import { createHttpHandler } from "./http";
@@ -132,15 +134,26 @@ async function initiateShutdown({
     // reconnect-with-backoff picks up the new server seamlessly. Use
     // node:child_process.spawn (not Bun.spawn) because on Windows the child
     // dies with the parent unless we get true process-group detachment.
+    //
+    // Redirect stdio to a log file rather than "ignore" — a silent failure in
+    // the restart path (port in TIME_WAIT, missing script, bad PATH, crash on
+    // bind) left no trace and was impossible to debug. The log is append-only
+    // so parent and child writes don't overwrite each other.
     try {
-      const child = spawn(process.execPath, ["run", "scripts/start.ts"], {
-        cwd: process.cwd(),
+      const logPath = defaultLogFile();
+      mkdirSync(dirname(logPath), { recursive: true });
+      const logFd = openSync(logPath, "a");
+      const startScript = resolve(import.meta.dir, "..", "scripts", "start.ts");
+      const child = spawn(process.execPath, ["run", startScript], {
+        cwd: resolve(import.meta.dir, ".."),
         env: { ...process.env, TRAYCE_TOKEN: token },
         detached: true,
-        stdio: "ignore",
+        stdio: ["ignore", logFd, logFd],
       });
       child.unref();
-      console.log(`[trayce] spawned replacement server; parent PID ${process.pid} exiting`);
+      console.log(
+        `[trayce] spawned replacement server via ${startScript}; parent PID ${process.pid} exiting; child logs at ${logPath}`,
+      );
     } catch (err) {
       console.error("[trayce] failed to spawn replacement server:", err);
     }
