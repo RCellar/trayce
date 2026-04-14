@@ -90,6 +90,29 @@ const mcpServer = new Server(
   },
 );
 
+type ResolveUpdate = {
+  id: string;
+  status: "addressed" | "rejected" | "needs-clarification";
+  reply?: string;
+};
+
+export function handleResolveAnnotations(
+  args: { updates?: ResolveUpdate[] } | undefined,
+  ws: WebSocket | null,
+): { content: { type: "text"; text: string }[] } {
+  const updates = args?.updates;
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { content: [{ type: "text", text: "Error: updates must be a non-empty array" }] };
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return { content: [{ type: "text", text: "Error: not connected to trayce server" }] };
+  }
+  ws.send(JSON.stringify({ type: "annotation-update", updates }));
+  return {
+    content: [{ type: "text", text: `Updated ${updates.length} annotation(s).` }],
+  };
+}
+
 // Track current WebSocket, watcher, and the last known good transcript path
 let currentWs: WebSocket | null = null;
 let transcriptWatcher: TranscriptWatcher | null = null;
@@ -162,6 +185,33 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: "resolve_annotations",
+      description:
+        "Mark one or more canvas annotations as addressed, rejected, or needs-clarification. Optionally attach a short reply per annotation. Use after completing a task to close the loop with the user on each annotation they placed.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          updates: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string", description: "Annotation ID from the submission's annotation list" },
+                status: {
+                  type: "string",
+                  enum: ["addressed", "rejected", "needs-clarification"],
+                },
+                reply: { type: "string", description: "Optional short note attached to the annotation" },
+              },
+              required: ["id", "status"],
+            },
+            minItems: 1,
+          },
+        },
+        required: ["updates"],
+      },
+    },
   ],
 }));
 
@@ -220,6 +270,10 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         { type: "text", text: `Image pushed to canvas as layer "${pushLabel}" (${sizeMB}MB)` },
       ],
     };
+  }
+
+  if (name === "resolve_annotations") {
+    return handleResolveAnnotations(args as { updates?: ResolveUpdate[] }, currentWs);
   }
 
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
