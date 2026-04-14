@@ -1,3 +1,5 @@
+import { defaultStateFile, defaultSubmissionsDir } from "../shared/paths";
+
 export interface Config {
   host: string;
   port: number;
@@ -19,8 +21,8 @@ export interface Config {
 const DEFAULTS: Config = {
   host: "0.0.0.0",
   port: 9740,
-  submissionsDir: "/tmp/trayce/submissions",
-  stateFile: "/tmp/trayce/state.json",
+  submissionsDir: defaultSubmissionsDir(),
+  stateFile: defaultStateFile(),
   clientDir: "dist/client",
   maxSubmissionBytes: 20 * 1024 * 1024, // 20 MB
   maxWsPayloadBytes: 30 * 1024 * 1024, // 30 MB

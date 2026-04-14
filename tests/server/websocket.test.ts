@@ -4,6 +4,7 @@ import { type Config, getConfig } from "../../server/config";
 import { SessionRegistry } from "../../server/sessions";
 import { SubmissionStore } from "../../server/submissions";
 import { WebSocketHub, type WsData } from "../../server/websocket";
+import { testDir } from "../helpers/paths";
 
 // -- Mock WebSocket --
 
@@ -55,7 +56,7 @@ function allSentOfType(ws: MockWs, type: string): Record<string, unknown>[] {
 
 // -- Test fixtures --
 
-const TEST_DIR = "/tmp/trayce-test-ws";
+const TEST_DIR = testDir("ws");
 const TINY_PNG_B64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
 const BASE_CONFIG = getConfig({});

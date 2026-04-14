@@ -4,6 +4,7 @@ import { type Config, getConfig } from "../../server/config";
 import { SessionRegistry } from "../../server/sessions";
 import { SubmissionStore } from "../../server/submissions";
 import { WebSocketHub, type WsData } from "../../server/websocket";
+import { testDir } from "../helpers/paths";
 
 // -- Mock WebSocket --
 
@@ -45,7 +46,7 @@ function bridgeWs(id?: string): MockWs {
 
 // -- Test fixtures --
 
-const TEST_DIR = "/tmp/trayce-test-bridge-routing";
+const TEST_DIR = testDir("bridge-routing");
 const BASE_CONFIG = getConfig({});
 
 function makeHub(configOverrides: Partial<Config> = {}): WebSocketHub {

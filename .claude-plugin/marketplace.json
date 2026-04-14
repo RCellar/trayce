@@ -1,0 +1,11 @@
+{
+  "name": "trayce-local",
+  "owner": { "name": "RCellar" },
+  "plugins": [
+    {
+      "name": "trayce",
+      "source": "./plugin",
+      "description": "Canvas drawing tool for Claude Code — skills for using, setup, start, status, and stop"
+    }
+  ]
+}

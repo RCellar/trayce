@@ -14,10 +14,10 @@ Browser canvas connected to this Claude Code session via MCP Channels. Users dra
 
 ## Receiving Sketches
 
-Submissions arrive as channel notifications. **Read the PNG with the Read tool** — it's a file path, not inline data.
+Submissions arrive as channel notifications. **Read the PNG with the Read tool** — it's a file path, not inline data. The path comes from the notification (it will be under the OS temp dir on whichever platform the server is running).
 
 ```xml
-<channel source="trayce" image_path="/tmp/trayce/submissions/sub-1234.png">
+<channel source="trayce" image_path="{path from notification}">
   User's prompt text
 </channel>
 ```
@@ -27,7 +27,7 @@ Submissions arrive as channel notifications. **Read the PNG with the Read tool**
 Use `mcp__trayce__push_image`. Always prefer `file_path` — it avoids context window limits.
 
 ```
-push_image(file_path: "/tmp/trayce/diagram.png", label: "Architecture")
+push_image(file_path: "<absolute path to image>", label: "Architecture")
 ```
 
 | Param | Usage |
@@ -42,8 +42,11 @@ Images arrive as hidden, movable/resizable transform layers.
 
 ## Server
 
+Use the cross-platform TypeScript scripts — they work on Linux, macOS, and Windows.
+
 | Action | Command |
 |---|---|
-| Status | `cat /tmp/trayce/state.json` |
-| Start | `bash ${CLAUDE_PLUGIN_ROOT}/../scripts/start.sh` |
-| Stop | `bash ${CLAUDE_PLUGIN_ROOT}/../scripts/stop.sh` |
+| Start | `bun run ${CLAUDE_PLUGIN_ROOT}/../scripts/start.ts` |
+| Stop | `bun run ${CLAUDE_PLUGIN_ROOT}/../scripts/stop.ts` |
+
+`start.ts` prints the server status as JSON (`{"status":"existing"|"new","url":"...","pid":...}`); if a server is already running, it reports the existing one without relaunching.

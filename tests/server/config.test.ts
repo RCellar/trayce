@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { type Config, getConfig } from "../../server/config";
+import { defaultStateFile, defaultSubmissionsDir } from "../../shared/paths";
 
 function env(
   overrides: Record<string, string | undefined> = {},
@@ -18,12 +19,12 @@ describe("getConfig — defaults", () => {
     expect(cfg.port).toBe(9740);
   });
 
-  test("submissionsDir defaults to /tmp/trayce/submissions", () => {
-    expect(cfg.submissionsDir).toBe("/tmp/trayce/submissions");
+  test("submissionsDir defaults to os.tmpdir()/trayce/submissions", () => {
+    expect(cfg.submissionsDir).toBe(defaultSubmissionsDir());
   });
 
-  test("stateFile defaults to /tmp/trayce/state.json", () => {
-    expect(cfg.stateFile).toBe("/tmp/trayce/state.json");
+  test("stateFile defaults to os.tmpdir()/trayce/state.json", () => {
+    expect(cfg.stateFile).toBe(defaultStateFile());
   });
 
   test("clientDir defaults to dist/client", () => {

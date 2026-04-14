@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { testDir } from "../helpers/paths";
 
-const TEST_STATE_DIR = "/tmp/trayce-test-bridge";
-const TEST_STATE_FILE = `${TEST_STATE_DIR}/state.json`;
+const TEST_STATE_DIR = testDir("bridge");
+const TEST_STATE_FILE = join(TEST_STATE_DIR, "state.json");
 
 const SAMPLE_STATE = {
   pid: process.pid,
@@ -44,7 +47,7 @@ describe("Bridge state discovery", () => {
   });
 
   test("missing state file does not crash", () => {
-    const missing = "/tmp/trayce-test-bridge-nonexistent/state.json";
+    const missing = join(tmpdir(), "trayce-test-bridge-nonexistent", "state.json");
     expect(existsSync(missing)).toBe(false);
     // The bridge would fall back to defaults — we just verify existsSync works
   });

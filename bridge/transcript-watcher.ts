@@ -1,6 +1,6 @@
 import { closeSync, existsSync, openSync, readdirSync, readSync, statSync, watch } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 export interface TranscriptEntry {
   type: "message" | "response" | "tool-call" | "tool-result";
@@ -112,7 +112,7 @@ export class TranscriptWatcher {
 
     const dir = dirname(this.filePath);
     try {
-      const watchFile = this.filePath.split("/").pop() ?? "";
+      const watchFile = basename(this.filePath);
       this.fsWatcher = watch(dir, (_event, filename) => {
         if (!filename || filename === watchFile) {
           this.readNewEntries();
@@ -421,7 +421,7 @@ export function discoverTranscriptPath(cwd: string): string | null {
   if (!existsSync(claudeProjectsDir)) return null;
 
   // Claude Code encodes the cwd as a directory name by replacing / with -
-  const encodedCwd = cwd.replace(/\//g, "-").replace(/^-/, "-");
+  const encodedCwd = cwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
 
   // Try matching project dir first, then fall back to most recent across all
   const projectDirs = safeReaddir(claudeProjectsDir);

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TranscriptEntry } from "../../bridge/transcript-watcher";
 import {
@@ -8,9 +8,10 @@ import {
   discoverTranscriptPath,
   TranscriptWatcher,
 } from "../../bridge/transcript-watcher";
+import { testDir } from "../helpers/paths";
 
-const TEST_DIR = "/tmp/trayce-test-transcript";
-const TEST_FILE = `${TEST_DIR}/transcript.jsonl`;
+const TEST_DIR = testDir("transcript");
+const TEST_FILE = join(TEST_DIR, "transcript.jsonl");
 
 // Claude Code envelope format: { type, message: { role, content }, timestamp, ... }
 const USER_MSG = JSON.stringify({
@@ -319,8 +320,8 @@ describe("TranscriptWatcher", () => {
 
   test("onFileSwitch is settable on TranscriptWatcher", () => {
     const watcher = new TranscriptWatcher(
-      "/tmp/fake.jsonl",
-      "/tmp",
+      join(tmpdir(), "fake.jsonl"),
+      tmpdir(),
       Date.now(),
       () => {},
       undefined,
@@ -401,10 +402,12 @@ describe("partial line handling", () => {
 });
 
 describe("TranscriptWatcher rediscovery", () => {
-  // Use a unique cwd so discoverTranscriptPath finds our test files
-  // in ~/.claude/projects/{encoded-cwd}/
-  const testCwd = "/tmp/trayce-test-rediscovery-cwd";
-  const encodedCwd = "-tmp-trayce-test-rediscovery-cwd";
+  // Use a synthetic cwd (not a real path). Real Windows paths contain "C:"
+  // which is invalid in directory names once encoded. The encoding logic
+  // treats the cwd purely as a string, so using a dash-free test fixture
+  // works on every platform without hitting OS filename restrictions.
+  const testCwd = "/trayce-test-rediscovery-cwd";
+  const encodedCwd = testCwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
   const projectDir = join(homedir(), ".claude", "projects", encodedCwd);
 
   beforeEach(() => {
@@ -428,6 +431,20 @@ describe("TranscriptWatcher rediscovery", () => {
 
     const discovered = discoverTranscriptPath(testCwd);
     expect(discovered).toBe(newFile);
+  });
+
+  test("encodes both forward-slash (Linux) and backslash (Windows) paths", () => {
+    // The encoding regex /[\\/]/g must replace BOTH separators so the function
+    // produces consistent output regardless of platform. This is the
+    // cross-platform invariant the bridge relies on for transcript discovery.
+    const linuxCwd = "/home/dev/project";
+    const linuxEncoded = linuxCwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
+    expect(linuxEncoded).toBe("-home-dev-project");
+
+    const windowsCwd = "C:\\Users\\dev\\project";
+    const windowsEncoded = windowsCwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
+    expect(windowsEncoded).toBe("C:-Users-dev-project");
+    expect(windowsEncoded).not.toContain("\\");
   });
 
   test("watcher stays on birthtime-confirmed file and does not switch", async () => {
@@ -522,9 +539,9 @@ describe("TranscriptWatcher rediscovery", () => {
 });
 
 describe("TranscriptWatcher subagent tracking", () => {
-  const SUBAGENT_DIR_BASE = "/tmp/trayce-test-transcript";
-  const MAIN_TRANSCRIPT = `${SUBAGENT_DIR_BASE}/session-uuid.jsonl`;
-  const SUBAGENTS_DIR = `${SUBAGENT_DIR_BASE}/session-uuid/subagents`;
+  const SUBAGENT_DIR_BASE = testDir("transcript");
+  const MAIN_TRANSCRIPT = join(SUBAGENT_DIR_BASE, "session-uuid.jsonl");
+  const SUBAGENTS_DIR = join(SUBAGENT_DIR_BASE, "session-uuid", "subagents");
 
   const mkSubagentEntry = (
     model: string,

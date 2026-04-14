@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { generateToken, validateToken } from "./auth";
@@ -128,13 +129,17 @@ async function initiateShutdown({
 
   if (restart && !containerMode) {
     // Spawn a fully detached child with the current token so the browser's
-    // reconnect-with-backoff picks up the new server seamlessly.
+    // reconnect-with-backoff picks up the new server seamlessly. Use
+    // node:child_process.spawn (not Bun.spawn) because on Windows the child
+    // dies with the parent unless we get true process-group detachment.
     try {
-      Bun.spawn(["bash", "scripts/start.sh"], {
+      const child = spawn(process.execPath, ["run", "scripts/start.ts"], {
         cwd: process.cwd(),
         env: { ...process.env, TRAYCE_TOKEN: token },
-        stdio: ["ignore", "ignore", "ignore"],
+        detached: true,
+        stdio: "ignore",
       });
+      child.unref();
       console.log(`[trayce] spawned replacement server; parent PID ${process.pid} exiting`);
     } catch (err) {
       console.error("[trayce] failed to spawn replacement server:", err);
@@ -159,9 +164,11 @@ async function shutdown(signal: string): Promise<void> {
   process.exit(0);
 }
 
-process.on("SIGTERM", () => {
-  void shutdown("SIGTERM");
-});
+if (process.platform !== "win32") {
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+}
 process.on("SIGINT", () => {
   void shutdown("SIGINT");
 });
