@@ -12,7 +12,7 @@ export type ToolId =
   | "text"
   | "image";
 export type ActionId = "clear";
-export type PanelId = "floating" | "response" | "transcript" | "usage";
+export type PanelId = "floating" | "response" | "transcript" | "usage" | "annotations";
 
 export interface ToolbarConfig {
   onToolChange: (toolId: ToolId) => void;

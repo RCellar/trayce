@@ -1,4 +1,4 @@
-export type PanelTab = "response" | "transcript" | "usage";
+export type PanelTab = "response" | "transcript" | "usage" | "annotations";
 
 export class SidePanel {
   isOpen = false;
@@ -9,6 +9,7 @@ export class SidePanel {
   private responseContent: HTMLElement | null = null;
   private transcriptContent: HTMLElement | null = null;
   private usageContent: HTMLElement | null = null;
+  private annotationsContent: HTMLElement | null = null;
   private resizeHandle: HTMLElement | null = null;
   private width = 340;
   private minWidth = 240;
@@ -40,6 +41,12 @@ export class SidePanel {
     transcriptBtn.textContent = "Transcript";
     transcriptBtn.addEventListener("click", () => this.toggle("transcript"));
 
+    const annotationsBtn = document.createElement("button");
+    annotationsBtn.className = "panel-tab";
+    annotationsBtn.dataset.tab = "annotations";
+    annotationsBtn.textContent = "Annotations";
+    annotationsBtn.addEventListener("click", () => this.toggle("annotations"));
+
     const usageBtn = document.createElement("button");
     usageBtn.className = "panel-tab";
     usageBtn.dataset.tab = "usage";
@@ -54,6 +61,7 @@ export class SidePanel {
     });
 
     this.tabBar.appendChild(transcriptBtn);
+    this.tabBar.appendChild(annotationsBtn);
     this.tabBar.appendChild(usageBtn);
     this.tabBar.appendChild(closeBtn);
     container.appendChild(this.tabBar);
@@ -72,6 +80,11 @@ export class SidePanel {
     this.usageContent = document.createElement("div");
     this.usageContent.className = "panel-content usage-content";
     container.appendChild(this.usageContent);
+
+    // Annotations content area
+    this.annotationsContent = document.createElement("div");
+    this.annotationsContent.className = "panel-content annotations-content";
+    container.appendChild(this.annotationsContent);
 
     this.setupResize();
     this.updateDOM();
@@ -110,6 +123,10 @@ export class SidePanel {
     return this.usageContent;
   }
 
+  getAnnotationsContainer(): HTMLElement | null {
+    return this.annotationsContent;
+  }
+
   private updateDOM(): void {
     if (!this.container) return;
 
@@ -144,6 +161,10 @@ export class SidePanel {
     }
     if (this.usageContent) {
       this.usageContent.style.display = this.isOpen && this.activeTab === "usage" ? "" : "none";
+    }
+    if (this.annotationsContent) {
+      this.annotationsContent.style.display =
+        this.isOpen && this.activeTab === "annotations" ? "" : "none";
     }
   }
 
