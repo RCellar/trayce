@@ -180,7 +180,10 @@ async function connectBrowser(cdpPort: number) {
 // Test lifecycle
 // ---------------------------------------------------------------------------
 
+const SKIP = process.platform !== "win32";
+
 beforeAll(async () => {
+  if (SKIP) return;
   // Ensure dist/client bundle is present; rebuild if missing.
   if (!existsSync(join(CLIENT_DIR, "app.js"))) {
     const build = Bun.spawnSync(["bun", "run", "build:client"], {
@@ -219,6 +222,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
+  if (SKIP) return;
   try {
     await browser?.close();
   } catch {}
@@ -243,7 +247,11 @@ afterAll(async () => {
 // Test
 // ---------------------------------------------------------------------------
 
-describe("Client boot smoke test", () => {
+// The CDP+transport workaround in spawnChrome/connectBrowser was needed to get
+// Playwright working on this Windows Server (no GPU) host. chromium.launch()
+// and connectOverCDP() both work on standard macOS/Linux, but this test hasn't
+// been adapted to them. Gate to win32 until the launch path is also supported.
+describe.skipIf(process.platform !== "win32")("Client boot smoke test", () => {
   it(
     "loads canvas with zero console errors and sets window.__trayceReady",
     async () => {

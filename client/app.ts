@@ -1,3 +1,4 @@
+// TODO(bun-sideeffects): remove once Bun honours `sideEffects` path entries.
 // Bun 1.3.x does not honour pixi's `sideEffects` whitelist, so pure side-effect
 // imports (like `pixi.js/unsafe-eval` and every `init.mjs` under pixi/lib) get
 // tree-shaken out of the bundle. Mitigate here by:
