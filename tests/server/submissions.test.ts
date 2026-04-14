@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { existsSync, rmSync, utimesSync } from "node:fs";
 import { SubmissionStore } from "../../server/submissions";
+import { testDir } from "../helpers/paths";
 
-const TEST_DIR = "/tmp/trayce-test-submissions";
+// Use tmpdir() so the path has platform-native separators — on Windows the
+// SubmissionStore.save() return value uses backslashes, and a hardcoded
+// "/tmp/..." constant would never match via toContain().
+const TEST_DIR = testDir("submissions");
 
 // Minimal valid PNG (1x1 transparent pixel)
 const TINY_PNG_B64 =

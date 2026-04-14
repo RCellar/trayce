@@ -6,27 +6,29 @@
  *   1. No console errors or page errors occurred during load
  *   2. window.__trayceReady === true was set by the app bootstrap
  *
- * This catches regressions that static analysis misses: CSP blocks on inline
- * scripts, minifier identifier mangling, missing assets (fonts, workers), and
+ * Catches regressions that static analysis misses: CSP blocks on inline
+ * scripts, bundler tree-shake drops, missing assets (fonts, workers), and
  * WebSocket connection setup failures.
  *
- * Implementation note: On Windows Server (no GPU), Playwright's standard
- * chromium.launch() and connectOverCDP() are unavailable due to:
- *   - launch(): GPU subprocess crashes before the remote-debugging-pipe responds
- *   - connectOverCDP(): the bundled ws npm package fails the WS upgrade on Bun
- * We work around both by spawning Chrome with --remote-debugging-port and
- * connecting via chromium._connectOverCDPTransport() with Bun's native WebSocket.
+ * Windows note: On no-GPU Windows hosts (local Windows Server, GitHub's
+ * windows-latest), Playwright's standard chromium.launch() hangs waiting
+ * on the remote-debugging pipe. Workaround: spawn Chrome with
+ * --remote-debugging-port directly and connect via Playwright's private
+ * chromium._connectOverCDPTransport() using Bun's native WebSocket (the
+ * bundled ws npm package also fails the upgrade on Bun/Windows). Tracked
+ * via GitHub issue #12.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { chromium } from "playwright";
+import { type Browser, chromium } from "playwright";
+
+const IS_WINDOWS = process.platform === "win32";
 
 const TEST_PORT = 18900 + Math.floor(Math.random() * 100);
-// CDP port must not collide with the trayce server port; use a separate range
 const CDP_PORT = 19300 + Math.floor(Math.random() * 100);
 const TMP_DIR = join(tmpdir(), `trayce-e2e-${process.pid}-boot`);
 const STATE_FILE = join(TMP_DIR, "state.json");
@@ -34,8 +36,6 @@ const SUBMISSIONS_DIR = join(TMP_DIR, "submissions");
 const CLIENT_DIR = resolve(import.meta.dir, "../../dist/client");
 const SERVER_ENTRY = resolve(import.meta.dir, "../../server/index.ts");
 const TEST_TOKEN = "test-token-client-boot";
-
-// Unique user-data-dir per run so there's no state bleed between runs
 const USER_DATA_DIR = join(tmpdir(), `trayce-chrome-${process.pid}`);
 
 interface StateJson {
@@ -47,12 +47,8 @@ interface StateJson {
 }
 
 let serverProc: ReturnType<typeof Bun.spawn>;
-let chromeProc: ReturnType<typeof spawn> | null = null;
-let browser: Awaited<ReturnType<typeof connectBrowser>> | null = null;
-
-// ---------------------------------------------------------------------------
-// Helpers copied from tests/e2e/submission-flow.test.ts
-// ---------------------------------------------------------------------------
+let chromeProc: ChildProcess | null = null;
+let browser: Browser | null = null;
 
 async function waitForState(timeoutMs = 15_000): Promise<StateJson> {
   const deadline = Date.now() + timeoutMs;
@@ -85,12 +81,7 @@ async function waitForHttp(url: string, timeoutMs = 10_000): Promise<void> {
   throw new Error(`Server not reachable at ${url}`);
 }
 
-// ---------------------------------------------------------------------------
-// Browser helpers (Playwright via CDP + Bun WebSocket transport)
-// ---------------------------------------------------------------------------
-
-/** Spawn Chrome with a remote-debugging port and wait until it's ready. */
-async function spawnChrome(cdpPort: number): Promise<ReturnType<typeof spawn>> {
+async function spawnChrome(cdpPort: number): Promise<ChildProcess> {
   const executablePath = (chromium as unknown as { executablePath: () => string }).executablePath();
   const proc = spawn(
     executablePath,
@@ -108,14 +99,13 @@ async function spawnChrome(cdpPort: number): Promise<ReturnType<typeof spawn>> {
     { stdio: ["ignore", "pipe", "pipe"] },
   );
 
-  // Wait until /json/version is reachable
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     try {
       const resp = await fetch(`http://127.0.0.1:${cdpPort}/json/version`);
       if (resp.ok) return proc;
     } catch {
-      // not ready
+      // not ready yet
     }
     await Bun.sleep(100);
   }
@@ -123,30 +113,21 @@ async function spawnChrome(cdpPort: number): Promise<ReturnType<typeof spawn>> {
   throw new Error(`Chrome CDP not ready on port ${cdpPort}`);
 }
 
-/**
- * Connect Playwright to the Chrome process via CDP using Bun's native
- * WebSocket as the underlying transport (the bundled ws npm package doesn't
- * work on Bun/Windows; the private _connectOverCDPTransport API accepts any
- * object that matches the Playwright transport interface).
- */
-async function connectBrowser(cdpPort: number) {
+// Playwright's bundled `ws` package fails the WebSocket upgrade on Bun, so
+// connectOverCDP() is unusable here. The private _connectOverCDPTransport()
+// accepts any transport matching { onmessage, onclose, send, close } — we hand
+// it one backed by Bun's native WebSocket.
+async function connectOverBunCDP(cdpPort: number): Promise<Browser> {
   const versionResp = await fetch(`http://127.0.0.1:${cdpPort}/json/version`);
   const versionData = (await versionResp.json()) as { webSocketDebuggerUrl?: string };
-  if (!versionData.webSocketDebuggerUrl) throw new Error("No webSocketDebuggerUrl");
+  if (!versionData.webSocketDebuggerUrl) throw new Error("No webSocketDebuggerUrl from Chrome CDP");
 
   const ws = new WebSocket(versionData.webSocketDebuggerUrl);
-
-  let resolveOpen!: () => void;
-  let rejectOpen!: (e: Error) => void;
-  const openP = new Promise<void>((res, rej) => {
-    resolveOpen = res;
-    rejectOpen = rej;
+  await new Promise<void>((res, rej) => {
+    ws.onopen = () => res();
+    ws.onerror = () => rej(new Error("WebSocket failed to connect to Chrome CDP"));
   });
-  ws.onopen = () => resolveOpen();
-  ws.onerror = () => rejectOpen(new Error("WebSocket failed to connect to Chrome CDP"));
-  await openP;
 
-  // Playwright's transport interface: { onmessage, onclose, send, close }
   const transport = {
     onmessage: null as ((msg: unknown) => void) | null,
     onclose: null as ((reason: string) => void) | null,
@@ -157,36 +138,20 @@ async function connectBrowser(cdpPort: number) {
       ws.close();
     },
   };
-
   ws.onmessage = (ev) => {
-    if (transport.onmessage) transport.onmessage(JSON.parse(ev.data as string));
+    transport.onmessage?.(JSON.parse(ev.data as string));
   };
   ws.onclose = () => {
-    if (transport.onclose) transport.onclose("closed");
+    transport.onclose?.("closed");
   };
 
-  // Private Playwright API: accepts a raw transport object and returns a Browser
-  const b = await (
-    chromium as unknown as {
-      _connectOverCDPTransport: (t: typeof transport) => Promise<{
-        newContext: () => Promise<{ newPage: () => Promise<unknown> }>;
-        close: () => Promise<void>;
-      }>;
-    }
-  )._connectOverCDPTransport(transport);
-
-  return b;
+  const pw = chromium as unknown as {
+    _connectOverCDPTransport: (t: typeof transport) => Promise<Browser>;
+  };
+  return pw._connectOverCDPTransport(transport);
 }
 
-// ---------------------------------------------------------------------------
-// Test lifecycle
-// ---------------------------------------------------------------------------
-
-const SKIP = process.platform !== "win32";
-
 beforeAll(async () => {
-  if (SKIP) return;
-  // Ensure dist/client bundle is present; rebuild if missing.
   if (!existsSync(join(CLIENT_DIR, "app.js"))) {
     const build = Bun.spawnSync(["bun", "run", "build:client"], {
       cwd: resolve(import.meta.dir, "../.."),
@@ -219,12 +184,15 @@ beforeAll(async () => {
   await waitForState();
   await waitForHttp(`http://127.0.0.1:${TEST_PORT}/`);
 
-  chromeProc = await spawnChrome(CDP_PORT);
-  browser = await connectBrowser(CDP_PORT);
+  if (IS_WINDOWS) {
+    chromeProc = await spawnChrome(CDP_PORT);
+    browser = await connectOverBunCDP(CDP_PORT);
+  } else {
+    browser = await chromium.launch({ headless: true });
+  }
 }, 60_000);
 
 afterAll(async () => {
-  if (SKIP) return;
   try {
     await browser?.close();
   } catch {}
@@ -234,51 +202,33 @@ afterAll(async () => {
   try {
     serverProc?.kill();
   } catch {}
-  // Give the OS a moment to release file handles after killing Chrome.
-  // On Windows, Chrome's user-data-dir is locked until the process fully exits.
-  await Bun.sleep(500);
+  // Windows needs a moment to release file handles before the user-data-dir
+  // and tmp dir can be removed.
+  await Bun.sleep(IS_WINDOWS ? 500 : 200);
   try {
     rmSync(TMP_DIR, { recursive: true, force: true });
   } catch {}
-  try {
-    rmSync(USER_DATA_DIR, { recursive: true, force: true });
-  } catch {}
+  if (IS_WINDOWS) {
+    try {
+      rmSync(USER_DATA_DIR, { recursive: true, force: true });
+    } catch {}
+  }
 });
 
-// ---------------------------------------------------------------------------
-// Test
-// ---------------------------------------------------------------------------
-
-// The CDP+transport workaround in spawnChrome/connectBrowser was needed to get
-// Playwright working on this Windows Server (no GPU) host. chromium.launch()
-// and connectOverCDP() both work on standard macOS/Linux, but this test hasn't
-// been adapted to them. Gate to win32 until the launch path is also supported.
-describe.skipIf(process.platform !== "win32")("Client boot smoke test", () => {
+describe("Client boot smoke test", () => {
   it("loads canvas with zero console errors and sets window.__trayceReady", async () => {
     if (!browser) throw new Error("browser not initialized");
 
     const errors: string[] = [];
-
     const context = await browser.newContext();
-    // newPage is actually typed as unknown above; use type assertion
-    const page = (await context.newPage()) as {
-      on: (event: string, handler: (arg: unknown) => void) => void;
-      goto: (url: string, opts?: Record<string, unknown>) => Promise<unknown>;
-      waitForFunction: (fn: () => unknown, opts?: Record<string, unknown>) => Promise<void>;
-      evaluate: <T>(fn: () => T) => Promise<T>;
-      close: () => Promise<void>;
-    };
+    const page = await context.newPage();
 
     page.on("console", (msg) => {
-      const m = msg as { type: () => string; text: () => string };
-      if (m.type() === "error") {
-        errors.push(`[console.error] ${m.text()}`);
-      }
+      if (msg.type() === "error") errors.push(`[console.error] ${msg.text()}`);
     });
 
     page.on("pageerror", (err) => {
-      const e = err as { message: string };
-      errors.push(`[pageerror] ${e.message}`);
+      errors.push(`[pageerror] ${err.message}`);
     });
 
     try {
@@ -286,22 +236,20 @@ describe.skipIf(process.platform !== "win32")("Client boot smoke test", () => {
         waitUntil: "domcontentloaded",
       });
 
-      // Wait for app bootstrap to complete
       await page.waitForFunction(
         () => (window as unknown as { __trayceReady?: boolean }).__trayceReady === true,
         { timeout: 5_000 },
       );
 
-      // Assert no console or page errors occurred
       expect(errors, `Expected zero browser errors but got:\n${errors.join("\n")}`).toHaveLength(0);
 
-      // Confirm the flag is actually truthy
       const ready = await page.evaluate(
         () => (window as unknown as { __trayceReady?: boolean }).__trayceReady,
       );
       expect(ready).toBe(true);
     } finally {
       await page.close().catch(() => {});
+      await context.close().catch(() => {});
     }
   }, 30_000);
 });

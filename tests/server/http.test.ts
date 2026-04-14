@@ -127,6 +127,10 @@ describe("CSP directives", () => {
     expect(await getCsp()).toContain("script-src 'self'");
   });
 
+  it("script-src includes 'unsafe-eval' (required by pixi.js GL renderer)", async () => {
+    expect(await getCsp()).toContain("'unsafe-eval'");
+  });
+
   it("style-src 'self' 'unsafe-inline'", async () => {
     expect(await getCsp()).toContain("style-src 'self' 'unsafe-inline'");
   });
