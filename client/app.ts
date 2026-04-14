@@ -1,14 +1,14 @@
 // TODO(bun-sideeffects): remove once Bun honours `sideEffects` path entries.
-// Bun 1.3.x does not honour pixi's `sideEffects` whitelist, so pure side-effect
-// imports (like `pixi.js/unsafe-eval` and every `init.mjs` under pixi/lib) get
-// tree-shaken out of the bundle. Mitigate here by:
-//   1. Re-registering env extensions so browserExt/webworkerExt stay declared.
-//   2. Re-registering the plugins/pipes/masks whose init.mjs files are dropped.
-//   3. Patching AbstractRenderer and UboSystem's eval guards to no-ops
-//      (the essential piece of `pixi.js/unsafe-eval`'s selfInstall; trayce
-//      doesn't use the shader/UBO polyfills that selfInstall would also set).
+// Bun 1.3.x does not honour pixi's `sideEffects` whitelist, so the `init.mjs`
+// files under pixi/lib (which register env extensions and rendering plugins
+// via side-effect imports) get tree-shaken out of the bundle. Mitigate by
+// re-registering them explicitly.
+//
+// Note on `pixi.js/unsafe-eval`: that side-effect import is also dropped, but
+// rather than patch around it we rely on the server's CSP allowing
+// 'unsafe-eval' (see threat-model comment in server/http.ts). Pixi 8's WebGL
+// shader/UBO/uniform code generators use `new Function()` for performance.
 import {
-  AbstractRenderer,
   AlphaMask,
   browserExt,
   CanvasGraphicsPipe,
@@ -20,7 +20,6 @@ import {
   ResizePlugin,
   StencilMask,
   TickerPlugin,
-  UboSystem,
   webworkerExt,
 } from "pixi.js";
 
@@ -36,8 +35,6 @@ extensions.add(
   ImageSource,
   CanvasSource,
 );
-Object.assign(AbstractRenderer.prototype, { _unsafeEvalCheck() {} });
-Object.assign(UboSystem.prototype, { _systemCheck() {} });
 
 import { BrushSettingsUI } from "./brush-settings-ui";
 import { EraserBrush } from "./brushes/eraser";

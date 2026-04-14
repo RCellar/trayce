@@ -54,7 +54,15 @@ export function createHttpHandler(clientDir: string): (req: Request) => Promise<
     scriptHashes.push(`'sha256-${hash}'`);
   }
 
-  const scriptSrc = ["'self'", ...scriptHashes].join(" ");
+  // 'unsafe-eval' is required by pixi.js's WebGL shader/UBO/uniform code
+  // generators. The official `pixi.js/unsafe-eval` add-on would patch them away,
+  // but Bun 1.3.x tree-shakes the side-effect import despite pixi's sideEffects
+  // whitelist (see TODO(bun-sideeffects) in client/app.ts). For trayce
+  // specifically the marginal risk is near-zero: localhost + token-gated, all
+  // scripts come from same origin (script-src 'self' already prevents injection),
+  // no untrusted user input flows into anything eval'd, and pixi only eval's
+  // its own static internal templates. Revisit if any of those change.
+  const scriptSrc = ["'self'", "'unsafe-eval'", ...scriptHashes].join(" ");
   const csp =
     `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; ` +
     `img-src 'self' blob: data:; connect-src 'self' ws: wss:; font-src 'self'; ` +
