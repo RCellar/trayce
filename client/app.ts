@@ -156,13 +156,16 @@ annotationRegistry.subscribe(() => {
   }
 });
 
-// EditOverlay implementation — creates a positioned textarea for annotation text entry
+// EditOverlay implementation — creates a positioned textarea for annotation text entry.
+// `screenX` / `screenY` are viewport-pixel coordinates from the original pointer event
+// so the textarea appears where the user clicked (not at the canvas-space document
+// position, which would be wrong under any non-1x zoom or pan).
 const editOverlay: EditOverlay = {
-  open: ({ x, y, onCommit, onCancel }) => {
+  open: ({ screenX, screenY, onCommit, onCancel }) => {
     const container = document.getElementById("app") ?? document.body;
     const ta = document.createElement("textarea");
     ta.style.cssText =
-      `position:absolute;left:${x}px;top:${y}px;z-index:200;` +
+      `position:absolute;left:${screenX}px;top:${screenY}px;z-index:200;` +
       `background:transparent;border:1px dashed #dc2626;color:#dc2626;` +
       `font-size:14px;padding:4px;min-width:100px;outline:none;`;
     let committed = false;
@@ -695,9 +698,16 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
       if (tool === "pin") {
         placePin(annotationRegistry, doc.x, doc.y);
       } else if (tool === "text") {
-        startTextPlacement(annotationRegistry, doc.x, doc.y, editOverlay);
+        startTextPlacement(annotationRegistry, doc.x, doc.y, lastPt.x, lastPt.y, editOverlay);
       } else {
-        calloutPlacement.onClick(annotationRegistry, doc.x, doc.y, editOverlay);
+        calloutPlacement.onClick(
+          annotationRegistry,
+          doc.x,
+          doc.y,
+          lastPt.x,
+          lastPt.y,
+          editOverlay,
+        );
       }
     }
     return; // skip brush handling

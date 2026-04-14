@@ -8,6 +8,8 @@ export class CalloutPlacement {
     registry: AnnotationRegistry,
     canvasX: number,
     canvasY: number,
+    screenX: number,
+    screenY: number,
     editOverlay: EditOverlay,
   ): void {
     if (!this.target) {
@@ -17,8 +19,8 @@ export class CalloutPlacement {
     const target = this.target;
     this.target = null;
     editOverlay.open({
-      x: canvasX,
-      y: canvasY,
+      screenX,
+      screenY,
       onCommit: (text) => {
         if (text.trim().length === 0) return;
         registry.createCallout({
