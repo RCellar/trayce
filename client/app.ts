@@ -1,6 +1,41 @@
-// Must be imported BEFORE any other pixi.js imports — patches PixiJS to work
-// without unsafe-eval (replaces new Function() with CSP-safe alternatives)
-import "pixi.js/unsafe-eval";
+// Bun 1.3.x does not honour pixi's `sideEffects` whitelist, so pure side-effect
+// imports (like `pixi.js/unsafe-eval` and every `init.mjs` under pixi/lib) get
+// tree-shaken out of the bundle. Mitigate here by:
+//   1. Re-registering env extensions so browserExt/webworkerExt stay declared.
+//   2. Re-registering the plugins/pipes/masks whose init.mjs files are dropped.
+//   3. Patching AbstractRenderer and UboSystem's eval guards to no-ops
+//      (the essential piece of `pixi.js/unsafe-eval`'s selfInstall; trayce
+//      doesn't use the shader/UBO polyfills that selfInstall would also set).
+import {
+  AbstractRenderer,
+  AlphaMask,
+  browserExt,
+  CanvasGraphicsPipe,
+  CanvasSource,
+  ColorMask,
+  extensions,
+  GraphicsPipe,
+  ImageSource,
+  ResizePlugin,
+  StencilMask,
+  TickerPlugin,
+  UboSystem,
+  webworkerExt,
+} from "pixi.js";
+extensions.add(browserExt, webworkerExt);
+extensions.add(
+  TickerPlugin,
+  ResizePlugin,
+  AlphaMask,
+  ColorMask,
+  StencilMask,
+  CanvasGraphicsPipe,
+  GraphicsPipe,
+  ImageSource,
+  CanvasSource,
+);
+Object.assign(AbstractRenderer.prototype, { _unsafeEvalCheck() {} });
+Object.assign(UboSystem.prototype, { _systemCheck() {} });
 
 import { BrushSettingsUI } from "./brush-settings-ui";
 import { EraserBrush } from "./brushes/eraser";
