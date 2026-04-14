@@ -403,11 +403,11 @@ describe("partial line handling", () => {
 
 describe("TranscriptWatcher rediscovery", () => {
   // Use a synthetic cwd (not a real path). Real Windows paths contain "C:"
-  // which is invalid in directory names once encoded. The encoding logic
-  // treats the cwd purely as a string, so using a dash-free test fixture
-  // works on every platform without hitting OS filename restrictions.
+  // and "." which would both encode to "-", but the filesystem fixture needs
+  // a path that survives untouched on every OS. Mirror the production regex
+  // so this fixture tracks whatever encoding the real code uses.
   const testCwd = "/trayce-test-rediscovery-cwd";
-  const encodedCwd = testCwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
+  const encodedCwd = testCwd.replace(/[\\/:.]/g, "-");
   const projectDir = join(homedir(), ".claude", "projects", encodedCwd);
 
   beforeEach(() => {
@@ -433,18 +433,21 @@ describe("TranscriptWatcher rediscovery", () => {
     expect(discovered).toBe(newFile);
   });
 
-  test("encodes both forward-slash (Linux) and backslash (Windows) paths", () => {
-    // The encoding regex /[\\/]/g must replace BOTH separators so the function
-    // produces consistent output regardless of platform. This is the
-    // cross-platform invariant the bridge relies on for transcript discovery.
-    const linuxCwd = "/home/dev/project";
-    const linuxEncoded = linuxCwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
-    expect(linuxEncoded).toBe("-home-dev-project");
+  test("cwd encoding matches Claude Code's actual project-dir naming", () => {
+    // Claude Code encodes the cwd by replacing path-unsafe characters with "-".
+    // On Linux the separators are slashes; on Windows both backslashes and the
+    // drive colon need encoding, and dots in directory names (e.g.
+    // "Administrator.WIN-HBTPOPMKP0K") are also converted — this was observed
+    // against ~/.claude/projects/ on an actual Windows Claude Code install.
+    // We replicate the regex inline here so this test fails loudly if the
+    // production encoding drifts from Claude's.
+    const encode = (p: string) => p.replace(/[\\/:.]/g, "-");
 
-    const windowsCwd = "C:\\Users\\dev\\project";
-    const windowsEncoded = windowsCwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
-    expect(windowsEncoded).toBe("C:-Users-dev-project");
-    expect(windowsEncoded).not.toContain("\\");
+    expect(encode("/home/dev/project")).toBe("-home-dev-project");
+    expect(encode("C:\\Users\\dev\\project")).toBe("C--Users-dev-project");
+    expect(encode("C:\\Users\\Administrator.WIN-HBTPOPMKP0K\\repo")).toBe(
+      "C--Users-Administrator-WIN-HBTPOPMKP0K-repo",
+    );
   });
 
   test("watcher stays on birthtime-confirmed file and does not switch", async () => {

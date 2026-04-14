@@ -420,8 +420,12 @@ export function discoverTranscriptPath(cwd: string): string | null {
   const claudeProjectsDir = join(homedir(), ".claude", "projects");
   if (!existsSync(claudeProjectsDir)) return null;
 
-  // Claude Code encodes the cwd as a directory name by replacing / with -
-  const encodedCwd = cwd.replace(/[\\/]/g, "-").replace(/^-/, "-");
+  // Claude Code encodes the cwd as a directory name by replacing path-unsafe
+  // characters with "-". On Windows the source path contains `:` (drive) and
+  // often `.` (e.g. "Administrator.WIN-HBTPOPMKP0K"); both get encoded the
+  // same way as path separators. Observed: C:\Users\A.B\Documents\repo →
+  // C--Users-A-B-Documents-repo.
+  const encodedCwd = cwd.replace(/[\\/:.]/g, "-");
 
   // Try matching project dir first, then fall back to most recent across all
   const projectDirs = safeReaddir(claudeProjectsDir);
