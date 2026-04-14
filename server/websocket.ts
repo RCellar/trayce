@@ -56,6 +56,8 @@ export class WebSocketHub {
     "response",
     "transcript-status",
     "canvas-push",
+    "annotation-update",
+    "annotations-push",
   ]);
   /** Delay between acknowledging a shutdown-request and firing the
    * actual shutdown callback. Lets the WebSocket flush the ack frame
