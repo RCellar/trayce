@@ -113,6 +113,63 @@ export function handleResolveAnnotations(
   };
 }
 
+type PushAnnotationInput =
+  | { kind: "text"; text: string; bbox: [number, number, number, number] }
+  | { kind: "pin"; at: [number, number]; note?: string }
+  | { kind: "callout"; text: string; bbox: [number, number, number, number]; target: [number, number] };
+
+export function handlePushAnnotations(
+  args: { annotations?: PushAnnotationInput[] } | undefined,
+  ws: WebSocket | null,
+  nextPinNumber: () => number,
+): { content: { type: "text"; text: string }[] } {
+  const input = args?.annotations;
+  if (!Array.isArray(input) || input.length === 0) {
+    return { content: [{ type: "text", text: "Error: annotations must be a non-empty array" }] };
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return { content: [{ type: "text", text: "Error: not connected to trayce server" }] };
+  }
+  const now = Date.now();
+  let pinCounter = nextPinNumber();
+  const annotations = input.map((a) => {
+    const base = {
+      id: crypto.randomUUID(),
+      author: "claude" as const,
+      status: "open" as const,
+      createdAt: now,
+      updatedAt: now,
+      replies: [] as never[],
+    };
+    if (a.kind === "pin") {
+      return { ...base, kind: "pin" as const, number: pinCounter++, at: a.at, note: a.note };
+    }
+    if (a.kind === "text") {
+      return {
+        ...base,
+        kind: "text" as const,
+        text: a.text,
+        bbox: a.bbox,
+        style: { fontSize: 14, color: "#dc2626", weight: "normal" as const },
+      };
+    }
+    return {
+      ...base,
+      kind: "callout" as const,
+      text: a.text,
+      bbox: a.bbox,
+      target: a.target,
+      style: { fontSize: 14, color: "#dc2626" },
+    };
+  });
+  ws.send(JSON.stringify({ type: "annotations-push", annotations }));
+  return {
+    content: [
+      { type: "text", text: `Pushed ${annotations.length} annotation(s) to canvas.` },
+    ],
+  };
+}
+
 // Track current WebSocket, watcher, and the last known good transcript path
 let currentWs: WebSocket | null = null;
 let transcriptWatcher: TranscriptWatcher | null = null;
@@ -212,6 +269,33 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["updates"],
       },
     },
+    {
+      name: "push_annotations",
+      description:
+        "Add annotations to the canvas (pins, text labels, or callouts). Use on pushed renders to ask clarifying questions or highlight details. Each annotation appears on the canvas with a Claude-authored visual style.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          annotations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                kind: { type: "string", enum: ["text", "pin", "callout"] },
+                at: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 },
+                bbox: { type: "array", items: { type: "number" }, minItems: 4, maxItems: 4 },
+                target: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 },
+                text: { type: "string" },
+                note: { type: "string" },
+              },
+              required: ["kind"],
+            },
+            minItems: 1,
+          },
+        },
+        required: ["annotations"],
+      },
+    },
   ],
 }));
 
@@ -274,6 +358,13 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   if (name === "resolve_annotations") {
     return handleResolveAnnotations(args as { updates?: ResolveUpdate[] }, currentWs);
+  }
+
+  if (name === "push_annotations") {
+    // The bridge has no visibility into the browser's pin counter, so we
+    // always start numbering at 1. The browser's AnnotationRegistry.ingestPushed
+    // (Task 10) renumbers any colliding pins.
+    return handlePushAnnotations(args as { annotations?: PushAnnotationInput[] }, currentWs, () => 1);
   }
 
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
