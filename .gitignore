@@ -3,9 +3,11 @@ dist/
 .superpowers/
 .worktrees/
 .claude/
+.obsidian/
 docs-vault/
 /tmp/trayce/
 *.log
+.env
 .mcp.json
 docs/superpowers/
 backups/
