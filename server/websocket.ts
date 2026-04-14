@@ -5,6 +5,7 @@ import type {
   BridgeToServerMessage,
   BrowserToServerMessage,
   RegisterMessage,
+  SubmissionMessage,
   SubmitMessage,
 } from "../shared/protocol";
 import { BridgeToServerSchema, BrowserToServerSchema } from "../shared/protocol-schema";
@@ -445,12 +446,15 @@ export class WebSocketHub {
     const bridge = this.bridges.get(targetSessionId);
     const delivered = !!bridge;
     if (bridge) {
-      const bridgeMsg: Record<string, unknown> = {
+      const bridgeMsg: SubmissionMessage = {
         type: "submission",
         id: submission.id,
         prompt: submission.prompt,
       };
       if (submission.pngPath) bridgeMsg.pngPath = submission.pngPath;
+      if (msg.annotations && msg.annotations.length > 0) {
+        bridgeMsg.annotations = msg.annotations;
+      }
       safeSend(bridge, JSON.stringify(bridgeMsg));
     }
 
