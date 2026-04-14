@@ -852,6 +852,22 @@ function handleServerMessage(msg: ServerMessage): void {
     }
   } else if (msg.type === "canvas-push") {
     handleCanvasPush(msg);
+  } else if (msg.type === "annotation-update") {
+    if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
+    const updates = (msg as { updates?: Array<{ id: string; status: string; reply?: string }> }).updates ?? [];
+    for (const u of updates) {
+      annotationRegistry.applyUpdate({
+        id: u.id,
+        status: u.status as never, // schema already validated at server parse boundary
+        ...(u.reply !== undefined ? { reply: u.reply } : {}),
+      });
+    }
+    return;
+  } else if (msg.type === "annotations-push") {
+    if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
+    const annotations = (msg as { annotations?: unknown[] }).annotations ?? [];
+    annotationRegistry.ingestPushed(annotations as Parameters<typeof annotationRegistry.ingestPushed>[0]);
+    return;
   } else if (msg.type === "transcript-status") {
     if (!(msg as any).available) {
       responseTab?.showUnavailable();
@@ -1061,6 +1077,11 @@ submitBtn.addEventListener("click", async () => {
     if (!blank) {
       const blob = await flattenToPng(layerManager);
       msg.image = await blobToBase64(blob);
+    }
+
+    const annotationsForSubmit = annotationRegistry.forSubmission();
+    if (annotationsForSubmit.length > 0) {
+      msg.annotations = annotationsForSubmit;
     }
 
     connection.send(msg);
