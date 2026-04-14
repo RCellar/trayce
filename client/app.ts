@@ -10,19 +10,29 @@
 // shader/UBO/uniform code generators use `new Function()` for performance.
 import {
   AlphaMask,
+  BufferImageSource,
   browserExt,
+  CanvasGraphicsContextSystem,
   CanvasGraphicsPipe,
   CanvasSource,
   ColorMask,
   extensions,
+  FilterPipe,
+  FilterSystem,
+  GraphicsContextSystem,
   GraphicsPipe,
   ImageSource,
   ResizePlugin,
   StencilMask,
   TickerPlugin,
+  VideoSource,
   webworkerExt,
 } from "pixi.js";
 
+// Must mirror pixi's rendering/init.mjs + scene/graphics/init.mjs + filters/init.mjs:
+// registering the Pipes alone is not enough — GraphicsPipe delegates to
+// GraphicsContextSystem via `updateGpuContext`, which is undefined unless the
+// ContextSystem is registered. Same story for FilterPipe/FilterSystem.
 extensions.add(browserExt, webworkerExt);
 extensions.add(
   TickerPlugin,
@@ -30,10 +40,16 @@ extensions.add(
   AlphaMask,
   ColorMask,
   StencilMask,
-  CanvasGraphicsPipe,
-  GraphicsPipe,
+  VideoSource,
   ImageSource,
   CanvasSource,
+  BufferImageSource,
+  CanvasGraphicsPipe,
+  GraphicsPipe,
+  CanvasGraphicsContextSystem,
+  GraphicsContextSystem,
+  FilterSystem,
+  FilterPipe,
 );
 
 import { BrushSettingsUI } from "./brush-settings-ui";
