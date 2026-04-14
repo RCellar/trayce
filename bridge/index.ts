@@ -1,10 +1,10 @@
 import { existsSync, readFileSync, readlinkSync } from "node:fs";
 import { basename } from "node:path";
-import { defaultStateFile } from "../shared/paths";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { defaultStateFile } from "../shared/paths";
 import {
   discoverTranscriptByBirthtime,
   discoverTranscriptPath,
