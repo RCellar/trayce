@@ -1143,6 +1143,18 @@ function clearCanvas(): void {
   // incoherent pre-clear state mixed with the now-empty layers.
   history?.clear();
 
+  // Also drop annotations — the confirm prompt is "Clear the entire canvas",
+  // and leaving pins/text/callouts floating over a freshly-blank canvas is
+  // almost never what the user wants. Annotation persistence will re-save
+  // the empty state on the next mutation; nuke any cached write too so a
+  // refresh restores the cleared state, not the last debounced snapshot.
+  annotationRegistry.clear();
+  if (selectedSessionId) {
+    annotationPersistence.clearSession(selectedSessionId).catch((err) => {
+      console.error("[trayce] failed to clear persisted annotations:", err);
+    });
+  }
+
   compositor.rebuild();
   layersUI?.render();
   updateLayerInfo();
