@@ -1074,12 +1074,11 @@ submitBtn.addEventListener("click", async () => {
       prompt,
     };
 
+    const annotationsForSubmit = annotationRegistry.forSubmission();
     if (!blank) {
-      const blob = await flattenToPng(layerManager);
+      const blob = await flattenToPng(layerManager, annotationsForSubmit);
       msg.image = await blobToBase64(blob);
     }
-
-    const annotationsForSubmit = annotationRegistry.forSubmission();
     if (annotationsForSubmit.length > 0) {
       msg.annotations = annotationsForSubmit;
     }
