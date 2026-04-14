@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readlinkSync } from "node:fs";
 import { basename } from "node:path";
+import { defaultStateFile } from "../shared/paths";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
@@ -47,7 +48,7 @@ function resolveProjectDir(): string {
 
 // Discover connection info from env or state.json
 function readState(): { host: string; port: string; token: string } {
-  const stateFile = process.env.TRAYCE_STATE_FILE ?? "/tmp/trayce/state.json";
+  const stateFile = process.env.TRAYCE_STATE_FILE ?? defaultStateFile();
   let host = process.env.TRAYCE_HOST ?? "";
   let port = process.env.TRAYCE_PORT ?? "";
   let token = process.env.TRAYCE_TOKEN ?? "";

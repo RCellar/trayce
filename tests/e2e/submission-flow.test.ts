@@ -12,10 +12,11 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const TEST_PORT = 19900 + Math.floor(Math.random() * 100);
-const TMP_DIR = `/tmp/trayce-e2e-${process.pid}`;
+const TMP_DIR = join(tmpdir(), `trayce-e2e-${process.pid}`);
 const STATE_FILE = join(TMP_DIR, "state.json");
 const SUBMISSIONS_DIR = join(TMP_DIR, "submissions");
 const CLIENT_DIR = join(TMP_DIR, "client");
@@ -119,7 +120,7 @@ beforeAll(async () => {
 
 afterAll(() => {
   try {
-    serverProc.kill("SIGTERM");
+    serverProc.kill();
   } catch {}
   rmSync(TMP_DIR, { recursive: true, force: true });
 });
