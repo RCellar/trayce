@@ -22,7 +22,15 @@ export function createHttpHandler(clientDir: string): (req: Request) => Promise<
   try {
     html = readFileSync(join(resolvedClientDir, "index.html"), "utf-8");
   } catch (err) {
-    if (!(err && typeof err === "object" && "code" in err && (err as { code: string }).code === "ENOENT")) throw err;
+    if (
+      !(
+        err &&
+        typeof err === "object" &&
+        "code" in err &&
+        (err as { code: string }).code === "ENOENT"
+      )
+    )
+      throw err;
     // index.html not present (e.g. in tests) — proceed with default CSP, no hashes.
   }
 

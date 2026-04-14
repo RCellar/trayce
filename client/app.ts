@@ -23,6 +23,7 @@ import {
   UboSystem,
   webworkerExt,
 } from "pixi.js";
+
 extensions.add(browserExt, webworkerExt);
 extensions.add(
   TickerPlugin,

@@ -19,11 +19,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawn } from "node:child_process";
 import { chromium } from "playwright";
 
 const TEST_PORT = 18900 + Math.floor(Math.random() * 100);
@@ -169,7 +168,10 @@ async function connectBrowser(cdpPort: number) {
   // Private Playwright API: accepts a raw transport object and returns a Browser
   const b = await (
     chromium as unknown as {
-      _connectOverCDPTransport: (t: typeof transport) => Promise<{ newContext: () => Promise<{ newPage: () => Promise<unknown> }>; close: () => Promise<void> }>;
+      _connectOverCDPTransport: (t: typeof transport) => Promise<{
+        newContext: () => Promise<{ newPage: () => Promise<unknown> }>;
+        close: () => Promise<void>;
+      }>;
     }
   )._connectOverCDPTransport(transport);
 
@@ -252,61 +254,54 @@ afterAll(async () => {
 // and connectOverCDP() both work on standard macOS/Linux, but this test hasn't
 // been adapted to them. Gate to win32 until the launch path is also supported.
 describe.skipIf(process.platform !== "win32")("Client boot smoke test", () => {
-  it(
-    "loads canvas with zero console errors and sets window.__trayceReady",
-    async () => {
-      if (!browser) throw new Error("browser not initialized");
+  it("loads canvas with zero console errors and sets window.__trayceReady", async () => {
+    if (!browser) throw new Error("browser not initialized");
 
-      const errors: string[] = [];
+    const errors: string[] = [];
 
-      const context = await browser.newContext();
-      // newPage is actually typed as unknown above; use type assertion
-      const page = await context.newPage() as {
-        on: (event: string, handler: (arg: unknown) => void) => void;
-        goto: (url: string, opts?: Record<string, unknown>) => Promise<unknown>;
-        waitForFunction: (fn: () => unknown, opts?: Record<string, unknown>) => Promise<void>;
-        evaluate: <T>(fn: () => T) => Promise<T>;
-        close: () => Promise<void>;
-      };
+    const context = await browser.newContext();
+    // newPage is actually typed as unknown above; use type assertion
+    const page = (await context.newPage()) as {
+      on: (event: string, handler: (arg: unknown) => void) => void;
+      goto: (url: string, opts?: Record<string, unknown>) => Promise<unknown>;
+      waitForFunction: (fn: () => unknown, opts?: Record<string, unknown>) => Promise<void>;
+      evaluate: <T>(fn: () => T) => Promise<T>;
+      close: () => Promise<void>;
+    };
 
-      page.on("console", (msg) => {
-        const m = msg as { type: () => string; text: () => string };
-        if (m.type() === "error") {
-          errors.push(`[console.error] ${m.text()}`);
-        }
-      });
-
-      page.on("pageerror", (err) => {
-        const e = err as { message: string };
-        errors.push(`[pageerror] ${e.message}`);
-      });
-
-      try {
-        await page.goto(`http://127.0.0.1:${TEST_PORT}/?token=${TEST_TOKEN}`, {
-          waitUntil: "domcontentloaded",
-        });
-
-        // Wait for app bootstrap to complete
-        await page.waitForFunction(
-          () => (window as unknown as { __trayceReady?: boolean }).__trayceReady === true,
-          { timeout: 5_000 },
-        );
-
-        // Assert no console or page errors occurred
-        expect(
-          errors,
-          `Expected zero browser errors but got:\n${errors.join("\n")}`,
-        ).toHaveLength(0);
-
-        // Confirm the flag is actually truthy
-        const ready = await page.evaluate(
-          () => (window as unknown as { __trayceReady?: boolean }).__trayceReady,
-        );
-        expect(ready).toBe(true);
-      } finally {
-        await page.close().catch(() => {});
+    page.on("console", (msg) => {
+      const m = msg as { type: () => string; text: () => string };
+      if (m.type() === "error") {
+        errors.push(`[console.error] ${m.text()}`);
       }
-    },
-    30_000,
-  );
+    });
+
+    page.on("pageerror", (err) => {
+      const e = err as { message: string };
+      errors.push(`[pageerror] ${e.message}`);
+    });
+
+    try {
+      await page.goto(`http://127.0.0.1:${TEST_PORT}/?token=${TEST_TOKEN}`, {
+        waitUntil: "domcontentloaded",
+      });
+
+      // Wait for app bootstrap to complete
+      await page.waitForFunction(
+        () => (window as unknown as { __trayceReady?: boolean }).__trayceReady === true,
+        { timeout: 5_000 },
+      );
+
+      // Assert no console or page errors occurred
+      expect(errors, `Expected zero browser errors but got:\n${errors.join("\n")}`).toHaveLength(0);
+
+      // Confirm the flag is actually truthy
+      const ready = await page.evaluate(
+        () => (window as unknown as { __trayceReady?: boolean }).__trayceReady,
+      );
+      expect(ready).toBe(true);
+    } finally {
+      await page.close().catch(() => {});
+    }
+  }, 30_000);
 });
