@@ -150,6 +150,7 @@ export interface SubmitMessage {
   targetSessionId?: string | undefined;
   image?: string | undefined; // base64 PNG, optional if prompt present
   prompt?: string | undefined;
+  annotations?: Annotation[] | undefined;
 }
 
 export interface WatchSessionMessage {
@@ -297,6 +298,7 @@ export interface SubmissionMessage {
   id: string;
   prompt: string;
   pngPath?: string;
+  annotations?: Annotation[] | undefined;
 }
 
 export type ServerToBridgeMessage = HeartbeatMessage | SubmissionMessage | PermissionVerdictMessage;

@@ -154,6 +154,7 @@ export const SubmitSchema = z.object({
   targetSessionId: z.string().optional(),
   image: z.string().optional(),
   prompt: z.string().optional(),
+  annotations: z.array(AnnotationSchema).optional(),
 });
 
 export const WatchSessionSchema = z.object({
