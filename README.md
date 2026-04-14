@@ -19,6 +19,8 @@ Draw in your browser, pick a Claude Code session, submit — Claude sees your sk
 
 ## Quick Start
 
+Runs on Linux, macOS, and Windows — Bun is the only prerequisite.
+
 ```bash
 # Install and start
 git clone https://github.com/RCellar/trayce.git
@@ -31,7 +33,7 @@ Open the printed URL in your browser. Then connect a Claude Code session:
 
 ```bash
 # From any project directory
-bash /path/to/trayce/scripts/setup.sh --label my-project
+bun run /path/to/trayce/scripts/setup.ts --label my-project
 claude --dangerously-load-development-channels server:trayce
 ```
 
@@ -72,8 +74,10 @@ Multiple Claude Code sessions can connect simultaneously. Each appears in the se
 ### Automated (recommended)
 
 ```bash
-bash /path/to/trayce/scripts/setup.sh --label my-project
+bun run /path/to/trayce/scripts/setup.ts --label my-project
 ```
+
+Works on Linux, macOS, and Windows. (POSIX equivalents are also in `scripts/` with `.sh` suffixes, but the `.ts` versions are preferred — they're what the bundled Claude Code plugin's skills invoke.)
 
 This writes the MCP config into your project's `.mcp.json`. Then start Claude with the channel flag:
 
@@ -108,13 +112,14 @@ Add to `.mcp.json` in your project root (or `~/.claude.json` for global):
 ## Server Management
 
 ```bash
-bun run start              # Start in foreground
-bash scripts/start.sh      # Start daemonized (reuses existing instance)
-bash scripts/stop.sh       # Stop daemonized server
-bun run dev                # Development with hot reload
+bun run start                    # Start in foreground
+bun run scripts/start.ts         # Start detached (reuses existing instance)
+bun run scripts/stop.ts          # Stop detached server
+bun run scripts/status.ts        # JSON status (running PID/URL or reason not running)
+bun run dev                      # Development with hot reload
 ```
 
-The server writes state to `/tmp/trayce/state.json` (PID, port, token). Bridges read this automatically — no manual token configuration needed.
+The server writes state to `$TMPDIR/trayce/state.json` (PID, port, token) — that resolves to `/tmp/trayce/state.json` on Linux/macOS and `%TEMP%\trayce\state.json` on Windows. Bridges read this automatically — no manual token configuration needed. Restart failures and startup errors are captured in the sibling `server.log`.
 
 ### Canvas Resolution
 
@@ -124,12 +129,12 @@ Choose from presets (1920x1080, 2560x1440, 3840x2160, 4096x4096) via the resolut
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TRAYCE_HOST` | `127.0.0.1` | Bind address |
+| `TRAYCE_HOST` | `0.0.0.0` | Bind address |
 | `TRAYCE_PORT` | `9740` | Server port |
 | `TRAYCE_TOKEN` | *(auto-generated)* | Auth token (auto-generated if unset) |
 | `TRAYCE_NO_AUTH` | `false` | Disable token authentication |
-| `TRAYCE_SUBMISSIONS_DIR` | `/tmp/trayce/submissions` | PNG storage path |
-| `TRAYCE_STATE_FILE` | `/tmp/trayce/state.json` | Server state file |
+| `TRAYCE_SUBMISSIONS_DIR` | `$TMPDIR/trayce/submissions` | PNG storage path |
+| `TRAYCE_STATE_FILE` | `$TMPDIR/trayce/state.json` | Server state file |
 
 Token priority: `TRAYCE_NO_AUTH=true` > `TRAYCE_TOKEN` > auto-generate.
 
