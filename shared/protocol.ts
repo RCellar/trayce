@@ -221,6 +221,22 @@ export interface PermissionRequestMessage {
   toolInput?: unknown | undefined;
 }
 
+export interface AnnotationUpdateEntry {
+  id: string;
+  status: Exclude<AnnotationStatus, "open" | "deleted">;
+  reply?: string | undefined;
+}
+
+export interface AnnotationUpdateMessage {
+  type: "annotation-update";
+  updates: AnnotationUpdateEntry[];
+}
+
+export interface AnnotationsPushMessage {
+  type: "annotations-push";
+  annotations: Annotation[];
+}
+
 /** Bridge-routed messages: bridge sends these, server forwards them to
  * browsers that are watching the bridge's session (with `sessionId` appended),
  * and buffers the replay-worthy ones. */
@@ -230,7 +246,9 @@ export type BridgeRoutedMessage =
   | CanvasPushMessage
   | TranscriptStatusMessage
   | UsageUpdateMessage
-  | PermissionRequestMessage;
+  | PermissionRequestMessage
+  | AnnotationUpdateMessage
+  | AnnotationsPushMessage;
 
 export type BridgeToServerMessage = HeartbeatMessage | RegisterMessage | BridgeRoutedMessage;
 

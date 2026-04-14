@@ -261,6 +261,8 @@ export class WebSocketHub {
       case "transcript-status":
       case "usage-update":
       case "permission-request":
+      case "annotation-update":
+      case "annotations-push":
         this.handleBridgeRouted(ws, msg);
         return;
 

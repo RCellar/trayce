@@ -226,6 +226,22 @@ export const PermissionRequestSchema = z.object({
   toolInput: z.unknown().optional(),
 });
 
+export const AnnotationUpdateEntrySchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(["addressed", "rejected", "needs-clarification"]),
+  reply: z.string().optional(),
+});
+
+export const AnnotationUpdateSchema = z.object({
+  type: z.literal("annotation-update"),
+  updates: z.array(AnnotationUpdateEntrySchema).min(1),
+});
+
+export const AnnotationsPushSchema = z.object({
+  type: z.literal("annotations-push"),
+  annotations: z.array(AnnotationSchema).min(1),
+});
+
 export const BridgeToServerSchema = z.discriminatedUnion("type", [
   HeartbeatSchema,
   RegisterSchema,
@@ -235,4 +251,6 @@ export const BridgeToServerSchema = z.discriminatedUnion("type", [
   TranscriptStatusSchema,
   UsageUpdateSchema,
   PermissionRequestSchema,
+  AnnotationUpdateSchema,
+  AnnotationsPushSchema,
 ]);
