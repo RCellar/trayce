@@ -164,10 +164,11 @@ const editOverlay: EditOverlay = {
   open: ({ screenX, screenY, onCommit, onCancel }) => {
     const container = document.getElementById("app") ?? document.body;
     const ta = document.createElement("textarea");
+    ta.rows = 2;
     ta.style.cssText =
       `position:absolute;left:${screenX}px;top:${screenY}px;z-index:200;` +
-      `background:transparent;border:1px dashed #dc2626;color:#dc2626;` +
-      `font-size:14px;padding:4px;min-width:100px;outline:none;`;
+      `background:rgba(13,13,13,0.92);border:1px dashed #dc2626;color:#dc2626;` +
+      `font-size:14px;padding:4px;min-width:120px;min-height:28px;outline:none;`;
     let committed = false;
     const commit = () => {
       if (committed) return;
@@ -177,7 +178,6 @@ const editOverlay: EditOverlay = {
       if (value.length === 0) onCancel();
       else onCommit(value);
     };
-    ta.addEventListener("blur", commit);
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -189,7 +189,14 @@ const editOverlay: EditOverlay = {
       }
     });
     container.appendChild(ta);
-    ta.focus();
+    // Defer focus + blur-commit binding until the pointer event chain that
+    // spawned the overlay has fully settled. Otherwise the canvas regains
+    // focus on pointerup and the blur listener commits an empty value
+    // before the user ever sees the textarea.
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.addEventListener("blur", commit);
+    });
   },
 };
 
@@ -1174,6 +1181,27 @@ document.addEventListener("keydown", (e) => {
       // Exit annotation mode if active
       if (annotationMode.isActive()) {
         annotationMode.setActive(false);
+        calloutPlacement.reset();
+      }
+      break;
+    case "t":
+      // Text annotation tool (annotate mode only; no brush tool mapped to `t`)
+      if (annotationMode.isActive()) {
+        annotationMode.setTool("text");
+        calloutPlacement.reset();
+      }
+      break;
+    case "p":
+      // Pin annotation tool (annotate mode only)
+      if (annotationMode.isActive()) {
+        annotationMode.setTool("pin");
+        calloutPlacement.reset();
+      }
+      break;
+    case "c":
+      // Callout annotation tool (annotate mode only)
+      if (annotationMode.isActive()) {
+        annotationMode.setTool("callout");
         calloutPlacement.reset();
       }
       break;
