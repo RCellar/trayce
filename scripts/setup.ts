@@ -3,7 +3,7 @@
  * Configures Claude Code to use trayce as a channel by writing .mcp.json.
  * No jq dependency — uses JSON.parse/JSON.stringify.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 

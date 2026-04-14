@@ -1,4 +1,4 @@
-import { defaultSubmissionsDir, defaultStateFile } from "../shared/paths";
+import { defaultStateFile, defaultSubmissionsDir } from "../shared/paths";
 
 export interface Config {
   host: string;

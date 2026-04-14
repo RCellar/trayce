@@ -18,7 +18,10 @@ function detectRuntime(): string {
   process.exit(1);
 }
 
-function run(cmd: string[], opts?: { cwd?: string; capture?: boolean }): { stdout: string; exitCode: number } {
+function run(
+  cmd: string[],
+  opts?: { cwd?: string; capture?: boolean },
+): { stdout: string; exitCode: number } {
   const result = Bun.spawnSync(cmd, {
     cwd: opts?.cwd ?? projectDir,
     stdout: opts?.capture ? "pipe" : "inherit",
@@ -33,7 +36,9 @@ function run(cmd: string[], opts?: { cwd?: string; capture?: boolean }): { stdou
 const runtime = detectRuntime();
 
 // Check if container is already running
-const ps = run([runtime, "ps", "--filter", `name=^${containerName}$`, "--format", "{{.Names}}"], { capture: true });
+const ps = run([runtime, "ps", "--filter", `name=^${containerName}$`, "--format", "{{.Names}}"], {
+  capture: true,
+});
 if (ps.stdout.includes(containerName)) {
   // Get port mapping
   const portResult = run([runtime, "port", containerName, "9740"], { capture: true });
@@ -59,17 +64,21 @@ if (up.exitCode !== 0) {
 console.error("[trayce] Waiting for health check...");
 let status = "starting";
 for (let i = 0; i < 30; i++) {
-  const inspect = run(
-    [runtime, "inspect", "--format", "{{.State.Health.Status}}", containerName],
-    { capture: true },
-  );
+  const inspect = run([runtime, "inspect", "--format", "{{.State.Health.Status}}", containerName], {
+    capture: true,
+  });
   status = inspect.stdout || "starting";
   if (status === "healthy") break;
   Bun.sleepSync(1000);
 }
 
 if (status !== "healthy") {
-  console.error(JSON.stringify({ status: "error", message: `Container not healthy after 30s (status: ${status})` }));
+  console.error(
+    JSON.stringify({
+      status: "error",
+      message: `Container not healthy after 30s (status: ${status})`,
+    }),
+  );
   process.exit(1);
 }
 

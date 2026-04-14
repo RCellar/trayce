@@ -53,7 +53,7 @@ if (!existsSync(clientEntry)) {
 
 // Start server detached
 const serverEntry = resolve(projectRoot, "server/index.ts");
-const env: Record<string, string> = { ...process.env as Record<string, string> };
+const env: Record<string, string> = { ...(process.env as Record<string, string>) };
 if (process.env.TRAYCE_TOKEN) {
   env.TRAYCE_TOKEN = process.env.TRAYCE_TOKEN;
 }
