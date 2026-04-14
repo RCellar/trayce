@@ -707,14 +707,7 @@ function handleInput(state: InputState, event: "start" | "move" | "end"): void {
       } else if (tool === "text") {
         startTextPlacement(annotationRegistry, doc.x, doc.y, lastPt.x, lastPt.y, editOverlay);
       } else {
-        calloutPlacement.onClick(
-          annotationRegistry,
-          doc.x,
-          doc.y,
-          lastPt.x,
-          lastPt.y,
-          editOverlay,
-        );
+        calloutPlacement.onClick(annotationRegistry, doc.x, doc.y, lastPt.x, lastPt.y, editOverlay);
       }
     }
     return; // skip brush handling

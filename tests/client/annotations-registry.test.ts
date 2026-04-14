@@ -113,4 +113,43 @@ describe("AnnotationRegistry", () => {
     expect(out.length).toBe(1);
     expect(out[0]!.id).toBe(p1.id);
   });
+
+  test("updateContent edits pin note in place", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.updateContent(p.id, { note: "new note" });
+    const updated = r.get(p.id);
+    expect(updated?.kind === "pin" && updated.note).toBe("new note");
+  });
+
+  test("updateContent edits text content in place", () => {
+    const r = new AnnotationRegistry();
+    const t = r.createText({ text: "before", bbox: [0, 0, 10, 10] });
+    r.updateContent(t.id, { text: "after" });
+    const updated = r.get(t.id);
+    expect(updated?.kind === "text" && updated.text).toBe("after");
+  });
+
+  test("updateContent rejects empty text for non-pin kinds", () => {
+    const r = new AnnotationRegistry();
+    const t = r.createText({ text: "keep", bbox: [0, 0, 10, 10] });
+    r.updateContent(t.id, { text: "" });
+    const updated = r.get(t.id);
+    expect(updated?.kind === "text" && updated.text).toBe("keep");
+  });
+
+  test("updateContent accepts empty note on pin (clearing the note)", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0], note: "original" });
+    r.updateContent(p.id, { note: "" });
+    const updated = r.get(p.id);
+    expect(updated?.kind === "pin" && updated.note).toBe("");
+  });
+
+  test("updateContent is a no-op for unknown id", () => {
+    const r = new AnnotationRegistry();
+    r.createPin({ at: [0, 0] });
+    r.updateContent("nope", { note: "x" });
+    expect(r.all().length).toBe(1);
+  });
 });

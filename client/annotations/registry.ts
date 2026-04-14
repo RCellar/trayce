@@ -109,6 +109,35 @@ export class AnnotationRegistry {
     this.notify();
   }
 
+  /**
+   * Update the user-authored content of an annotation in place. For pins the
+   * patch targets `note`; for text and callouts it targets `text`. No-op if
+   * the ID is unknown, if the content would end up empty, or if the kind
+   * doesn't match the patch. Claude-authored annotations can also be edited —
+   * the UI surface decides whether to expose that.
+   */
+  updateContent(id: string, patch: { text?: string; note?: string }): void {
+    const existing = this.items.get(id);
+    if (!existing) return;
+    const now = Date.now();
+    let next: Annotation | null = null;
+    if (existing.kind === "pin" && patch.note !== undefined) {
+      next = { ...existing, note: patch.note, updatedAt: now };
+    } else if (existing.kind === "text" && patch.text !== undefined) {
+      const trimmed = patch.text;
+      if (trimmed.length === 0) return;
+      next = { ...existing, text: trimmed, updatedAt: now };
+    } else if (existing.kind === "callout" && patch.text !== undefined) {
+      const trimmed = patch.text;
+      if (trimmed.length === 0) return;
+      next = { ...existing, text: trimmed, updatedAt: now };
+    }
+    if (next) {
+      this.items.set(id, next);
+      this.notify();
+    }
+  }
+
   ingestPushed(annotations: Annotation[]): void {
     for (const a of annotations) {
       let toInsert = a;
