@@ -27,6 +27,73 @@ import { z } from "zod";
 
 export const PermissionBehaviorSchema = z.enum(["allow", "allow_once", "deny"]);
 
+// ────────────────────────────────────────────────────────────────────────────
+// Annotation schemas
+// ────────────────────────────────────────────────────────────────────────────
+
+export const AnnotationKindSchema = z.enum(["text", "pin", "callout"]);
+export const AnnotationAuthorSchema = z.enum(["user", "claude"]);
+export const AnnotationStatusSchema = z.enum([
+  "open",
+  "addressed",
+  "rejected",
+  "needs-clarification",
+  "deleted",
+]);
+
+export const AnnotationReplySchema = z.object({
+  from: AnnotationAuthorSchema,
+  text: z.string(),
+  at: z.number().finite(),
+});
+
+const AnnotationBaseFields = {
+  id: z.string().min(1),
+  author: AnnotationAuthorSchema,
+  status: AnnotationStatusSchema,
+  createdAt: z.number().finite(),
+  updatedAt: z.number().finite(),
+  replies: z.array(AnnotationReplySchema),
+};
+
+export const TextAnnotationSchema = z.object({
+  ...AnnotationBaseFields,
+  kind: z.literal("text"),
+  text: z.string(),
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  style: z.object({
+    fontSize: z.number().positive(),
+    color: z.string(),
+    weight: z.enum(["normal", "bold"]),
+  }),
+});
+
+export const PinAnnotationSchema = z.object({
+  ...AnnotationBaseFields,
+  kind: z.literal("pin"),
+  number: z.number().int().positive(),
+  at: z.tuple([z.number(), z.number()]),
+  note: z.string().optional(),
+});
+
+export const CalloutAnnotationSchema = z.object({
+  ...AnnotationBaseFields,
+  kind: z.literal("callout"),
+  text: z.string(),
+  bbox: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  target: z.tuple([z.number(), z.number()]),
+  style: z.object({
+    fontSize: z.number().positive(),
+    color: z.string(),
+  }),
+});
+
+export const AnnotationSchema = z.discriminatedUnion("kind", [
+  TextAnnotationSchema,
+  PinAnnotationSchema,
+  CalloutAnnotationSchema,
+]);
+
 export const SessionSchema = z.object({
   id: z.string(),
   label: z.string(),
@@ -87,6 +154,7 @@ export const SubmitSchema = z.object({
   targetSessionId: z.string().optional(),
   image: z.string().optional(),
   prompt: z.string().optional(),
+  annotations: z.array(AnnotationSchema).optional(),
 });
 
 export const WatchSessionSchema = z.object({
@@ -158,6 +226,22 @@ export const PermissionRequestSchema = z.object({
   toolInput: z.unknown().optional(),
 });
 
+export const AnnotationUpdateEntrySchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(["addressed", "rejected", "needs-clarification"]),
+  reply: z.string().optional(),
+});
+
+export const AnnotationUpdateSchema = z.object({
+  type: z.literal("annotation-update"),
+  updates: z.array(AnnotationUpdateEntrySchema).min(1),
+});
+
+export const AnnotationsPushSchema = z.object({
+  type: z.literal("annotations-push"),
+  annotations: z.array(AnnotationSchema).min(1),
+});
+
 export const BridgeToServerSchema = z.discriminatedUnion("type", [
   HeartbeatSchema,
   RegisterSchema,
@@ -167,4 +251,6 @@ export const BridgeToServerSchema = z.discriminatedUnion("type", [
   TranscriptStatusSchema,
   UsageUpdateSchema,
   PermissionRequestSchema,
+  AnnotationUpdateSchema,
+  AnnotationsPushSchema,
 ]);

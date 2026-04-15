@@ -73,6 +73,61 @@ export interface TranscriptEntryData {
 export type PermissionBehavior = "allow" | "allow_once" | "deny";
 
 // ────────────────────────────────────────────────────────────────────────────
+// Annotation entity types
+// ────────────────────────────────────────────────────────────────────────────
+
+export type AnnotationKind = "text" | "pin" | "callout";
+
+export type AnnotationAuthor = "user" | "claude";
+
+export type AnnotationStatus =
+  | "open"
+  | "addressed"
+  | "rejected"
+  | "needs-clarification"
+  | "deleted";
+
+export interface AnnotationReply {
+  from: AnnotationAuthor;
+  text: string;
+  at: number;
+}
+
+export interface AnnotationBase {
+  id: string;
+  kind: AnnotationKind;
+  author: AnnotationAuthor;
+  status: AnnotationStatus;
+  createdAt: number;
+  updatedAt: number;
+  replies: AnnotationReply[];
+}
+
+export interface TextAnnotation extends AnnotationBase {
+  kind: "text";
+  text: string;
+  bbox: [x: number, y: number, w: number, h: number];
+  style: { fontSize: number; color: string; weight: "normal" | "bold" };
+}
+
+export interface PinAnnotation extends AnnotationBase {
+  kind: "pin";
+  number: number;
+  at: [x: number, y: number];
+  note?: string | undefined;
+}
+
+export interface CalloutAnnotation extends AnnotationBase {
+  kind: "callout";
+  text: string;
+  bbox: [x: number, y: number, w: number, h: number];
+  target: [x: number, y: number];
+  style: { fontSize: number; color: string };
+}
+
+export type Annotation = TextAnnotation | PinAnnotation | CalloutAnnotation;
+
+// ────────────────────────────────────────────────────────────────────────────
 // Shared — sent by either end
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -95,6 +150,7 @@ export interface SubmitMessage {
   targetSessionId?: string | undefined;
   image?: string | undefined; // base64 PNG, optional if prompt present
   prompt?: string | undefined;
+  annotations?: Annotation[] | undefined;
 }
 
 export interface WatchSessionMessage {
@@ -165,6 +221,22 @@ export interface PermissionRequestMessage {
   toolInput?: unknown | undefined;
 }
 
+export interface AnnotationUpdateEntry {
+  id: string;
+  status: Exclude<AnnotationStatus, "open" | "deleted">;
+  reply?: string | undefined;
+}
+
+export interface AnnotationUpdateMessage {
+  type: "annotation-update";
+  updates: AnnotationUpdateEntry[];
+}
+
+export interface AnnotationsPushMessage {
+  type: "annotations-push";
+  annotations: Annotation[];
+}
+
 /** Bridge-routed messages: bridge sends these, server forwards them to
  * browsers that are watching the bridge's session (with `sessionId` appended),
  * and buffers the replay-worthy ones. */
@@ -174,7 +246,9 @@ export type BridgeRoutedMessage =
   | CanvasPushMessage
   | TranscriptStatusMessage
   | UsageUpdateMessage
-  | PermissionRequestMessage;
+  | PermissionRequestMessage
+  | AnnotationUpdateMessage
+  | AnnotationsPushMessage;
 
 export type BridgeToServerMessage = HeartbeatMessage | RegisterMessage | BridgeRoutedMessage;
 
@@ -242,6 +316,7 @@ export interface SubmissionMessage {
   id: string;
   prompt: string;
   pngPath?: string;
+  annotations?: Annotation[] | undefined;
 }
 
 export type ServerToBridgeMessage = HeartbeatMessage | SubmissionMessage | PermissionVerdictMessage;

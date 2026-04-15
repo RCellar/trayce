@@ -1290,3 +1290,93 @@ dialog .bg-choice label {
   vertical-align: middle;
   cursor: default;
 }
+
+/* Annotations tab */
+.annotations-header {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.annotations-header button {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.annotations-header button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.annotations-list {
+  padding: 4px 0;
+}
+.annotation-row {
+  display: grid;
+  grid-template-columns: 16px 1fr auto 22px;
+  grid-gap: 6px 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  cursor: default;
+}
+.annotation-row:hover {
+  background: var(--surface);
+}
+.annotation-glyph {
+  font-size: 14px;
+  line-height: 1;
+}
+.annotation-kind {
+  color: var(--text);
+}
+.annotation-status {
+  color: var(--text-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.annotation-delete-btn {
+  grid-column: 4;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  line-height: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+.annotation-delete-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.annotation-content {
+  grid-column: 2 / 5;
+  color: var(--text-dim);
+  font-size: 12px;
+  padding: 2px 0;
+  min-height: 16px;
+  border-radius: 2px;
+}
+.annotation-content:hover {
+  color: var(--text);
+}
+.annotation-reply {
+  grid-column: 2 / 5;
+  color: var(--text-dim);
+  font-size: 11px;
+  font-style: italic;
+  padding-top: 2px;
+}
+.annotations-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+}

@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import { defaultStateFile } from "../shared/paths";
+import type { Annotation } from "../shared/protocol";
 import {
   discoverTranscriptByBirthtime,
   discoverTranscriptPath,
@@ -32,6 +33,28 @@ const PermissionRequestSchema = z
     }),
   })
   .passthrough();
+
+export function formatAnnotationsForNotification(annotations: Annotation[]): string {
+  if (annotations.length === 0) return "";
+  const open = annotations.filter((a) => a.status === "open");
+  const lines: string[] = [`📍 Annotations (${open.length} open):`];
+  for (const a of open) {
+    const shortId = a.id.slice(0, 8);
+    if (a.kind === "pin") {
+      const label = a.note ? `  "${a.note}"` : "";
+      lines.push(`  #${a.number} pin  (${a.at[0]}, ${a.at[1]})${label}       [id: ${shortId}…]`);
+    } else if (a.kind === "text") {
+      lines.push(`  text  "${a.text}" @ (${a.bbox[0]}, ${a.bbox[1]})       [id: ${shortId}…]`);
+    } else {
+      lines.push(`  callout → (${a.target[0]}, ${a.target[1]})  "${a.text}"  [id: ${shortId}…]`);
+    }
+  }
+  lines.push("");
+  lines.push("<annotations-json>");
+  lines.push(JSON.stringify(annotations, null, 2));
+  lines.push("</annotations-json>");
+  return lines.join("\n");
+}
 
 /** Resolve the project directory. The bridge is spawned as an MCP subprocess —
  *  its own cwd may not match the project. On Linux, read the parent process
@@ -89,6 +112,89 @@ const mcpServer = new Server(
     instructions: `When you receive a trayce channel notification, read the PNG image at the provided path using the Read tool. The image is a hand-drawn sketch from the user. Treat the accompanying prompt text as the user's request about or relating to the sketch.`,
   },
 );
+
+type ResolveUpdate = {
+  id: string;
+  status: "addressed" | "rejected" | "needs-clarification";
+  reply?: string;
+};
+
+export function handleResolveAnnotations(
+  args: { updates?: ResolveUpdate[] } | undefined,
+  ws: WebSocket | null,
+): { content: { type: "text"; text: string }[] } {
+  const updates = args?.updates;
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { content: [{ type: "text", text: "Error: updates must be a non-empty array" }] };
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return { content: [{ type: "text", text: "Error: not connected to trayce server" }] };
+  }
+  ws.send(JSON.stringify({ type: "annotation-update", updates }));
+  return {
+    content: [{ type: "text", text: `Updated ${updates.length} annotation(s).` }],
+  };
+}
+
+type PushAnnotationInput =
+  | { kind: "text"; text: string; bbox: [number, number, number, number] }
+  | { kind: "pin"; at: [number, number]; note?: string }
+  | {
+      kind: "callout";
+      text: string;
+      bbox: [number, number, number, number];
+      target: [number, number];
+    };
+
+export function handlePushAnnotations(
+  args: { annotations?: PushAnnotationInput[] } | undefined,
+  ws: WebSocket | null,
+  nextPinNumber: () => number,
+): { content: { type: "text"; text: string }[] } {
+  const input = args?.annotations;
+  if (!Array.isArray(input) || input.length === 0) {
+    return { content: [{ type: "text", text: "Error: annotations must be a non-empty array" }] };
+  }
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    return { content: [{ type: "text", text: "Error: not connected to trayce server" }] };
+  }
+  const now = Date.now();
+  let pinCounter = nextPinNumber();
+  const annotations = input.map((a) => {
+    const base = {
+      id: crypto.randomUUID(),
+      author: "claude" as const,
+      status: "open" as const,
+      createdAt: now,
+      updatedAt: now,
+      replies: [] as never[],
+    };
+    if (a.kind === "pin") {
+      return { ...base, kind: "pin" as const, number: pinCounter++, at: a.at, note: a.note };
+    }
+    if (a.kind === "text") {
+      return {
+        ...base,
+        kind: "text" as const,
+        text: a.text,
+        bbox: a.bbox,
+        style: { fontSize: 14, color: "#dc2626", weight: "normal" as const },
+      };
+    }
+    return {
+      ...base,
+      kind: "callout" as const,
+      text: a.text,
+      bbox: a.bbox,
+      target: a.target,
+      style: { fontSize: 14, color: "#dc2626" },
+    };
+  });
+  ws.send(JSON.stringify({ type: "annotations-push", annotations }));
+  return {
+    content: [{ type: "text", text: `Pushed ${annotations.length} annotation(s) to canvas.` }],
+  };
+}
 
 // Track current WebSocket, watcher, and the last known good transcript path
 let currentWs: WebSocket | null = null;
@@ -162,6 +268,66 @@ mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: "resolve_annotations",
+      description:
+        "Mark one or more canvas annotations as addressed, rejected, or needs-clarification. Optionally attach a short reply per annotation. Use after completing a task to close the loop with the user on each annotation they placed.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          updates: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: {
+                  type: "string",
+                  description: "Annotation ID from the submission's annotation list",
+                },
+                status: {
+                  type: "string",
+                  enum: ["addressed", "rejected", "needs-clarification"],
+                },
+                reply: {
+                  type: "string",
+                  description: "Optional short note attached to the annotation",
+                },
+              },
+              required: ["id", "status"],
+            },
+            minItems: 1,
+          },
+        },
+        required: ["updates"],
+      },
+    },
+    {
+      name: "push_annotations",
+      description:
+        "Add annotations to the canvas (pins, text labels, or callouts). Use on pushed renders to ask clarifying questions or highlight details. Each annotation appears on the canvas with a Claude-authored visual style.",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          annotations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                kind: { type: "string", enum: ["text", "pin", "callout"] },
+                at: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 },
+                bbox: { type: "array", items: { type: "number" }, minItems: 4, maxItems: 4 },
+                target: { type: "array", items: { type: "number" }, minItems: 2, maxItems: 2 },
+                text: { type: "string" },
+                note: { type: "string" },
+              },
+              required: ["kind"],
+            },
+            minItems: 1,
+          },
+        },
+        required: ["annotations"],
+      },
+    },
   ],
 }));
 
@@ -220,6 +386,21 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
         { type: "text", text: `Image pushed to canvas as layer "${pushLabel}" (${sizeMB}MB)` },
       ],
     };
+  }
+
+  if (name === "resolve_annotations") {
+    return handleResolveAnnotations(args as { updates?: ResolveUpdate[] }, currentWs);
+  }
+
+  if (name === "push_annotations") {
+    // The bridge has no visibility into the browser's pin counter, so we
+    // always start numbering at 1. The browser's AnnotationRegistry.ingestPushed
+    // (Task 10) renumbers any colliding pins.
+    return handlePushAnnotations(
+      args as { annotations?: PushAnnotationInput[] },
+      currentWs,
+      () => 1,
+    );
   }
 
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
@@ -341,9 +522,12 @@ function connect() {
         const meta: Record<string, unknown> = { submission_id: msg.id };
         if (msg.pngPath) meta.image_path = msg.pngPath;
 
-        const content = msg.pngPath
+        const baseContent = msg.pngPath
           ? msg.prompt || "[sketch submitted — see attached image]"
           : msg.prompt;
+
+        const annotationBlock = formatAnnotationsForNotification(msg.annotations ?? []);
+        const content = annotationBlock ? `${baseContent}\n\n${annotationBlock}` : baseContent;
 
         mcpServer.notification({
           method: "notifications/claude/channel",

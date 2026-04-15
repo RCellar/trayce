@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { formatAnnotationsForNotification } from "../../bridge/index";
+import type { Annotation } from "../../shared/protocol";
 import { testDir } from "../helpers/paths";
 
 const TEST_STATE_DIR = testDir("bridge");
@@ -50,5 +52,89 @@ describe("Bridge state discovery", () => {
     const missing = join(tmpdir(), "trayce-test-bridge-nonexistent", "state.json");
     expect(existsSync(missing)).toBe(false);
     // The bridge would fall back to defaults — we just verify existsSync works
+  });
+});
+
+describe("formatAnnotationsForNotification", () => {
+  test("returns empty string when no annotations", () => {
+    expect(formatAnnotationsForNotification([])).toBe("");
+  });
+
+  test("includes human summary of open annotations with inline IDs", () => {
+    const anns: Annotation[] = [
+      {
+        id: "abc123-long-id",
+        kind: "pin",
+        author: "user",
+        status: "open",
+        createdAt: 1,
+        updatedAt: 1,
+        replies: [],
+        number: 1,
+        at: [120, 400],
+        note: "increase padding",
+      },
+    ];
+    const out = formatAnnotationsForNotification(anns);
+    expect(out).toContain("Annotations");
+    expect(out).toContain("#1");
+    expect(out).toContain("increase padding");
+    expect(out).toContain("abc123");
+  });
+
+  test("includes JSON block with full annotation data", () => {
+    const anns: Annotation[] = [
+      {
+        id: "id-1",
+        kind: "text",
+        author: "user",
+        status: "open",
+        createdAt: 1,
+        updatedAt: 1,
+        replies: [],
+        text: "hi",
+        bbox: [0, 0, 10, 10],
+        style: { fontSize: 14, color: "#dc2626", weight: "normal" },
+      },
+    ];
+    const out = formatAnnotationsForNotification(anns);
+    expect(out).toContain("<annotations-json>");
+    expect(out).toContain("</annotations-json>");
+    const match = out.match(/<annotations-json>([\s\S]*?)<\/annotations-json>/);
+    expect(match).toBeTruthy();
+    const parsed = JSON.parse(match![1]!);
+    expect(parsed[0].id).toBe("id-1");
+  });
+
+  test("summary lists only open items; JSON includes all statuses", () => {
+    const anns: Annotation[] = [
+      {
+        id: "id-1",
+        kind: "pin",
+        author: "user",
+        status: "open",
+        createdAt: 1,
+        updatedAt: 1,
+        replies: [],
+        number: 1,
+        at: [0, 0],
+      },
+      {
+        id: "id-2",
+        kind: "pin",
+        author: "user",
+        status: "addressed",
+        createdAt: 1,
+        updatedAt: 2,
+        replies: [],
+        number: 2,
+        at: [10, 10],
+      },
+    ];
+    const out = formatAnnotationsForNotification(anns);
+    expect(out).toMatch(/Annotations \(1 open\)/);
+    const match = out.match(/<annotations-json>([\s\S]*?)<\/annotations-json>/);
+    const parsed = JSON.parse(match![1]!);
+    expect(parsed.length).toBe(2);
   });
 });

@@ -52,6 +52,15 @@ extensions.add(
   FilterPipe,
 );
 
+import { AnnotationMode } from "./annotations/mode";
+import { AnnotationPalette } from "./annotations/palette";
+import { AnnotationsTab } from "./annotations/panel-tab";
+import { AnnotationPersistence } from "./annotations/persistence";
+import { AnnotationRegistry } from "./annotations/registry";
+import { AnnotationRenderer } from "./annotations/render";
+import { CalloutPlacement } from "./annotations/tools/callout-tool";
+import { placePin } from "./annotations/tools/pin-tool";
+import { type EditOverlay, startTextPlacement } from "./annotations/tools/text-tool";
 import { BrushSettingsUI } from "./brush-settings-ui";
 import { EraserBrush } from "./brushes/eraser";
 import { HighlighterBrush } from "./brushes/highlighter";
@@ -129,6 +138,67 @@ let brushParams: BrushParams = {
 let imageTool: ImageTool | null = null;
 let transformHandler: TransformHandler | null = null;
 let permissionPrompts: PermissionPromptManager | null = null;
+
+// -- Annotation State --
+
+const annotationRegistry = new AnnotationRegistry();
+const annotationPersistence = new AnnotationPersistence();
+const annotationMode = new AnnotationMode();
+const calloutPlacement = new CalloutPlacement();
+let annotationRenderer: AnnotationRenderer | null = null;
+let annotationPalette: AnnotationPalette | null = null;
+let annotationsTab: AnnotationsTab | null = null;
+
+// Persist registry changes to IndexedDB for the selected session
+annotationRegistry.subscribe(() => {
+  if (selectedSessionId) {
+    annotationPersistence.save(selectedSessionId, annotationRegistry.all());
+  }
+});
+
+// EditOverlay implementation — creates a positioned textarea for annotation text entry.
+// `screenX` / `screenY` are viewport-pixel coordinates from the original pointer event
+// so the textarea appears where the user clicked (not at the canvas-space document
+// position, which would be wrong under any non-1x zoom or pan).
+const editOverlay: EditOverlay = {
+  open: ({ screenX, screenY, onCommit, onCancel }) => {
+    const container = document.getElementById("app") ?? document.body;
+    const ta = document.createElement("textarea");
+    ta.rows = 2;
+    ta.style.cssText =
+      `position:absolute;left:${screenX}px;top:${screenY}px;z-index:200;` +
+      `background:rgba(13,13,13,0.92);border:1px dashed #dc2626;color:#dc2626;` +
+      `font-size:14px;padding:4px;min-width:120px;min-height:28px;outline:none;`;
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const value = ta.value;
+      ta.remove();
+      if (value.length === 0) onCancel();
+      else onCommit(value);
+    };
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        commit();
+      } else if (e.key === "Escape") {
+        committed = true;
+        ta.remove();
+        onCancel();
+      }
+    });
+    container.appendChild(ta);
+    // Defer focus + blur-commit binding until the pointer event chain that
+    // spawned the overlay has fully settled. Otherwise the canvas regains
+    // focus on pointerup and the blur listener commits an empty value
+    // before the user ever sees the textarea.
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.addEventListener("blur", commit);
+    });
+  },
+};
 
 let sessions: Array<{ id: string; label: string; status: string; sessionStartedAt?: number }> = [];
 let selectedSessionId = "";
@@ -288,6 +358,16 @@ async function doSwitchSession(sessionId: string | null): Promise<void> {
   const newKey = sessionId ? persistenceKey(sessionId) : SCRATCHPAD_KEY;
   if (newKey === currentCanvasKey) return;
 
+  // Flush annotation changes for the outgoing session before switching
+  if (selectedSessionId) {
+    await annotationPersistence.flush(selectedSessionId);
+  }
+  annotationRegistry.clear();
+  if (sessionId) {
+    const saved = await annotationPersistence.load(sessionId);
+    annotationRegistry.load(saved);
+  }
+
   await saveCurrentCanvas();
 
   if (sessionId) {
@@ -442,6 +522,23 @@ function initUIComponents(): void {
     usageContainer.dataset.mounted = "true";
   }
 
+  // Annotations tab
+  annotationsTab = new AnnotationsTab(annotationRegistry, (id) => {
+    // Row-click: center on annotation is nice-to-have; v1 no-op
+    const _a = annotationRegistry.get(id);
+    void _a;
+  });
+  const annotationsContainer = sidePanel.getAnnotationsContainer();
+  if (annotationsContainer) {
+    annotationsTab.mount(annotationsContainer);
+    annotationsContainer.dataset.mounted = "true";
+  }
+
+  // Annotation palette — floats above canvas, shows only when annotation mode is active
+  annotationPalette = new AnnotationPalette(annotationMode);
+  const appRoot = document.getElementById("app") ?? document.body;
+  annotationPalette.mount(appRoot);
+
   // Theme
   const themeManager = new ThemeManager();
   const gearContainer = document.getElementById("gear-container");
@@ -509,6 +606,14 @@ async function initCanvas(
 
   // Add compositor container to stage (inside zoom/pan)
   canvasManager.stage.addChild(compositor.getContainer());
+
+  // Mount annotation renderer above raster layers but inside zoom/pan space
+  // (so annotations scale and pan with the canvas document)
+  if (annotationRenderer) {
+    annotationRenderer.unmount();
+  }
+  annotationRenderer = new AnnotationRenderer(canvasManager.stage, annotationRegistry);
+  annotationRenderer.mount();
 
   // Add overlay to app.stage directly (screen-space, above everything)
   canvasManager.app.stage.addChild(compositor.getOverlay());
@@ -590,6 +695,24 @@ async function initCanvas(
 
 function handleInput(state: InputState, event: "start" | "move" | "end"): void {
   if (!layerManager || !canvasManager) return;
+
+  // Route pointer-down to annotation tools when annotation mode is active
+  if (annotationMode.isActive() && event === "start") {
+    const lastPt = state.points[state.points.length - 1];
+    if (lastPt) {
+      const doc = canvasManager.screenToDoc(lastPt.x, lastPt.y);
+      const tool = annotationMode.currentTool();
+      if (tool === "pin") {
+        placePin(annotationRegistry, doc.x, doc.y);
+      } else if (tool === "text") {
+        startTextPlacement(annotationRegistry, doc.x, doc.y, lastPt.x, lastPt.y, editOverlay);
+      } else {
+        calloutPlacement.onClick(annotationRegistry, doc.x, doc.y, lastPt.x, lastPt.y, editOverlay);
+      }
+    }
+    return; // skip brush handling
+  }
+
   const layer = layerManager.activeLayer;
   if (layer.locked) return;
 
@@ -740,6 +863,25 @@ function handleServerMessage(msg: ServerMessage): void {
     }
   } else if (msg.type === "canvas-push") {
     handleCanvasPush(msg);
+  } else if (msg.type === "annotation-update") {
+    if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
+    const updates =
+      (msg as { updates?: Array<{ id: string; status: string; reply?: string }> }).updates ?? [];
+    for (const u of updates) {
+      annotationRegistry.applyUpdate({
+        id: u.id,
+        status: u.status as never, // schema already validated at server parse boundary
+        ...(u.reply !== undefined ? { reply: u.reply } : {}),
+      });
+    }
+    return;
+  } else if (msg.type === "annotations-push") {
+    if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
+    const annotations = (msg as { annotations?: unknown[] }).annotations ?? [];
+    annotationRegistry.ingestPushed(
+      annotations as Parameters<typeof annotationRegistry.ingestPushed>[0],
+    );
+    return;
   } else if (msg.type === "transcript-status") {
     if (!(msg as any).available) {
       responseTab?.showUnavailable();
@@ -946,9 +1088,13 @@ submitBtn.addEventListener("click", async () => {
       prompt,
     };
 
+    const annotationsForSubmit = annotationRegistry.forSubmission();
     if (!blank) {
-      const blob = await flattenToPng(layerManager);
+      const blob = await flattenToPng(layerManager, annotationsForSubmit);
       msg.image = await blobToBase64(blob);
+    }
+    if (annotationsForSubmit.length > 0) {
+      msg.annotations = annotationsForSubmit;
     }
 
     connection.send(msg);
@@ -997,6 +1143,18 @@ function clearCanvas(): void {
   // incoherent pre-clear state mixed with the now-empty layers.
   history?.clear();
 
+  // Also drop annotations — the confirm prompt is "Clear the entire canvas",
+  // and leaving pins/text/callouts floating over a freshly-blank canvas is
+  // almost never what the user wants. Annotation persistence will re-save
+  // the empty state on the next mutation; nuke any cached write too so a
+  // refresh restores the cleared state, not the last debounced snapshot.
+  annotationRegistry.clear();
+  if (selectedSessionId) {
+    annotationPersistence.clearSession(selectedSessionId).catch((err) => {
+      console.error("[trayce] failed to clear persisted annotations:", err);
+    });
+  }
+
   compositor.rebuild();
   layersUI?.render();
   updateLayerInfo();
@@ -1020,37 +1178,76 @@ document.addEventListener("keydown", (e) => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
   switch (e.key.toLowerCase()) {
+    case "a":
+      // Toggle annotation mode on/off
+      annotationMode.toggle();
+      break;
+    case "escape":
+      // Exit annotation mode if active
+      if (annotationMode.isActive()) {
+        annotationMode.setActive(false);
+        calloutPlacement.reset();
+      }
+      break;
+    case "t":
+      // Text annotation tool (annotate mode only; no brush tool mapped to `t`)
+      if (annotationMode.isActive()) {
+        annotationMode.setTool("text");
+        calloutPlacement.reset();
+      }
+      break;
+    case "p":
+      // Pin annotation tool (annotate mode only)
+      if (annotationMode.isActive()) {
+        annotationMode.setTool("pin");
+        calloutPlacement.reset();
+      }
+      break;
+    case "c":
+      // Callout annotation tool (annotate mode only)
+      if (annotationMode.isActive()) {
+        annotationMode.setTool("callout");
+        calloutPlacement.reset();
+      }
+      break;
     case "b":
+      if (annotationMode.isActive()) break; // suppress brush shortcuts in annotate mode
       activeBrush = brushes.pen!;
       toolbar?.setActive("pen");
       updateToolInfo();
       break;
     case "n":
+      if (annotationMode.isActive()) break;
       activeBrush = brushes.pencil!;
       toolbar?.setActive("pencil");
       updateToolInfo();
       break;
     case "m":
+      if (annotationMode.isActive()) break;
       activeBrush = brushes.marker!;
       toolbar?.setActive("marker");
       updateToolInfo();
       break;
     case "w":
+      if (annotationMode.isActive()) break;
       activeBrush = brushes.watercolor!;
       toolbar?.setActive("watercolor");
       updateToolInfo();
       break;
     case "h":
+      if (annotationMode.isActive()) break;
       activeBrush = brushes.highlighter!;
       toolbar?.setActive("highlighter");
       updateToolInfo();
       break;
     case "e":
+      if (annotationMode.isActive()) break;
       activeBrush = brushes.eraser!;
       toolbar?.setActive("eraser");
       updateToolInfo();
       break;
     case "i":
+      if (annotationMode.isActive()) break;
       imageTool?.openFilePicker();
       break;
     case "[":

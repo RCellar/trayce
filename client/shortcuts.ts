@@ -4,7 +4,9 @@ export type ShortcutAction =
   | { type: "undo" }
   | { type: "redo" }
   | { type: "submit" }
-  | { type: "cycle-shape" };
+  | { type: "cycle-shape" }
+  | { type: "annotation-mode"; op: "toggle" | "exit" }
+  | { type: "annotation-tool"; tool: "pin" | "text" | "callout" };
 
 export type ShortcutCallback = (action: ShortcutAction) => void;
 
@@ -48,6 +50,12 @@ export class ShortcutHandler {
       return;
     }
 
+    // Escape — exit annotation mode
+    if (e.key === "Escape") {
+      this.callback({ type: "annotation-mode", op: "exit" });
+      return;
+    }
+
     // Single key shortcuts
     switch (e.key.toLowerCase()) {
       case "b":
@@ -78,10 +86,17 @@ export class ShortcutHandler {
         this.callback({ type: "tool", tool: "shapes" });
         break;
       case "a":
-        this.callback({ type: "tool", tool: "arrow" });
+        this.callback({ type: "annotation-mode", op: "toggle" });
         break;
       case "t":
         this.callback({ type: "tool", tool: "text" });
+        this.callback({ type: "annotation-tool", tool: "text" });
+        break;
+      case "p":
+        this.callback({ type: "annotation-tool", tool: "pin" });
+        break;
+      case "c":
+        this.callback({ type: "annotation-tool", tool: "callout" });
         break;
       case "i":
         this.callback({ type: "tool", tool: "image" });
