@@ -36,14 +36,14 @@ Claude sees your sketch as a PNG alongside your prompt.
 <td width="50%" valign="top">
 
 **Sketch a UI** and ask Claude to implement it.
-**Annotate a screenshot** with arrows and notes.
+**Pin a screenshot** — drop numbered annotations, submit, get per-pin replies.
 **Draw a diagram** and ask Claude to build the architecture.
-**Doodle a component** during a pair-programming session.
+**Iterate on a render** — Claude can push images and annotations back to your canvas.
 
 </td>
 <td width="50%" valign="top">
 
-Text prompts struggle with spatial intent. A quick sketch communicates layout, hierarchy, and motion in a single frame — things that would take paragraphs to describe. trayce closes that loop.
+Text prompts struggle with spatial intent. A quick sketch communicates layout, hierarchy, and motion in a single frame — things that would take paragraphs to describe. Structured annotations close the loop in the other direction: Claude resolves your pins by ID, replies inline, and pushes its own annotations on rendered output for a real review cycle.
 
 </td>
 </tr>
@@ -122,20 +122,20 @@ Each Claude session gets its own canvas, persisted to IndexedDB. Tab locking pre
 <tr>
 <td width="33%" valign="top">
 
-### 🔁 Bidirectional flow
-Claude can push images back to your canvas via the `push_image` MCP tool — iterate on designs in both directions.
+### 📍 Structured annotations
+Place **pins, text, or callouts** on the canvas as a parallel layer above your sketch. Each one is a typed, addressable object with a status lifecycle (`open` → `addressed` / `rejected` / `needs-clarification`). Claude reads them by stable ID via two MCP tools (`resolve_annotations`, `push_annotations`) so review work stays trackable, not OCR'd.
 
 </td>
 <td width="33%" valign="top">
 
 ### 🔗 Multi-session support
-Connect multiple Claude Code sessions simultaneously. Pick the target from a dropdown, draw once, submit.
+Connect multiple Claude Code sessions simultaneously. Pick the target from a dropdown, draw once, submit. Claude can also push images back via `push_image` for visual review loops.
 
 </td>
 <td width="33%" valign="top">
 
 ### 📡 Live session data
-Side panel shows Claude's responses, live transcript of tool calls, and real-time token usage with cost estimates.
+Four side-panel tabs: **Response**, **Transcript** (tool calls), **Usage** (tokens + cost), **Annotations** (status, replies, delete + inline edit). Theme accent threads through pins/callouts so they match the rest of the UI.
 
 </td>
 </tr>
@@ -150,6 +150,9 @@ Side panel shows Claude's responses, live transcript of tool calls, and real-tim
 | 🖍️ Marker | `M` | | ↔️ Size | `[` / `]` |
 | 🎨 Watercolor | `W` | | ↶ Undo / ↷ Redo | `Ctrl + Z` / `Ctrl + Y` |
 | 🖌️ Highlighter | `H` | | 📤 Submit | `Ctrl + Enter` |
+| 📍 Annotate mode | `A` | | ⎋ Exit annotate | `Esc` |
+
+**While Annotate mode is active:** `T` text · `P` pin · `C` callout. Brush shortcuts are suppressed so accidental keystrokes don't draw.
 
 ---
 
@@ -225,9 +228,15 @@ Choose from presets via the resolution dropdown:
 
 Exports at full document resolution regardless of zoom level.
 
+### 🎨 Theme & UI scaling
+
+Click the gear icon (top-right) to pick a theme preset, accent color, font, and two independent scale sliders — **text size** and **control size** (80% – 150%, discrete 10% steps). Bigger panel text doesn't require a bloated toolbar; bigger tap targets don't require giant labels. Settings persist in `localStorage`. Annotation pins/callouts also follow the selected accent color.
+
 ---
 
 ## ⚙️ Environment variables
+
+Copy [`.env.example`](.env.example) → `.env` for local overrides; the file ships with every supported var commented out at its default value.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -237,6 +246,9 @@ Exports at full document resolution regardless of zoom level.
 | 🚪 `TRAYCE_NO_AUTH` | `false` | Disable token authentication |
 | 📂 `TRAYCE_SUBMISSIONS_DIR` | `$TMPDIR/trayce/submissions` | PNG storage path |
 | 📄 `TRAYCE_STATE_FILE` | `$TMPDIR/trayce/state.json` | Server state file |
+| 🗂️ `TRAYCE_CLIENT_DIR` | `dist/client` | Where the client bundle lives (override for tests) |
+| 🏷️ `TRAYCE_LABEL` | *(directory name)* | Bridge-side: label shown in the session dropdown |
+| 📦 `TRAYCE_CONTAINER` | *(auto)* | `1` when running inside a container; auto-detected via `/.dockerenv` on Linux |
 
 Token priority: `TRAYCE_NO_AUTH=true` > `TRAYCE_TOKEN` > auto-generate.
 
