@@ -144,7 +144,7 @@ Four side-panel tabs: **Response**, **Transcript** (tool calls), **Usage** (toke
 
 | Action | Key | | Action | Key |
 |--------|-----|---|--------|-----|
-| 🖊️ Pen | `B` | | 🧽 Eraser | `E` |
+| 🖊️ Pen | `B` | | ✋ Pan | `Space` + drag · or middle-mouse drag |
 | ✏️ Pencil | `N` | | 🔍 Zoom | Scroll wheel |
 | 🖍️ Marker | `M` | | ↔️ Size | `[` / `]` |
 | 🎨 Watercolor | `W` | | ↶ Undo / ↷ Redo | `Ctrl + Z` / `Ctrl + Y` |

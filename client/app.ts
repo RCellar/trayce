@@ -82,6 +82,7 @@ import { History } from "./history";
 import { InputHandler, type InputState } from "./input";
 import { type BlendMode, type Layer, LayerManager } from "./layers";
 import { LayersUI } from "./layers-ui";
+import { PanHandler } from "./pan";
 import { PermissionPromptManager } from "./permission-prompts";
 import {
   loadLayers,
@@ -117,6 +118,7 @@ let canvasManager: CanvasManager | null = null;
 let layerManager: LayerManager | null = null;
 let compositor: Compositor | null = null;
 let inputHandler: InputHandler | null = null;
+let panHandler: PanHandler | null = null;
 let connection: Connection | null = null;
 
 const brushes: Record<string, Brush> = {
@@ -662,6 +664,7 @@ async function initCanvas(
   if (canvasManager) canvasManager.destroy();
   if (compositor) compositor.destroy();
   if (inputHandler) inputHandler.destroy();
+  if (panHandler) panHandler.destroy();
 
   canvasManager = await CanvasManager.create(canvasContainer, width, height);
   layerManager = new LayerManager(width, height, background);
@@ -755,6 +758,14 @@ async function initCanvas(
   // because the canvas element intercepts pointer events
   const pixiCanvas = canvasManager.app.canvas as HTMLCanvasElement;
   inputHandler = new InputHandler(pixiCanvas, handleInput);
+
+  // Pan handler — attaches capture-phase listeners on the same canvas and
+  // intercepts Space+drag / middle-mouse drag before InputHandler sees them,
+  // so a pan gesture never starts a stroke.
+  panHandler = new PanHandler(pixiCanvas, (dx, dy) => {
+    canvasManager?.pan(dx, dy);
+    canvasInfo.textContent = canvasManager?.getCanvasInfo() ?? "";
+  });
 
   // Render loop
   canvasManager.app.ticker.add(() => {
