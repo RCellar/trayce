@@ -25,6 +25,13 @@ const BLEND_MAP: Record<BlendMode, BLEND_MODES> = {
 export class Compositor {
   private sprites = new Map<string, Sprite>();
   private spriteRevisions = new Map<string, number>();
+  /** Canvas reference last uploaded into each sprite's texture. If the layer's
+   *  canvas identity is unchanged we can mutate the GPU upload in place via
+   *  `source.update()` instead of allocating a fresh Texture+ImageSource each
+   *  frame. (Biggest hot-loop win: saves a full texture alloc per pointermove
+   *  for typical brush strokes.) Canvas identity *can* change — `rasterizeLayer`
+   *  replaces `layer.canvas` — and in that case we fall back to a rebuild. */
+  private spriteCanvases = new Map<string, OffscreenCanvas>();
   private container: Container;
   private overlay: Graphics;
   private dirty = true;
@@ -65,6 +72,7 @@ export class Compositor {
         sprite.destroy(true);
         this.sprites.delete(id);
         this.spriteRevisions.delete(id);
+        this.spriteCanvases.delete(id);
       }
     }
 
@@ -80,13 +88,23 @@ export class Compositor {
         this.container.addChild(sprite);
       }
 
-      // Only recreate texture if layer content changed
+      // Only update the GPU upload if layer content changed
       const lastRev = this.spriteRevisions.get(layer.id) ?? -1;
       if (lastRev !== layer.revision) {
-        const source = new ImageSource({ resource: layer.canvas });
-        const oldTexture = sprite.texture;
-        sprite.texture = new Texture({ source });
-        if (oldTexture !== Texture.EMPTY) oldTexture.destroy(true);
+        const lastCanvas = this.spriteCanvases.get(layer.id);
+        if (lastCanvas === layer.canvas && sprite.texture !== Texture.EMPTY) {
+          // Hot path: same OffscreenCanvas, just pixels changed. Flag the
+          // texture source dirty so Pixi re-uploads the bitmap on the next
+          // render — no allocations, no destruction.
+          sprite.texture.source.update();
+        } else {
+          // Initial create, or canvas was swapped (e.g. rasterizeLayer).
+          const source = new ImageSource({ resource: layer.canvas });
+          const oldTexture = sprite.texture;
+          sprite.texture = new Texture({ source });
+          if (oldTexture !== Texture.EMPTY) oldTexture.destroy(true);
+          this.spriteCanvases.set(layer.id, layer.canvas);
+        }
         this.spriteRevisions.set(layer.id, layer.revision);
       }
 
@@ -162,6 +180,7 @@ export class Compositor {
     }
     this.sprites.clear();
     this.spriteRevisions.clear();
+    this.spriteCanvases.clear();
     this.markDirty();
   }
 
@@ -171,6 +190,7 @@ export class Compositor {
     }
     this.sprites.clear();
     this.spriteRevisions.clear();
+    this.spriteCanvases.clear();
     this.overlay.destroy();
     this.container.destroy();
   }
