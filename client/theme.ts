@@ -311,6 +311,10 @@ export class ThemeManager {
     this.apply(vars);
     this.save(vars);
     applyFavicon(buildFaviconSvg(vars["--bg"], vars["--accent"], vars["--text"]));
+    // Notify subscribers (annotation renderer, panel, export rasterizer) so
+    // anything that can't consume `--accent` via CSS (e.g., PixiJS Graphics,
+    // OffscreenCanvas 2D) can refresh its cached colors.
+    document.dispatchEvent(new CustomEvent("trayce:theme-changed"));
   }
 
   private save(vars: Record<string, string>): void {

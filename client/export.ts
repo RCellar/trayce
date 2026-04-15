@@ -1,13 +1,31 @@
 import type { Annotation, AnnotationStatus } from "./annotations/types";
 import type { LayerManager } from "./layers";
 
-const STATUS_HEX: Record<AnnotationStatus, string> = {
-  open: "#dc2626",
+// Semantic status colors stay fixed; only `open` follows the theme accent
+// (matches the PixiJS renderer — see client/annotations/render.ts).
+const FIXED_STATUS_HEX: Record<Exclude<AnnotationStatus, "open">, string> = {
   addressed: "#059669",
   "needs-clarification": "#d97706",
   rejected: "#6b7280",
   deleted: "#000000", // unreachable — filtered before draw
 };
+
+function readOpenStatusHex(): string {
+  if (typeof document === "undefined" || typeof getComputedStyle !== "function") {
+    return "#dc2626";
+  }
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    return raw || "#dc2626";
+  } catch {
+    return "#dc2626";
+  }
+}
+
+function hexForStatus(status: AnnotationStatus): string {
+  if (status === "open") return readOpenStatusHex();
+  return FIXED_STATUS_HEX[status];
+}
 
 export function drawAnnotationsOnto(
   ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
@@ -15,7 +33,7 @@ export function drawAnnotationsOnto(
 ): void {
   for (const a of annotations) {
     if (a.status === "deleted") continue;
-    const color = STATUS_HEX[a.status];
+    const color = hexForStatus(a.status);
     if (a.kind === "pin") {
       ctx.fillStyle = color;
       ctx.beginPath();

@@ -167,7 +167,8 @@ const editOverlay: EditOverlay = {
     ta.rows = 2;
     ta.style.cssText =
       `position:absolute;left:${screenX}px;top:${screenY}px;z-index:200;` +
-      `background:rgba(13,13,13,0.92);border:1px dashed #dc2626;color:#dc2626;` +
+      `background:rgba(13,13,13,0.92);border:1px dashed var(--accent,#dc2626);` +
+      `color:var(--accent,#dc2626);` +
       `font-size:14px;padding:4px;min-width:120px;min-height:28px;outline:none;`;
     let committed = false;
     const commit = () => {

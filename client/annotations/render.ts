@@ -2,13 +2,49 @@ import { Container, Graphics, Text } from "pixi.js";
 import type { AnnotationRegistry } from "./registry";
 import type { Annotation, AnnotationStatus } from "./types";
 
-const STATUS_COLORS: Record<AnnotationStatus, number> = {
-  open: 0xdc2626,
+// Status-meaning colors (addressed/rejected/needs-clarification) stay fixed
+// because they communicate semantic state. Only the `open` color follows the
+// theme accent, since "open" is the neutral default state and should match
+// the rest of the UI.
+const FIXED_STATUS_COLORS: Record<Exclude<AnnotationStatus, "open">, number> = {
   addressed: 0x059669,
   "needs-clarification": 0xd97706,
   rejected: 0x6b7280,
   deleted: 0x000000, // unreachable — deleted items aren't drawn
 };
+
+const FALLBACK_OPEN_HEX = "#dc2626";
+
+function parseHexColor(hex: string): number {
+  const trimmed = hex.trim().replace(/^#/, "");
+  if (trimmed.length !== 6 && trimmed.length !== 3) return 0xdc2626;
+  const expanded =
+    trimmed.length === 3
+      ? trimmed
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : trimmed;
+  const n = Number.parseInt(expanded, 16);
+  return Number.isFinite(n) ? n : 0xdc2626;
+}
+
+function readThemeAccentHex(): string {
+  if (typeof document === "undefined" || typeof getComputedStyle !== "function") {
+    return FALLBACK_OPEN_HEX;
+  }
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    return raw || FALLBACK_OPEN_HEX;
+  } catch {
+    return FALLBACK_OPEN_HEX;
+  }
+}
+
+function colorForStatus(status: AnnotationStatus): number {
+  if (status === "open") return parseHexColor(readThemeAccentHex());
+  return FIXED_STATUS_COLORS[status];
+}
 
 export class AnnotationRenderer {
   private inner: Container | null = null;
@@ -20,15 +56,29 @@ export class AnnotationRenderer {
     private readonly registry: AnnotationRegistry,
   ) {}
 
+  private themeListener: (() => void) | null = null;
+
   mount(): void {
     this.inner = new Container();
     this.parent.addChild(this.inner);
     this.unsubscribe = this.registry.subscribe(() => this.sync());
+    if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+      this.themeListener = () => this.sync();
+      document.addEventListener("trayce:theme-changed", this.themeListener);
+    }
   }
 
   unmount(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    if (
+      this.themeListener &&
+      typeof document !== "undefined" &&
+      typeof document.removeEventListener === "function"
+    ) {
+      document.removeEventListener("trayce:theme-changed", this.themeListener);
+    }
+    this.themeListener = null;
     if (this.inner && this.parent.removeChild) {
       this.parent.removeChild(this.inner);
     }
@@ -78,7 +128,7 @@ export class AnnotationRenderer {
   }
 
   private drawOne(a: Annotation): Container {
-    const color = STATUS_COLORS[a.status];
+    const color = colorForStatus(a.status);
     const root = new Container();
 
     if (a.kind === "pin") {

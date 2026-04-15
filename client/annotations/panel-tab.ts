@@ -3,15 +3,30 @@ import type { Annotation } from "./types";
 
 type StatusGlyph = { char: string; color: string };
 
-const STATUS_GLYPHS: Record<string, StatusGlyph> = {
-  open: { char: "●", color: "#dc2626" },
+// Non-"open" glyph colors are status-meaning and stay fixed. The "open" color
+// is resolved at render time from the theme accent so it matches whatever
+// palette the user picked in the theme popover.
+const STATUS_GLYPHS_FIXED: Record<string, StatusGlyph> = {
   addressed: { char: "✓", color: "#059669" },
   "needs-clarification": { char: "⚠", color: "#d97706" },
   rejected: { char: "✗", color: "#6b7280" },
 };
 
+function readOpenGlyphColor(): string {
+  if (typeof document === "undefined" || typeof getComputedStyle !== "function") {
+    return "#dc2626";
+  }
+  try {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+    return raw || "#dc2626";
+  } catch {
+    return "#dc2626";
+  }
+}
+
 function glyphForStatus(status: string): StatusGlyph {
-  return STATUS_GLYPHS[status] ?? { char: "●", color: "#6b7280" };
+  if (status === "open") return { char: "●", color: readOpenGlyphColor() };
+  return STATUS_GLYPHS_FIXED[status] ?? { char: "●", color: "#6b7280" };
 }
 
 function kindLabel(a: Annotation): string {
@@ -32,6 +47,7 @@ export class AnnotationsTab {
   private clearBtn: HTMLButtonElement | null = null;
   private clearHandler: (() => void) | null = null;
   private unsubscribe: (() => void) | null = null;
+  private themeListener: (() => void) | null = null;
 
   constructor(registry: AnnotationRegistry, onRowClick: (id: string) => void) {
     this.registry = registry;
@@ -69,6 +85,13 @@ export class AnnotationsTab {
 
     // Subscribe to registry changes
     this.unsubscribe = this.registry.subscribe(() => this.render());
+
+    // Re-render on theme change so the "open" status glyph picks up the new
+    // accent color.
+    if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+      this.themeListener = () => this.render();
+      document.addEventListener("trayce:theme-changed", this.themeListener);
+    }
 
     // Initial render
     this.render();
@@ -238,6 +261,14 @@ export class AnnotationsTab {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
+    }
+    if (
+      this.themeListener &&
+      typeof document !== "undefined" &&
+      typeof document.removeEventListener === "function"
+    ) {
+      document.removeEventListener("trayce:theme-changed", this.themeListener);
+      this.themeListener = null;
     }
   }
 
