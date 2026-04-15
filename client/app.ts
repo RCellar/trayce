@@ -968,7 +968,12 @@ function handleServerMessage(msg: ServerMessage): void {
     usageTab?.setSnapshot(msg.usage as any);
     if ((msg as any).sessionStartedAt) {
       sessionStartedAt = (msg as any).sessionStartedAt;
+      // Mirror the `sessions` handler — all three tabs use sessionStartedAt
+      // as their Recent/Complete boundary; updating only usageTab leaves
+      // transcript and response stale after a bridge transcript-file rediscovery.
       usageTab?.setSessionStartedAt(sessionStartedAt);
+      transcriptTab?.setSessionStartedAt(sessionStartedAt);
+      responseTab?.setSessionStartedAt(sessionStartedAt);
     }
   } else if (msg.type === "usage-update") {
     usageTab?.addUpdate(msg.usage as any);

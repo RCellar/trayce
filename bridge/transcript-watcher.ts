@@ -421,11 +421,13 @@ export function discoverTranscriptPath(cwd: string): string | null {
   if (!existsSync(claudeProjectsDir)) return null;
 
   // Claude Code encodes the cwd as a directory name by replacing path-unsafe
-  // characters with "-". On Windows the source path contains `:` (drive) and
-  // often `.` (e.g. "Administrator.WIN-HBTPOPMKP0K"); both get encoded the
-  // same way as path separators. Observed: C:\Users\A.B\Documents\repo →
-  // C--Users-A-B-Documents-repo.
-  const encodedCwd = cwd.replace(/[\\/:.]/g, "-");
+  // characters with "-". The set differs by platform:
+  // - POSIX: only `/` is replaced. Paths with literal dots (e.g. ~/projects/foo.bar)
+  //   keep their dots — replacing them would mis-encode and break lookup.
+  // - Windows: `\`, `/`, `:`, and `.` are all encoded. Observed:
+  //   C:\Users\A.B\Documents\repo → C--Users-A-B-Documents-repo.
+  const encodeRe = process.platform === "win32" ? /[\\/:.]/g : /\//g;
+  const encodedCwd = cwd.replace(encodeRe, "-");
 
   // Try matching project dir first, then fall back to most recent across all
   const projectDirs = safeReaddir(claudeProjectsDir);
