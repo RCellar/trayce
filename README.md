@@ -13,7 +13,6 @@ Claude sees your sketch as a PNG alongside your prompt.
 [![License: MIT](https://img.shields.io/badge/license-MIT-dc2626.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1.svg?logo=bun)](https://bun.sh)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-111111.svg)]()
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-dc2626.svg)](CONTRIBUTING.md)
 
 <sub>Press ✏️ → Send ✉️ → Claude reads the image.</sub>
 

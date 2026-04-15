@@ -9,13 +9,13 @@ on:
       - 'LICENSE'
       - '.gitignore'
       - '.gitattributes'
+  # pull_request always runs CI. The ruleset on main requires the
+  # `ci (ubuntu-latest)` and `ci (windows-latest)` contexts to pass, and
+  # paths-ignore here would make those contexts never fire for docs-only PRs —
+  # deadlocking the merge. CI on post-merge pushes to main still skips
+  # docs-only commits via the `push` paths-ignore above, so we pay the CI cost
+  # at most once per docs-only change rather than twice.
   pull_request:
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.gitattributes'
 
 jobs:
   ci:

@@ -1,8 +1,39 @@
 # Changelog
 
-All notable changes to Trayce are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project does not yet tag versioned releases, so changes land under `Unreleased` until a release is cut.
+All notable changes to Trayce are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Tagged releases: [v0.1.0](https://github.com/RCellar/trayce/releases/tag/v0.1.0), [v0.2.0](https://github.com/RCellar/trayce/releases/tag/v0.2.0), [v0.3.0](https://github.com/RCellar/trayce/releases/tag/v0.3.0).
 
 ## Unreleased
+
+### Added
+
+- **Structured reply flow on annotations.** Every annotation row in the side-panel Annotations tab now has explicit **Edit** and **Reply** buttons. Reply opens a textarea that commits on Enter or blur and appends to `annotation.replies[]` without touching the original note/text — the clarification loop that was previously missing. User clarifications render with a neutral left border; Claude replies keep the ✨ glyph and italic treatment so the conversation reads as a thread. Registry gained `addReply(id, text, from = "user")` which trims empties, bumps `updatedAt`, and notifies subscribers.
+- **Annotations-panel toggle on the left toolbar** (pin icon). Previously the Annotations tab in the side panel was only reachable through the tab bar inside the panel itself; the left toolbar now has a dedicated entry for it alongside Transcript and Usage.
+- **Brush & Layers toggle in the top bar.** Moved out of the left toolbar into the top bar's right-side control group, next to the gear/power icons. SVG is built via `document.createElementNS` so the hardcoded shape never touches `innerHTML`. The `floatingPanel.toggle()` contract is unchanged — only the surface moved.
+- **"Clear on send" checkbox** next to the Send button. Default off, preference persisted in `localStorage` under `trayce.clearOnSend`. When enabled, `clearCanvas()` runs after `connection.send()` lands so the cleared state reflects a successful submit, not an attempt. Fire-and-forget semantics match the rest of the UI (no blocking on ack).
+
+### Changed
+
+- **Drawing pipeline rewired for high-frequency pointers.** On 120–240 Hz pointer devices at 4K canvas, the previous per-event repaint + per-event GPU texture realloc combined into visible lag during strokes. Three coordinated changes fix it: (a) `client/input.ts` now batches pointer moves to one callback per `requestAnimationFrame`, using `e.getCoalescedEvents()` to keep full input fidelity even though the brush re-rasters at frame rate; `pointerup` cancels any pending rAF and synchronously drains accumulated points before firing `end` so nothing is lost. (b) `client/compositor.ts` no longer allocates a fresh `ImageSource + Texture` per layer-revision change — when the layer's `OffscreenCanvas` identity is unchanged (i.e. pixels changed but the buffer ref didn't) it calls `sprite.texture.source.update()` to invalidate the existing GPU upload in place. Falls back to full rebuild only when `rasterizeLayer` swaps the canvas reference. (c) `getBoundingClientRect()` is cached once per stroke at `pointerdown`, removing the forced layout that was running on every raw pointer event. New unit tests cover rAF batching, coalesced-event inclusion, pointerup drain, and rect-cache invariants. The follow-up **tight-bounded dirty-rect stroke buffer** (avoid the per-move full-canvas `putImageData` in the Pen brush) is still open.
+- **Transcript-pane header is now a sticky flex container.** `.autoscroll-btn` and `.tab-toggle` previously both used `float: right` and stacked independently at the top of the pane, which let wide token badges on the first transcript entry overlap them (reported as "Rec..." partially obscured by a token pill). Both controls now live in a single `.transcript-header` sticky div with `display: flex; justify-content: flex-end`, so entries flow cleanly below without collision.
+- **Annotations toolbar ordering.** Left-toolbar panel buttons now render Transcript → Annotations → Usage (was Annotations → Transcript → Usage).
+- **Eraser tool hidden from the toolbar.** Brush class, `E` keyboard shortcut, and `brushes.eraser` wiring are all commented out per user feedback that the tool wasn't pulling its weight. `client/brushes/eraser.ts` is preserved untouched — reinstatement is three lines of uncomment.
+- **Layer-panel controls got aria-labels + clearer tooltips.** Every action button in `client/layers-ui.ts` (add, visibility, move up/down, delete, rasterize) has explicit `title` + `aria-label` attributes. The rasterize control additionally shows a visible "Flatten" label and a tooltip that explains it bakes position/size into pixels and disables further transform — the action users were guessing at most.
+- **Inline-edit textarea in the Annotations tab is now full-row width.** Previously the textarea had no explicit `grid-column` span, so it was auto-placed into a single grid cell and rendered a few character columns wide — effectively unreadable. New `.annotation-editing` class spans `grid-column: 2 / 5` with `width: 100%` and honors `--text-scale` / `--control-scale` vars. Inline styles on the textarea replaced by the class.
+
+### Fixed
+
+- **Claude annotation replies no longer duplicate on reconnect.** Root cause: server buffered `annotation-update` messages per-session and replayed them to late-joining browsers; each replay re-ran `registry.applyUpdate`, which appended the reply to `replies[]` unconditionally. With five bridge sessions connected, the same reply could land up to five times on each annotation. Fix is protocol-level + registry-level + self-healing: `AnnotationUpdateEntry` gained optional `at` (bridge-stamped `Date.now()`), `applyUpdate` dedupes by `${id}:${at}` so replayed deliveries become no-ops, reply timestamps are preserved from the bridge clock (not re-clocked on the client), and `load()` collapses adjacent identical `{from, text}` replies via `dedupeReplies()` to heal legacy state already stored in IndexedDB. Adjacent-only dedupe preserves real conversation patterns (yes/more/yes).
+- **`transcript-tab.ts` no longer mis-classifies entries with `timestamp === 0`.** The `Recent` mode filter used truthiness (`entry.timestamp && entry.timestamp < this.sessionStartedAt`), which dropped all entries at epoch zero into the "before session" bucket and hid them. Now uses strict `entry.timestamp !== undefined` so zero timestamps are correctly treated as valid.
+- **`usage-snapshot` handler now updates every live tab.** The sessions broadcast handler already cross-notified the Response / Transcript / Usage tabs; the usage-snapshot path only updated `usageTab`, so tabs could silently disagree on `sessionStartedAt`. Usage snapshot now updates all three tabs for parity.
+- **Transcript + Usage entries are rolled off after 5 000 records** (`MAX_ENTRIES` / `MAX_UPDATES` via `splice` in `addEntry`). Previously these arrays were unbounded, so long-running sessions grew memory without ceiling.
+- **Bridge transcript-watcher regex is now platform-scoped.** The cwd-encoding regex replaced `[\\/:.]` on every platform — including the dot — which mis-encoded POSIX paths with dots (e.g. `~/projects/foo.bar`) and made the transcript lookup fail. Now `process.platform === "win32" ? /[\\/:.]/g : /\//g`, matching Claude Code's actual encoding.
+- **Server warns at startup if `scripts/start.ts` is missing.** Restart previously referenced the path at runtime with no presence check, deferring failure to the moment the user clicked Restart. `server/index.ts` now runs `existsSync()` at startup and logs a warning if the script is missing, so the operator learns about broken restart capability before trying to use it.
+
+### Infrastructure
+
+- **`.notes/` added to `.gitignore`** for local design scratchpads that shouldn't ship. First tenant: `.notes/pr-b-movable-annotations.md` (scoped design for drag-to-reposition existing annotation pins/text/callouts — deferred follow-up).
+
+## [0.3.0] — 2026-04-14
 
 ### Added
 
