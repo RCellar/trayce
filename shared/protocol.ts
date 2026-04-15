@@ -225,6 +225,14 @@ export interface AnnotationUpdateEntry {
   id: string;
   status: Exclude<AnnotationStatus, "open" | "deleted">;
   reply?: string | undefined;
+  /**
+   * Stable bridge-assigned timestamp for the originating resolve_annotations
+   * call. Present on modern bridge builds; optional for backwards
+   * compatibility. The client uses this as the dedupe key when the server
+   * replays buffered updates to a late-joining browser, so the same reply
+   * can't be appended to `replies[]` more than once.
+   */
+  at?: number | undefined;
 }
 
 export interface AnnotationUpdateMessage {

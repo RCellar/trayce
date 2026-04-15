@@ -938,12 +938,17 @@ function handleServerMessage(msg: ServerMessage): void {
   } else if (msg.type === "annotation-update") {
     if ((msg as any).sessionId && (msg as any).sessionId !== selectedSessionId) return;
     const updates =
-      (msg as { updates?: Array<{ id: string; status: string; reply?: string }> }).updates ?? [];
+      (
+        msg as {
+          updates?: Array<{ id: string; status: string; reply?: string; at?: number }>;
+        }
+      ).updates ?? [];
     for (const u of updates) {
       annotationRegistry.applyUpdate({
         id: u.id,
         status: u.status as never, // schema already validated at server parse boundary
         ...(u.reply !== undefined ? { reply: u.reply } : {}),
+        ...(u.at !== undefined ? { at: u.at } : {}),
       });
     }
     return;

@@ -108,8 +108,8 @@ const PANEL_BUTTONS: Array<{ id: PanelId; icon: string; title: string }> = [
   // { id: "floating", icon: ICONS.sliders, title: "Brush & Layers" },
   // Response tab hidden — redundant with transcript which shows all responses
   // { id: "response", icon: ICONS.chat, title: "Response Panel" },
-  { id: "annotations", icon: ICONS.pin, title: "Annotations Panel" },
   { id: "transcript", icon: ICONS.transcript, title: "Transcript Panel" },
+  { id: "annotations", icon: ICONS.pin, title: "Annotations Panel" },
   { id: "usage", icon: ICONS.chart, title: "Usage Panel" },
 ];
 

@@ -208,4 +208,101 @@ describe("AnnotationRegistry", () => {
     r.addReply("nope", "hi");
     expect(r.all().length).toBe(0);
   });
+
+  // --- applyUpdate dedupe (server buffer replay scenario) ---
+
+  test("applyUpdate dedupes by (annotationId, at) on repeated delivery", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "done", at: 12345 });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "done", at: 12345 });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "done", at: 12345 });
+    const updated = r.get(p.id);
+    expect(updated?.replies.length).toBe(1);
+    expect(updated?.replies[0]?.text).toBe("done");
+    expect(updated?.status).toBe("addressed");
+  });
+
+  test("applyUpdate without `at` falls back to the pre-dedupe behaviour", () => {
+    // Old bridge builds may not stamp `at`; don't break legacy clients.
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "x" });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "x" });
+    const updated = r.get(p.id);
+    expect(updated?.replies.length).toBe(2);
+  });
+
+  test("applyUpdate accepts different `at` values as distinct updates", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "a", at: 1 });
+    r.applyUpdate({ id: p.id, status: "needs-clarification", reply: "b", at: 2 });
+    const updated = r.get(p.id);
+    expect(updated?.replies.map((x) => x.text)).toEqual(["a", "b"]);
+    expect(updated?.status).toBe("needs-clarification");
+  });
+
+  test("applyUpdate uses the provided `at` as the reply timestamp", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.applyUpdate({ id: p.id, status: "addressed", reply: "done", at: 99999 });
+    const updated = r.get(p.id);
+    expect(updated?.replies[0]?.at).toBe(99999);
+    expect(updated?.updatedAt).toBe(99999);
+  });
+
+  // --- load() heals legacy duplicate-replies state ---
+
+  test("load collapses adjacent identical replies (healing legacy dupes)", () => {
+    const r = new AnnotationRegistry();
+    const now = Date.now();
+    const pinWithDupes = {
+      id: "abc",
+      kind: "pin" as const,
+      author: "user" as const,
+      status: "needs-clarification" as const,
+      createdAt: now,
+      updatedAt: now,
+      number: 1,
+      at: [0, 0] as [number, number],
+      note: "original",
+      replies: [
+        { from: "claude" as const, text: "same text", at: now },
+        { from: "claude" as const, text: "same text", at: now + 1 },
+        { from: "claude" as const, text: "same text", at: now + 2 },
+        { from: "claude" as const, text: "different", at: now + 3 },
+        { from: "claude" as const, text: "different", at: now + 4 },
+      ],
+    };
+    r.load([pinWithDupes]);
+    const loaded = r.get("abc");
+    expect(loaded?.replies.map((x) => x.text)).toEqual(["same text", "different"]);
+  });
+
+  test("load preserves non-adjacent repeats (real conversation patterns)", () => {
+    const r = new AnnotationRegistry();
+    const now = Date.now();
+    const pinWithConversation = {
+      id: "abc",
+      kind: "pin" as const,
+      author: "user" as const,
+      status: "needs-clarification" as const,
+      createdAt: now,
+      updatedAt: now,
+      number: 1,
+      at: [0, 0] as [number, number],
+      note: "q",
+      replies: [
+        { from: "claude" as const, text: "yes", at: now + 1 },
+        { from: "user" as const, text: "more?", at: now + 2 },
+        { from: "claude" as const, text: "yes", at: now + 3 },
+      ],
+    };
+    r.load([pinWithConversation]);
+    const loaded = r.get("abc");
+    // Adjacent-only dedupe: identical "yes" entries are kept because a
+    // different reply sits between them.
+    expect(loaded?.replies.length).toBe(3);
+  });
 });

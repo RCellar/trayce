@@ -1065,12 +1065,25 @@ dialog .bg-choice label {
   font-size: calc(10px * var(--text-scale));
 }
 
-.autoscroll-btn {
+/* Sticky header at the top of the transcript pane hosting the Auto-scroll
+   button and (after session start) the Recent/Complete toggle. Previously
+   both controls used float:right independently, which let wide token badges
+   on the first transcript entry overlap them. */
+.transcript-header {
   position: sticky;
-  bottom: 0;
-  float: right;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.autoscroll-btn {
   padding: 3px 10px;
-  margin: 4px 0;
   font-size: calc(10px * var(--text-scale));
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -1078,7 +1091,7 @@ dialog .bg-choice label {
   color: var(--text-muted);
   cursor: pointer;
   opacity: 0.7;
-  z-index: 4;
+  flex: 0 0 auto;
   transition:
     opacity 0.15s,
     background 0.15s;
@@ -1327,15 +1340,14 @@ dialog .bg-choice label {
   padding-top: 10px;
 }
 
-/* Recent/Complete toggle */
+/* Recent/Complete toggle — lives inside .transcript-header as a flex item. */
 .tab-toggle {
   display: inline-flex;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
   font-size: calc(11px * var(--text-scale));
-  float: right;
-  margin: 4px 0 8px;
+  flex: 0 0 auto;
 }
 
 .tab-toggle button {
