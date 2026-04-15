@@ -230,6 +230,8 @@ export const AnnotationUpdateEntrySchema = z.object({
   id: z.string().min(1),
   status: z.enum(["addressed", "rejected", "needs-clarification"]),
   reply: z.string().optional(),
+  // Bridge-assigned timestamp; optional so old bridge builds still parse.
+  at: z.number().optional(),
 });
 
 export const AnnotationUpdateSchema = z.object({

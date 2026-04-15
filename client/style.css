@@ -97,6 +97,33 @@ body {
   color: var(--text);
 }
 
+/* Top-bar icon button (Brush & Layers toggle — pin #9). Matches the gear
+   button sizing so the three controls on the right sit on a common baseline. */
+.topbar-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: calc(4px * var(--control-scale));
+  border-radius: 4px;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.topbar-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+.topbar-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.topbar-btn svg {
+  width: calc(18px * var(--control-scale));
+  height: calc(18px * var(--control-scale));
+}
+
 .theme-popover {
   position: fixed;
   background: var(--surface);
@@ -584,6 +611,27 @@ body {
   outline: none;
 }
 
+.clear-on-send-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: calc(11px * var(--text-scale));
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.clear-on-send-label input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.clear-on-send-label:hover {
+  color: var(--text);
+}
+
 #submit-btn {
   background: var(--accent);
   color: #fff;
@@ -1017,12 +1065,25 @@ dialog .bg-choice label {
   font-size: calc(10px * var(--text-scale));
 }
 
-.autoscroll-btn {
+/* Sticky header at the top of the transcript pane hosting the Auto-scroll
+   button and (after session start) the Recent/Complete toggle. Previously
+   both controls used float:right independently, which let wide token badges
+   on the first transcript entry overlap them. */
+.transcript-header {
   position: sticky;
-  bottom: 0;
-  float: right;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.autoscroll-btn {
   padding: 3px 10px;
-  margin: 4px 0;
   font-size: calc(10px * var(--text-scale));
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -1030,7 +1091,7 @@ dialog .bg-choice label {
   color: var(--text-muted);
   cursor: pointer;
   opacity: 0.7;
-  z-index: 4;
+  flex: 0 0 auto;
   transition:
     opacity 0.15s,
     background 0.15s;
@@ -1279,15 +1340,14 @@ dialog .bg-choice label {
   padding-top: 10px;
 }
 
-/* Recent/Complete toggle */
+/* Recent/Complete toggle — lives inside .transcript-header as a flex item. */
 .tab-toggle {
   display: inline-flex;
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
   font-size: calc(11px * var(--text-scale));
-  float: right;
-  margin: 4px 0 8px;
+  flex: 0 0 auto;
 }
 
 .tab-toggle button {
@@ -1391,16 +1451,70 @@ dialog .bg-choice label {
   padding: 2px 0;
   min-height: 16px;
   border-radius: 2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .annotation-content:hover {
   color: var(--text);
+}
+/* Inline-edit textarea. Without the explicit grid-column span the textarea
+   gets auto-placed into a single grid cell, which made it render only a few
+   character columns wide (bug reported alongside pin #8). Span the content
+   columns so the field actually matches the width of the text it replaces. */
+.annotation-editing {
+  grid-column: 2 / 5;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: calc(56px * var(--text-scale));
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--accent, #dc2626);
+  color: inherit;
+  font: inherit;
+  font-size: calc(12px * var(--text-scale));
+  padding: 4px 6px;
+  outline: none;
+  border-radius: 3px;
 }
 .annotation-reply {
   grid-column: 2 / 5;
   color: var(--text-dim);
   font-size: calc(11px * var(--text-scale));
+  padding: 4px 6px;
+  margin-top: 2px;
+  border-left: 2px solid var(--accent);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0 3px 3px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.annotation-reply.from-user {
+  border-left-color: var(--text-dim);
+  font-style: normal;
+}
+.annotation-reply.from-claude {
   font-style: italic;
+}
+/* Row-level action bar — Edit / Reply buttons for each annotation. */
+.annotation-actions {
+  grid-column: 2 / 5;
+  display: flex;
+  gap: 6px;
   padding-top: 2px;
+}
+.annotation-action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: calc(10px * var(--text-scale));
+  cursor: pointer;
+  font-family: inherit;
+}
+.annotation-action-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .annotations-empty {
   padding: 20px;

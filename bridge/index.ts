@@ -130,7 +130,12 @@ export function handleResolveAnnotations(
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     return { content: [{ type: "text", text: "Error: not connected to trayce server" }] };
   }
-  ws.send(JSON.stringify({ type: "annotation-update", updates }));
+  // Stamp each entry with the bridge clock. The client uses `at` as a stable
+  // dedupe key so a buffered annotation-update replayed to a late-joining
+  // browser doesn't re-append the same reply to `replies[]`.
+  const now = Date.now();
+  const stamped = updates.map((u) => ({ ...u, at: now }));
+  ws.send(JSON.stringify({ type: "annotation-update", updates: stamped }));
   return {
     content: [{ type: "text", text: `Updated ${updates.length} annotation(s).` }],
   };

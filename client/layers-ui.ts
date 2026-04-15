@@ -33,6 +33,8 @@ export class LayersUI {
     label.textContent = "Layers";
     const addBtn = document.createElement("button");
     addBtn.textContent = "+";
+    addBtn.title = "Add new layer";
+    addBtn.setAttribute("aria-label", "Add new layer");
     addBtn.style.cssText =
       "background:none;border:none;color:var(--accent);font-size:16px;cursor:pointer;";
     addBtn.addEventListener("click", () => this.config.onAddLayer());
@@ -51,8 +53,11 @@ export class LayersUI {
       const vis = document.createElement("span");
       vis.className = "visibility";
       vis.textContent = layer.visible ? "\u25C9" : "\u25CE";
-      vis.title = layer.visible ? "Hide layer" : "Show layer";
+      vis.title = layer.visible ? "Hide this layer" : "Show this layer";
+      vis.setAttribute("role", "button");
+      vis.setAttribute("aria-label", vis.title);
       vis.style.opacity = layer.visible ? "1" : "0.4";
+      vis.style.cursor = "pointer";
       vis.addEventListener("click", (e) => {
         e.stopPropagation();
         this.config.onVisibilityToggle(i);
@@ -85,7 +90,9 @@ export class LayersUI {
         const downBtn = document.createElement("span");
         downBtn.className = "layer-move";
         downBtn.textContent = "\u25BC"; // down arrow
-        downBtn.title = "Move down";
+        downBtn.title = "Move layer down (toward the background)";
+        downBtn.setAttribute("role", "button");
+        downBtn.setAttribute("aria-label", downBtn.title);
         downBtn.style.cssText = "cursor:pointer;margin-right:2px;opacity:0.5;font-size:9px;";
         downBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -97,7 +104,9 @@ export class LayersUI {
         const upBtn = document.createElement("span");
         upBtn.className = "layer-move";
         upBtn.textContent = "\u25B2"; // up arrow
-        upBtn.title = "Move up";
+        upBtn.title = "Move layer up (toward the foreground)";
+        upBtn.setAttribute("role", "button");
+        upBtn.setAttribute("aria-label", upBtn.title);
         upBtn.style.cssText = "cursor:pointer;margin-right:4px;opacity:0.5;font-size:9px;";
         upBtn.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -106,13 +115,20 @@ export class LayersUI {
         actions.appendChild(upBtn);
       }
 
-      // Rasterize button for transform layers
+      // Rasterize button for transform layers — previously rendered as the
+      // cryptic ▣ glyph with no secondary affordance. Pin #8 called this out
+      // explicitly; we now show a clearer icon + short label and a richer
+      // tooltip that explains the destructive nature of the action.
       if (layer.transform && this.config.onRasterize) {
         const rastBtn = document.createElement("span");
         rastBtn.className = "layer-rasterize";
-        rastBtn.textContent = "\u25A3";
-        rastBtn.title = "Rasterize (flatten to pixels)";
-        rastBtn.style.cssText = "cursor:pointer;margin-right:4px;opacity:0.6;";
+        rastBtn.textContent = "\u29C9 Flatten";
+        rastBtn.title =
+          "Rasterize: bake the current position & size into pixels. Disables further move/resize of this layer.";
+        rastBtn.setAttribute("role", "button");
+        rastBtn.setAttribute("aria-label", "Rasterize layer to pixels");
+        rastBtn.style.cssText =
+          "cursor:pointer;margin-right:4px;opacity:0.75;font-size:10px;letter-spacing:0.5px;";
         rastBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.config.onRasterize!(i);
@@ -125,7 +141,9 @@ export class LayersUI {
         const delBtn = document.createElement("span");
         delBtn.className = "layer-delete";
         delBtn.textContent = "\u00D7";
-        delBtn.title = "Delete layer";
+        delBtn.title = "Delete this layer";
+        delBtn.setAttribute("role", "button");
+        delBtn.setAttribute("aria-label", delBtn.title);
         delBtn.addEventListener("click", (e) => {
           e.stopPropagation();
           this.config.onDeleteLayer(i);

@@ -50,6 +50,7 @@ export class TranscriptTab {
   private mode: "recent" | "complete" = "recent";
   private sessionStartedAt: number | null = null;
   private toggleEl: HTMLElement | null = null;
+  private headerEl: HTMLElement | null = null;
 
   mount(container: HTMLElement): void {
     this.container = container;
@@ -66,6 +67,15 @@ export class TranscriptTab {
       }
     });
 
+    // Sticky header hosting the auto-scroll pill and (once session starts)
+    // the Recent/Complete toggle. Previously both controls used float:right
+    // and stacked independently, which let a wide token-badge on the first
+    // transcript entry overlap them (reported bug with token badge rendering
+    // over the Recent/Complete toggle).
+    this.headerEl = document.createElement("div");
+    this.headerEl.className = "transcript-header";
+    container.appendChild(this.headerEl);
+
     this.autoScrollBtn = document.createElement("button");
     this.autoScrollBtn.className = "autoscroll-btn active";
     this.autoScrollBtn.textContent = "Auto-scroll";
@@ -76,7 +86,7 @@ export class TranscriptTab {
         this.container!.scrollTop = this.container!.scrollHeight;
       }
     });
-    container.appendChild(this.autoScrollBtn);
+    this.headerEl.appendChild(this.autoScrollBtn);
   }
 
   private updateAutoScrollBtn(): void {
@@ -86,9 +96,15 @@ export class TranscriptTab {
 
   setSessionStartedAt(ts: number | null): void {
     this.sessionStartedAt = ts;
-    if (this.container && !this.toggleEl && ts !== null) {
+    if (this.headerEl && !this.toggleEl && ts !== null) {
       this.toggleEl = this.createToggle();
-      this.autoScrollBtn?.insertAdjacentElement("afterend", this.toggleEl);
+      // Insert the Recent/Complete toggle before the Auto-scroll button so
+      // the header reads [Recent | Complete]  [Auto-scroll] left→right.
+      if (this.autoScrollBtn) {
+        this.headerEl.insertBefore(this.toggleEl, this.autoScrollBtn);
+      } else {
+        this.headerEl.appendChild(this.toggleEl);
+      }
     }
     if (this.mode === "recent") {
       this.rerender();
@@ -132,11 +148,11 @@ export class TranscriptTab {
     this.container.textContent = "";
     this.toolCallElements.clear();
 
-    if (this.autoScrollBtn) {
-      this.container.appendChild(this.autoScrollBtn);
-    }
-    if (this.toggleEl) {
-      this.container.appendChild(this.toggleEl);
+    // Re-attach the sticky header (which owns the auto-scroll + toggle
+    // buttons) so rerender() doesn't drop them. The header itself is the
+    // single attachment point — its children stay where they were.
+    if (this.headerEl) {
+      this.container.appendChild(this.headerEl);
     }
 
     for (const entry of this.entries) {
@@ -182,6 +198,12 @@ export class TranscriptTab {
     this.entries = [];
     this.mode = "recent";
     this.toggleEl = null;
+    // Re-attach the header — textContent="" stripped it out of the DOM, but
+    // the element itself still owns the Auto-scroll button reference, so
+    // re-appending is enough to keep the control alive after clear().
+    if (this.headerEl) {
+      this.container.appendChild(this.headerEl);
+    }
   }
 
   private addMessage(te: TranscriptEntry): void {

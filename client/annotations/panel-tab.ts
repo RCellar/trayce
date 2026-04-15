@@ -123,12 +123,13 @@ export class AnnotationsTab {
     row.className = "annotation-row";
     row.dataset.id = a.id;
 
-    // Clicking the row (outside the delete button and the editable content)
-    // signals "focus this annotation" — wired to the caller's onRowClick.
+    // Clicking the row (outside action controls and editable content) signals
+    // "focus this annotation" — wired to the caller's onRowClick.
     row.addEventListener("click", (e) => {
       const target = e.target as HTMLElement | null;
       if (target?.closest(".annotation-delete-btn")) return;
       if (target?.closest(".annotation-editing")) return;
+      if (target?.closest(".annotation-action-btn")) return;
       this.onRowClick(a.id);
     });
 
@@ -165,7 +166,9 @@ export class AnnotationsTab {
     row.appendChild(statusEl);
     row.appendChild(deleteBtn);
 
-    // Content preview — double-click to edit
+    // Content preview — double-click still opens inline edit for anyone who
+    // learned that gesture, and the explicit Edit button below makes the
+    // affordance discoverable.
     const content = contentPreview(a);
     const contentEl = document.createElement("div");
     contentEl.className = "annotation-content";
@@ -175,22 +178,99 @@ export class AnnotationsTab {
       contentEl.textContent = a.kind === "pin" ? "(no note)" : "";
       contentEl.style.opacity = "0.5";
     }
-    contentEl.title = "Double-click to edit";
+    contentEl.title = "Double-click to edit, or use the Edit button below";
     contentEl.addEventListener("dblclick", (e) => {
       e.stopPropagation();
       this.startInlineEdit(contentEl, a);
     });
     row.appendChild(contentEl);
 
-    // Claude replies
+    // Replies — rendered with author-scoped styling. Claude replies retain
+    // the ✨ glyph; user replies (clarifications) render plain so the trail
+    // reads like a conversation instead of every reply looking like Claude.
     for (const reply of a.replies) {
       const replyEl = document.createElement("div");
-      replyEl.className = "annotation-reply";
-      replyEl.textContent = `✨ ${reply.text}`;
+      replyEl.className = `annotation-reply from-${reply.from}`;
+      replyEl.textContent = reply.from === "claude" ? `✨ ${reply.text}` : reply.text;
       row.appendChild(replyEl);
     }
 
+    // Action bar — Edit (inline-edit the original content) + Reply (append a
+    // new reply to .replies[] without overwriting anything). Replying is the
+    // non-destructive clarification flow; Edit is for correcting typos in the
+    // original note.
+    const actions = document.createElement("div");
+    actions.className = "annotation-actions";
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "annotation-action-btn";
+    editBtn.textContent = "Edit";
+    editBtn.title = "Edit the original content of this annotation";
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.startInlineEdit(contentEl, a);
+    });
+
+    const replyBtn = document.createElement("button");
+    replyBtn.type = "button";
+    replyBtn.className = "annotation-action-btn";
+    replyBtn.textContent = "Reply";
+    replyBtn.title = "Add a clarification reply — preserves the original";
+    replyBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.startReply(row, a);
+    });
+
+    actions.appendChild(editBtn);
+    actions.appendChild(replyBtn);
+    row.appendChild(actions);
+
     return row;
+  }
+
+  /** Open an inline textarea for appending a new reply to the annotation.
+   *  Commits to registry.addReply on Enter or blur (blur captures the case
+   *  where the user clicks away — matches the inline-edit ergonomics). */
+  private startReply(row: HTMLElement, a: Annotation): void {
+    // Avoid stacking multiple reply inputs on the same row.
+    const existing = row.querySelector(".annotation-replying");
+    if (existing) {
+      (existing as HTMLTextAreaElement).focus();
+      return;
+    }
+    const input = document.createElement("textarea");
+    input.className = "annotation-editing annotation-replying";
+    input.placeholder = "Type a reply — Enter to send, Esc to cancel";
+    input.rows = 2;
+    let committed = false;
+
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const value = input.value.trim();
+      if (value.length === 0) {
+        // Nothing to send — just re-render to drop the input cleanly.
+        this.render();
+        return;
+      }
+      this.registry.addReply(a.id, value, "user");
+      // registry.notify() will trigger re-render via our subscribe.
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        commit();
+      } else if (e.key === "Escape") {
+        committed = true;
+        this.render();
+      }
+    });
+    input.addEventListener("blur", commit);
+
+    row.appendChild(input);
+    requestAnimationFrame(() => input.focus());
   }
 
   private startInlineEdit(target: HTMLElement, a: Annotation): void {
@@ -198,11 +278,9 @@ export class AnnotationsTab {
     const input = document.createElement("textarea");
     input.className = "annotation-editing";
     input.value = current;
-    input.rows = 2;
-    input.style.cssText =
-      "width:100%;resize:vertical;background:rgba(0,0,0,0.15);" +
-      "border:1px solid var(--accent,#dc2626);color:inherit;" +
-      "font:inherit;padding:2px 4px;outline:none;";
+    input.rows = 3;
+    // Styling lives in style.css under `.annotation-editing` — intentionally
+    // no inline overrides so text-scale / control-scale CSS vars apply.
     let committed = false;
 
     const commit = () => {

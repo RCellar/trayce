@@ -72,6 +72,10 @@ const ICONS = {
     '<path d="M3 15V7"/><path d="M7 15V4"/><path d="M11 15V9"/><path d="M15 15V6"/>',
     false,
   ),
+  // Panel: annotations — map pin
+  pin: svg(
+    '<path d="M9 2a5 5 0 00-5 5c0 3.5 5 9 5 9s5-5.5 5-9a5 5 0 00-5-5z"/><circle cx="9" cy="7" r="1.8"/>',
+  ),
 };
 
 const TOOLS: Array<{ id: ToolId; icon: string; group?: string }> = [
@@ -80,7 +84,10 @@ const TOOLS: Array<{ id: ToolId; icon: string; group?: string }> = [
   { id: "marker", icon: ICONS.marker },
   { id: "watercolor", icon: ICONS.watercolor },
   { id: "highlighter", icon: ICONS.highlighter },
-  { id: "eraser", icon: ICONS.eraser, group: "separator" },
+  // Eraser disabled per user feedback (pin #2) — feature kept in-tree for possible
+  // future reinstatement. Toolbar button hidden, keyboard shortcut (E) inert,
+  // brush class still exported but no longer wired into the active brush map.
+  // { id: "eraser", icon: ICONS.eraser, group: "separator" },
   // Unimplemented tools hidden until ready:
   // { id: "select", icon: "" },
   // { id: "lasso", icon: "" },
@@ -95,10 +102,14 @@ const ACTIONS: Array<{ id: ActionId; icon: string; title: string }> = [
 ];
 
 const PANEL_BUTTONS: Array<{ id: PanelId; icon: string; title: string }> = [
-  { id: "floating", icon: ICONS.sliders, title: "Brush & Layers" },
+  // Brush & Layers toggle moved to the top bar per pin #9. The onPanelToggle
+  // "floating" branch is still live so external callers (e.g. keyboard shortcut)
+  // continue to work — the button here was the only left-toolbar surface.
+  // { id: "floating", icon: ICONS.sliders, title: "Brush & Layers" },
   // Response tab hidden — redundant with transcript which shows all responses
   // { id: "response", icon: ICONS.chat, title: "Response Panel" },
   { id: "transcript", icon: ICONS.transcript, title: "Transcript Panel" },
+  { id: "annotations", icon: ICONS.pin, title: "Annotations Panel" },
   { id: "usage", icon: ICONS.chart, title: "Usage Panel" },
 ];
 
