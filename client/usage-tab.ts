@@ -12,6 +12,7 @@ type UsageEntry = {
 export class UsageTab {
   private container: HTMLElement | null = null;
   private updates: UsageEntry[] = [];
+  private static readonly MAX_UPDATES = 5000;
   private mode: "recent" | "complete" = "recent";
   private sessionStartedAt: number | null = null;
 
@@ -42,6 +43,11 @@ export class UsageTab {
 
   addUpdate(usage: UsageEntry): void {
     this.updates.push(usage);
+    // Cap unbounded growth — long sessions otherwise accumulate every
+    // usage-update indefinitely. Roll oldest off.
+    if (this.updates.length > UsageTab.MAX_UPDATES) {
+      this.updates.splice(0, this.updates.length - UsageTab.MAX_UPDATES);
+    }
     this.render();
   }
 

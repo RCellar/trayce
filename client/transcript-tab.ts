@@ -47,6 +47,7 @@ export class TranscriptTab {
   private autoScrollBtn: HTMLButtonElement | null = null;
   private toolCallElements = new Map<string, HTMLElement>();
   private entries: TranscriptEntry[] = [];
+  private static readonly MAX_ENTRIES = 5000;
   private mode: "recent" | "complete" = "recent";
   private sessionStartedAt: number | null = null;
   private toggleEl: HTMLElement | null = null;
@@ -141,7 +142,9 @@ export class TranscriptTab {
 
     for (const entry of this.entries) {
       if (this.mode === "recent" && this.sessionStartedAt !== null) {
-        if (entry.timestamp && entry.timestamp < this.sessionStartedAt) continue;
+        // Strict comparison so timestamp === 0 is treated as a real timestamp
+        // (and undefined slips through, since NaN < N is always false).
+        if (entry.timestamp !== undefined && entry.timestamp < this.sessionStartedAt) continue;
       }
       this.renderEntry(entry);
     }
@@ -150,8 +153,13 @@ export class TranscriptTab {
   addEntry(entry: TranscriptEntry): void {
     if (!this.container) return;
     this.entries.push(entry);
+    // Cap unbounded growth — long sessions otherwise accumulate every
+    // tool-call, response, and message indefinitely. Roll oldest off.
+    if (this.entries.length > TranscriptTab.MAX_ENTRIES) {
+      this.entries.splice(0, this.entries.length - TranscriptTab.MAX_ENTRIES);
+    }
     if (this.mode === "recent" && this.sessionStartedAt !== null) {
-      if (entry.timestamp && entry.timestamp < this.sessionStartedAt) return;
+      if (entry.timestamp !== undefined && entry.timestamp < this.sessionStartedAt) return;
     }
     this.renderEntry(entry);
     this.scrollToBottomIfEnabled();

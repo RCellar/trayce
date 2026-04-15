@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdirSync, openSync } from "node:fs";
+import { existsSync, mkdirSync, openSync } from "node:fs";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { defaultLogFile } from "../shared/paths";
@@ -12,6 +12,19 @@ import { WebSocketHub, type WsData } from "./websocket";
 
 const config = getConfig(Bun.env);
 const token = config.noAuth ? "" : (config.token ?? generateToken());
+
+// Verify scripts/start.ts exists at startup. Self-restart spawns this script
+// (see initiateShutdown below); without this check, a misconfigured deployment
+// only fails when the user requests a restart — far from the cause. Warn loud
+// and continue; restart will be a no-op rather than confusing failure later.
+const startScriptPath = resolve(import.meta.dir, "..", "scripts", "start.ts");
+if (!existsSync(startScriptPath)) {
+  console.warn(
+    `[trayce] WARNING: scripts/start.ts not found at ${startScriptPath}. ` +
+      `Self-restart will fail (clean shutdown still works). ` +
+      `Check your deployment layout if you expect restart to succeed.`,
+  );
+}
 
 const registry = new SessionRegistry();
 const submissions = new SubmissionStore(config.submissionsDir, config.maxSubmissionBytes);
@@ -143,8 +156,7 @@ async function initiateShutdown({
       const logPath = defaultLogFile();
       mkdirSync(dirname(logPath), { recursive: true });
       const logFd = openSync(logPath, "a");
-      const startScript = resolve(import.meta.dir, "..", "scripts", "start.ts");
-      const child = spawn(process.execPath, ["run", startScript], {
+      const child = spawn(process.execPath, ["run", startScriptPath], {
         cwd: resolve(import.meta.dir, ".."),
         env: { ...process.env, TRAYCE_TOKEN: token },
         detached: true,
@@ -152,7 +164,7 @@ async function initiateShutdown({
       });
       child.unref();
       console.log(
-        `[trayce] spawned replacement server via ${startScript}; parent PID ${process.pid} exiting; child logs at ${logPath}`,
+        `[trayce] spawned replacement server via ${startScriptPath}; parent PID ${process.pid} exiting; child logs at ${logPath}`,
       );
     } catch (err) {
       console.error("[trayce] failed to spawn replacement server:", err);
