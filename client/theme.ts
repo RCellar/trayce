@@ -153,7 +153,28 @@ interface SavedTheme {
   preset: string;
   accentName: string;
   fontName: string;
+  textScale?: number;
+  controlScale?: number;
   vars: Record<string, string>;
+}
+
+// Discrete scale steps — continuous sliders invite sub-pixel weirdness and
+// make layouts unpredictable. Eight positions covers 80% – 150% in 10% steps.
+const SCALE_STEPS = [0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5] as const;
+
+function clampScale(n: number): number {
+  if (!Number.isFinite(n)) return 1;
+  // Snap to the nearest step so persisted / sliders always align
+  let best: number = SCALE_STEPS[0];
+  let bestDist = Math.abs(n - best);
+  for (const s of SCALE_STEPS) {
+    const d = Math.abs(n - s);
+    if (d < bestDist) {
+      bestDist = d;
+      best = s;
+    }
+  }
+  return best;
 }
 
 export class ThemeManager {
@@ -161,6 +182,8 @@ export class ThemeManager {
   private currentPreset = "Dark";
   private currentAccent = "Blue";
   private currentFont = "System Default";
+  private currentTextScale = 1;
+  private currentControlScale = 1;
   private dismissHandler: ((e: MouseEvent) => void) | null = null;
 
   constructor() {
@@ -240,6 +263,22 @@ export class ThemeManager {
     });
     this.popover.appendChild(fontSelect);
 
+    this.addSectionLabel(this.popover, "Text size");
+    this.popover.appendChild(
+      this.buildScaleSlider(this.currentTextScale, (v) => {
+        this.currentTextScale = v;
+        this.applyAndSave();
+      }),
+    );
+
+    this.addSectionLabel(this.popover, "Control size");
+    this.popover.appendChild(
+      this.buildScaleSlider(this.currentControlScale, (v) => {
+        this.currentControlScale = v;
+        this.applyAndSave();
+      }),
+    );
+
     const rect = anchor.getBoundingClientRect();
     this.popover.style.top = `${rect.bottom + 4}px`;
     this.popover.style.right = `${window.innerWidth - rect.right}px`;
@@ -287,6 +326,44 @@ export class ThemeManager {
     parent.appendChild(label);
   }
 
+  /** Build a discrete-step slider (8 positions spanning 80% – 150%) plus a
+   * percent readout. The input's min/max/step map 1:1 to SCALE_STEPS indices
+   * so dragging never produces a value that isn't in the array. */
+  private buildScaleSlider(initial: number, onChange: (v: number) => void): HTMLElement {
+    const row = document.createElement("div");
+    row.className = "theme-scale-row";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "theme-scale-slider";
+    slider.min = "0";
+    slider.max = String(SCALE_STEPS.length - 1);
+    slider.step = "1";
+    const initialIndex = Math.max(
+      0,
+      SCALE_STEPS.findIndex((s) => s === clampScale(initial)),
+    );
+    slider.value = String(initialIndex);
+
+    const readout = document.createElement("span");
+    readout.className = "theme-scale-readout";
+    const renderReadout = (v: number) => {
+      readout.textContent = `${Math.round(v * 100)}%`;
+    };
+    renderReadout(SCALE_STEPS[initialIndex]!);
+
+    slider.addEventListener("input", () => {
+      const idx = Number.parseInt(slider.value, 10);
+      const value = SCALE_STEPS[idx] ?? 1;
+      renderReadout(value);
+      onChange(value);
+    });
+
+    row.appendChild(slider);
+    row.appendChild(readout);
+    return row;
+  }
+
   private buildVars(): Record<string, string> {
     const preset = THEME_PRESETS.find((p) => p.name === this.currentPreset) ?? THEME_PRESETS[0]!;
     const accent = ACCENT_COLORS.find((a) => a.name === this.currentAccent) ?? ACCENT_COLORS[0]!;
@@ -296,6 +373,8 @@ export class ThemeManager {
       "--accent": accent.accent,
       "--accent-dim": accent.dim,
       "--font-family": font.value,
+      "--text-scale": String(this.currentTextScale),
+      "--control-scale": String(this.currentControlScale),
     };
   }
 
@@ -322,6 +401,8 @@ export class ThemeManager {
       preset: this.currentPreset,
       accentName: this.currentAccent,
       fontName: this.currentFont,
+      textScale: this.currentTextScale,
+      controlScale: this.currentControlScale,
       vars,
     };
     localStorage.setItem("trayce-theme", JSON.stringify(data));
@@ -335,6 +416,12 @@ export class ThemeManager {
       this.currentPreset = data.preset ?? "Dark";
       this.currentAccent = data.accentName ?? "Blue";
       this.currentFont = data.fontName ?? "System Default";
+      if (typeof data.textScale === "number") {
+        this.currentTextScale = clampScale(data.textScale);
+      }
+      if (typeof data.controlScale === "number") {
+        this.currentControlScale = clampScale(data.controlScale);
+      }
     } catch {}
   }
 }
