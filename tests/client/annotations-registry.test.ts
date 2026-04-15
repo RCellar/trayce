@@ -152,4 +152,60 @@ describe("AnnotationRegistry", () => {
     r.updateContent("nope", { note: "x" });
     expect(r.all().length).toBe(1);
   });
+
+  test("addReply appends without touching the original note", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0], note: "original" });
+    r.addReply(p.id, "clarification");
+    const updated = r.get(p.id);
+    expect(updated?.kind).toBe("pin");
+    if (updated?.kind === "pin") expect(updated.note).toBe("original");
+    expect(updated?.replies.length).toBe(1);
+    expect(updated?.replies[0]?.text).toBe("clarification");
+    expect(updated?.replies[0]?.from).toBe("user");
+  });
+
+  test("addReply defaults author to user; claude author is explicit", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.addReply(p.id, "a");
+    r.addReply(p.id, "b", "claude");
+    const updated = r.get(p.id);
+    expect(updated?.replies.map((x) => x.from)).toEqual(["user", "claude"]);
+  });
+
+  test("addReply trims and skips empty strings", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    r.addReply(p.id, "   ");
+    r.addReply(p.id, "");
+    r.addReply(p.id, "  real  ");
+    const updated = r.get(p.id);
+    expect(updated?.replies.length).toBe(1);
+    expect(updated?.replies[0]?.text).toBe("real");
+  });
+
+  test("addReply bumps updatedAt and notifies listeners", () => {
+    const r = new AnnotationRegistry();
+    const p = r.createPin({ at: [0, 0] });
+    const originalUpdated = p.updatedAt;
+    let calls = 0;
+    r.subscribe(() => calls++);
+    // Ensure Date.now() advances so updatedAt is strictly later than the
+    // creation timestamp — otherwise the same ms tick makes the two equal.
+    const start = Date.now();
+    while (Date.now() === start) {
+      /* busy-wait one tick */
+    }
+    r.addReply(p.id, "hi");
+    const updated = r.get(p.id);
+    expect(updated?.updatedAt).toBeGreaterThan(originalUpdated);
+    expect(calls).toBe(1);
+  });
+
+  test("addReply is a no-op for unknown id", () => {
+    const r = new AnnotationRegistry();
+    r.addReply("nope", "hi");
+    expect(r.all().length).toBe(0);
+  });
 });

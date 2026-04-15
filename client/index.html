@@ -17,6 +17,7 @@
     <div class="right">
       <span id="tool-info"></span>
       <span id="layer-info"></span>
+      <button type="button" id="brushes-layers-btn" class="topbar-btn" title="Brush & Layers"></button>
       <span id="gear-container"></span>
       <button type="button" id="server-power-btn" class="power-btn" title="Server controls" disabled>⏻</button>
     </div>
@@ -50,6 +51,10 @@
     <div class="bar-row bar-prompt">
       <div class="prompt-container">
         <input type="text" id="prompt-input" placeholder="Describe what you want...">
+        <label class="clear-on-send-label" title="Clear the canvas after a successful submission">
+          <input type="checkbox" id="clear-on-send-checkbox">
+          <span>Clear on send</span>
+        </label>
         <button type="button" id="submit-btn" disabled>Send</button>
       </div>
     </div>

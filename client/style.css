@@ -97,6 +97,33 @@ body {
   color: var(--text);
 }
 
+/* Top-bar icon button (Brush & Layers toggle — pin #9). Matches the gear
+   button sizing so the three controls on the right sit on a common baseline. */
+.topbar-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: calc(4px * var(--control-scale));
+  border-radius: 4px;
+  line-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.topbar-btn:hover {
+  color: var(--text);
+  border-color: var(--border);
+}
+.topbar-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.topbar-btn svg {
+  width: calc(18px * var(--control-scale));
+  height: calc(18px * var(--control-scale));
+}
+
 .theme-popover {
   position: fixed;
   background: var(--surface);
@@ -582,6 +609,27 @@ body {
   color: var(--text);
   font-size: calc(12px * var(--text-scale));
   outline: none;
+}
+
+.clear-on-send-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: calc(11px * var(--text-scale));
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.clear-on-send-label input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.clear-on-send-label:hover {
+  color: var(--text);
 }
 
 #submit-btn {
@@ -1391,16 +1439,70 @@ dialog .bg-choice label {
   padding: 2px 0;
   min-height: 16px;
   border-radius: 2px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .annotation-content:hover {
   color: var(--text);
+}
+/* Inline-edit textarea. Without the explicit grid-column span the textarea
+   gets auto-placed into a single grid cell, which made it render only a few
+   character columns wide (bug reported alongside pin #8). Span the content
+   columns so the field actually matches the width of the text it replaces. */
+.annotation-editing {
+  grid-column: 2 / 5;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: calc(56px * var(--text-scale));
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--accent, #dc2626);
+  color: inherit;
+  font: inherit;
+  font-size: calc(12px * var(--text-scale));
+  padding: 4px 6px;
+  outline: none;
+  border-radius: 3px;
 }
 .annotation-reply {
   grid-column: 2 / 5;
   color: var(--text-dim);
   font-size: calc(11px * var(--text-scale));
+  padding: 4px 6px;
+  margin-top: 2px;
+  border-left: 2px solid var(--accent);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0 3px 3px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.annotation-reply.from-user {
+  border-left-color: var(--text-dim);
+  font-style: normal;
+}
+.annotation-reply.from-claude {
   font-style: italic;
+}
+/* Row-level action bar — Edit / Reply buttons for each annotation. */
+.annotation-actions {
+  grid-column: 2 / 5;
+  display: flex;
+  gap: 6px;
   padding-top: 2px;
+}
+.annotation-action-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: calc(10px * var(--text-scale));
+  cursor: pointer;
+  font-family: inherit;
+}
+.annotation-action-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .annotations-empty {
   padding: 20px;

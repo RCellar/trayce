@@ -1,5 +1,6 @@
 import type {
   Annotation,
+  AnnotationAuthor,
   AnnotationUpdateEntry,
   CalloutAnnotation,
   PinAnnotation,
@@ -136,6 +137,28 @@ export class AnnotationRegistry {
       this.items.set(id, next);
       this.notify();
     }
+  }
+
+  /**
+   * Append a reply to an existing annotation without touching the original
+   * text/note. Unlike `updateContent`, this is non-destructive: the original
+   * user intent is preserved and the reply becomes part of the conversation
+   * trail on the annotation. Replies with empty/whitespace-only text are a
+   * no-op so the UI can call this unconditionally on blur/submit.
+   */
+  addReply(id: string, text: string, from: AnnotationAuthor = "user"): void {
+    const existing = this.items.get(id);
+    if (!existing) return;
+    const trimmed = text.trim();
+    if (trimmed.length === 0) return;
+    const now = Date.now();
+    const next: Annotation = {
+      ...existing,
+      replies: [...existing.replies, { from, text: trimmed, at: now }],
+      updatedAt: now,
+    };
+    this.items.set(id, next);
+    this.notify();
   }
 
   ingestPushed(annotations: Annotation[]): void {

@@ -62,7 +62,9 @@ import { CalloutPlacement } from "./annotations/tools/callout-tool";
 import { placePin } from "./annotations/tools/pin-tool";
 import { type EditOverlay, startTextPlacement } from "./annotations/tools/text-tool";
 import { BrushSettingsUI } from "./brush-settings-ui";
-import { EraserBrush } from "./brushes/eraser";
+// Eraser disabled per pin #2 — import retained (commented) so the source file
+// stays wired if we reinstate it.
+// import { EraserBrush } from "./brushes/eraser";
 import { HighlighterBrush } from "./brushes/highlighter";
 import { MarkerBrush } from "./brushes/marker";
 import { PenBrush } from "./brushes/pen";
@@ -123,7 +125,7 @@ const brushes: Record<string, Brush> = {
   marker: new MarkerBrush(),
   watercolor: new WatercolorBrush(),
   highlighter: new HighlighterBrush(),
-  eraser: new EraserBrush(),
+  // eraser: new EraserBrush(), // disabled per pin #2
 };
 
 let activeBrush: Brush = brushes.pen!;
@@ -397,6 +399,36 @@ const canvasInfo = document.getElementById("canvas-info")!;
 const sessionSelect = document.getElementById("session-select") as HTMLSelectElement;
 const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
 const promptInput = document.getElementById("prompt-input") as HTMLInputElement;
+const clearOnSendCheckbox = document.getElementById(
+  "clear-on-send-checkbox",
+) as HTMLInputElement | null;
+
+// Pin #3 — Clear-on-send preference persisted in localStorage. Default off; when
+// enabled, a successful submit (post connection.send) clears the canvas, layers,
+// and annotations so the next stroke starts on a blank sheet. Applied after
+// send rather than before the ack because WebSocket sends are fire-and-forget
+// here and the UI already doesn't block on the ack.
+const CLEAR_ON_SEND_KEY = "trayce.clearOnSend";
+function readClearOnSend(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(CLEAR_ON_SEND_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+function writeClearOnSend(value: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(CLEAR_ON_SEND_KEY, value ? "true" : "false");
+  } catch {
+    // localStorage access can throw under some sandboxed contexts — ignore.
+  }
+}
+if (clearOnSendCheckbox) {
+  clearOnSendCheckbox.checked = readClearOnSend();
+  clearOnSendCheckbox.addEventListener("change", () => {
+    writeClearOnSend(clearOnSendCheckbox.checked);
+  });
+}
 const connectionStatus = document.getElementById("connection-status")!;
 const toolInfo = document.getElementById("tool-info")!;
 const layerInfo = document.getElementById("layer-info")!;
@@ -478,6 +510,45 @@ function initUIComponents(): void {
   // Floating panel (brush + layers)
   floatingPanel = new FloatingPanel({ defaultX: 20, defaultY: 20 });
   floatingPanel.mount(canvasContainer);
+
+  // Top-bar Brush & Layers toggle (moved here from the left toolbar per pin #9).
+  // Icon is built via the SVG DOM API so the hardcoded shape is never passed
+  // through innerHTML (keeps the XSS-lint hook quiet and keeps the icon
+  // parallel with the removed toolbar button in toolbar.ts).
+  const brushesLayersBtn = document.getElementById("brushes-layers-btn");
+  if (brushesLayersBtn) {
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const svgEl = document.createElementNS(SVG_NS, "svg");
+    svgEl.setAttribute("viewBox", "0 0 18 18");
+    svgEl.setAttribute("width", "18");
+    svgEl.setAttribute("height", "18");
+    svgEl.setAttribute("fill", "none");
+    svgEl.setAttribute("stroke", "currentColor");
+    svgEl.setAttribute("stroke-width", "1.8");
+    svgEl.setAttribute("stroke-linecap", "round");
+    svgEl.setAttribute("stroke-linejoin", "round");
+    const shapes: Array<[string, Record<string, string>]> = [
+      ["circle", { cx: "5", cy: "5.5", r: "1.5" }],
+      ["path", { d: "M6.5 5.5H16" }],
+      ["path", { d: "M2 5.5h1.5" }],
+      ["circle", { cx: "11", cy: "9.5", r: "1.5" }],
+      ["path", { d: "M2 9.5h8" }],
+      ["path", { d: "M12.5 9.5H16" }],
+      ["circle", { cx: "7", cy: "13.5", r: "1.5" }],
+      ["path", { d: "M8.5 13.5H16" }],
+      ["path", { d: "M2 13.5h3.5" }],
+    ];
+    for (const [tag, attrs] of shapes) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+      svgEl.appendChild(node);
+    }
+    brushesLayersBtn.appendChild(svgEl);
+    brushesLayersBtn.addEventListener("click", () => {
+      floatingPanel?.toggle();
+      brushesLayersBtn.classList.toggle("active", floatingPanel?.visible ?? false);
+    });
+  }
 
   const brushContainer = floatingPanel.getBrushContainer();
   if (brushContainer) {
@@ -1100,6 +1171,9 @@ submitBtn.addEventListener("click", async () => {
 
     connection.send(msg);
     promptInput.value = "";
+    if (clearOnSendCheckbox?.checked) {
+      clearCanvas();
+    }
   } catch (err) {
     showToast("Failed to submit");
     console.error("[trayce] Submit error:", err);
@@ -1241,12 +1315,14 @@ document.addEventListener("keydown", (e) => {
       toolbar?.setActive("highlighter");
       updateToolInfo();
       break;
-    case "e":
-      if (annotationMode.isActive()) break;
-      activeBrush = brushes.eraser!;
-      toolbar?.setActive("eraser");
-      updateToolInfo();
-      break;
+    // 'e' shortcut disabled alongside the eraser (pin #2). Keep the case
+    // around so we remember the mapping if eraser is reinstated.
+    // case "e":
+    //   if (annotationMode.isActive()) break;
+    //   activeBrush = brushes.eraser!;
+    //   toolbar?.setActive("eraser");
+    //   updateToolInfo();
+    //   break;
     case "i":
       if (annotationMode.isActive()) break;
       imageTool?.openFilePicker();
