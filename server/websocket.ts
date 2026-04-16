@@ -281,17 +281,30 @@ export class WebSocketHub {
   }
 
   private handleWatchSession(ws: Ws, sid: string): void {
+    const previousSid = this.browserWatchSession.get(ws.data.id);
     this.browserWatchSession.set(ws.data.id, sid);
 
-    // Replay buffered transcript entries for this session
-    const buffer = this.sessionBuffers.get(sid);
-    if (buffer) {
-      for (const payload of buffer) {
-        safeSend(ws, payload);
+    // Only replay buffered events when this browser wasn't already watching
+    // this session. If it was, it has already received every live event that
+    // would be in the buffer — replaying would duplicate them. The browser
+    // triggers a redundant watch-session on every `sessions` broadcast (see
+    // client/app.ts updateSessionSelect), and a `sessions` broadcast happens
+    // whenever any bridge re-registers — including when the bridge's transcript
+    // watcher picks up a new jsonl file after the user types /clear in Claude
+    // Code. Without this guard, every /clear caused all buffered canvas-push
+    // messages to be re-appended as new layers (regenerating deleted ones and
+    // duplicating kept ones).
+    if (previousSid !== sid) {
+      const buffer = this.sessionBuffers.get(sid);
+      if (buffer) {
+        for (const payload of buffer) {
+          safeSend(ws, payload);
+        }
       }
     }
 
-    // Send current usage snapshot
+    // Always send the current usage snapshot — it's a snapshot (replaces
+    // prior state on the client), not additive, so re-sending is harmless.
     const usage = this.sessionUsage.get(sid) ?? new SessionUsage();
     const session = this.registry.get(sid);
     const snapshot = JSON.parse(usage.toJSON());
