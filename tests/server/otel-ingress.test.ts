@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { type OtlpAttribute, createOtelIngress } from "../../server/otel-ingress";
+import { createOtelIngress, type OtlpAttribute } from "../../server/otel-ingress";
 
 // -- Helpers --
 
@@ -23,9 +23,7 @@ function makeMetricsPayload(
           ...(dp.asDouble !== undefined ? { asDouble: dp.asDouble } : {}),
           attributes: [
             { key: "type", value: { stringValue: dp.type } },
-            ...(dp.model !== undefined
-              ? [{ key: "model", value: { stringValue: dp.model } }]
-              : []),
+            ...(dp.model !== undefined ? [{ key: "model", value: { stringValue: dp.model } }] : []),
           ],
         },
       ],
@@ -58,7 +56,9 @@ interface BroadcastCall {
 }
 
 function makeDeps(resolvedSessionId: string | null = "session-abc"): {
-  deps: ReturnType<typeof createOtelIngress> extends never ? never : Parameters<typeof createOtelIngress>[0];
+  deps: ReturnType<typeof createOtelIngress> extends never
+    ? never
+    : Parameters<typeof createOtelIngress>[0];
   broadcasts: BroadcastCall[];
 } {
   const broadcasts: BroadcastCall[] = [];

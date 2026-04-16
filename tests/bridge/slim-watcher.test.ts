@@ -168,9 +168,8 @@ describe("TranscriptWatcher (slim)", () => {
 
   test("returns silently when file does not exist", () => {
     const entries: TranscriptEntry[] = [];
-    const watcher = new TranscriptWatcher(
-      join(TEST_DIR, "nonexistent.jsonl"),
-      (entry) => entries.push(entry),
+    const watcher = new TranscriptWatcher(join(TEST_DIR, "nonexistent.jsonl"), (entry) =>
+      entries.push(entry),
     );
 
     expect(() => watcher.readNewEntries()).not.toThrow();

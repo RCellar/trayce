@@ -71,9 +71,7 @@ if (uninstall) {
   }
 
   // Also clean up OTEL env vars
-  const settingsDir = scope === "global"
-    ? join(homedir(), ".claude")
-    : ".claude";
+  const settingsDir = scope === "global" ? join(homedir(), ".claude") : ".claude";
   const settingsFile = join(settingsDir, "settings.local.json");
   if (existsSync(settingsFile)) {
     try {
@@ -166,9 +164,7 @@ if (scope === "global") {
 writeFileSync(mcpFile, `${JSON.stringify(config, null, 2)}\n`);
 
 // Write OTEL env vars to .claude/settings.local.json
-const settingsDir = scope === "global"
-  ? join(homedir(), ".claude")
-  : ".claude";
+const settingsDir = scope === "global" ? join(homedir(), ".claude") : ".claude";
 const settingsFile = join(settingsDir, "settings.local.json");
 
 let settings: Record<string, any> = {};

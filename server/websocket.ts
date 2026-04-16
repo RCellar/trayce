@@ -400,11 +400,14 @@ export class WebSocketHub {
     // registry.add() inherits pending paths, so getTranscriptPath works here.
     const storedPath = this.registry.getTranscriptPath(sessionId);
     if (storedPath) {
-      safeSend(ws, JSON.stringify({
-        type: "session-context",
-        sessionId,
-        transcriptPath: storedPath,
-      }));
+      safeSend(
+        ws,
+        JSON.stringify({
+          type: "session-context",
+          sessionId,
+          transcriptPath: storedPath,
+        }),
+      );
     }
   }
 

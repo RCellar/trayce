@@ -1,14 +1,11 @@
 import { beforeEach, describe, expect, it } from "bun:test";
-import { HookPayloadSchema, createHookIngress } from "../../server/hook-ingress";
+import { createHookIngress, HookPayloadSchema } from "../../server/hook-ingress";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const VALID_TOKEN = "test-token-abc";
 
-function makeRequest(
-  body: unknown,
-  opts: { auth?: string | null; method?: string } = {},
-): Request {
+function makeRequest(body: unknown, opts: { auth?: string | null; method?: string } = {}): Request {
   const { auth = `Bearer ${VALID_TOKEN}`, method = "POST" } = opts;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth !== null) headers["Authorization"] = auth;
@@ -198,10 +195,7 @@ describe("createHookIngress", () => {
       expect(res.status).toBe(200);
 
       expect(deps.storeTranscriptPath.calls).toHaveLength(1);
-      expect(deps.storeTranscriptPath.calls[0]).toEqual([
-        "sess-abc",
-        "/tmp/claude/sess-abc.jsonl",
-      ]);
+      expect(deps.storeTranscriptPath.calls[0]).toEqual(["sess-abc", "/tmp/claude/sess-abc.jsonl"]);
 
       expect(deps.sendToBridge.calls).toHaveLength(1);
       const [bridgeSessionId, bridgePayload] = deps.sendToBridge.calls[0]!;
