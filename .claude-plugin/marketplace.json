@@ -1,6 +1,6 @@
 {
   "name": "trayce-local",
-  "owner": { "name": "RCellar" },
+  "owner": { "name": "SDS-Mode" },
   "plugins": [
     {
       "name": "trayce",

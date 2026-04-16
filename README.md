@@ -9,7 +9,7 @@
 Draw in your browser. Pick a Claude Code session. Submit.
 Claude sees your sketch as a PNG alongside your prompt.
 
-[![CI](https://github.com/RCellar/trayce/actions/workflows/ci.yml/badge.svg)](https://github.com/RCellar/trayce/actions/workflows/ci.yml)
+[![CI](https://github.com/SDS-Mode/trayce/actions/workflows/ci.yml/badge.svg)](https://github.com/SDS-Mode/trayce/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-dc2626.svg)](LICENSE)
 [![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-f9f1e1.svg?logo=bun)](https://bun.sh)
 [![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-111111.svg)]()
@@ -72,7 +72,7 @@ Runs on **Linux**, **macOS**, and **Windows** — [Bun](https://bun.sh) is the o
 
 ```bash
 # 1. Install
-git clone https://github.com/RCellar/trayce.git
+git clone https://github.com/SDS-Mode/trayce.git
 cd trayce
 bun install
 bun run build:client
@@ -100,8 +100,8 @@ Draw something · select the session from the dropdown · click **Submit** (or p
 <tr>
 <td width="33%" valign="top">
 
-### 🖌️ Six pressure brushes
-Pen · Pencil · Marker · Watercolor · Highlighter · Eraser.
+### 🖌️ Five pressure brushes
+Pen · Pencil · Marker · Watercolor · Highlighter.
 Full support for pressure, size `1–200 px`, opacity, flow, and smoothing.
 
 </td>
@@ -311,7 +311,7 @@ Plus [`zod`](https://zod.dev) for runtime validation at the WebSocket parse boun
 
 ## 📝 License
 
-[MIT](LICENSE) © 2026 RCellar
+[MIT](LICENSE) © 2026 SDS-Mode
 
 <div align="center">
 <sub>Built for <a href="https://claude.com/claude-code">Claude Code</a> · Powered by <a href="https://bun.sh">Bun</a> · Rendered with <a href="https://pixijs.com">PixiJS</a></sub>

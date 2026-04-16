@@ -2,10 +2,10 @@
   "name": "trayce",
   "version": "0.3.0",
   "description": "A hand-drawn sketch pad for Claude Code sessions. Draw in your browser, pick a session, submit — Claude sees your sketch as a PNG alongside your prompt.",
-  "homepage": "https://github.com/RCellar/trayce",
+  "homepage": "https://github.com/SDS-Mode/trayce",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RCellar/trayce.git"
+    "url": "https://github.com/SDS-Mode/trayce.git"
   },
   "license": "MIT",
   "type": "module",
