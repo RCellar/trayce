@@ -8,10 +8,17 @@ export interface Session {
 
 export class SessionRegistry {
   private readonly sessions = new Map<string, Session>();
+  /** Transcript paths stored before a session is registered (hook fires before bridge). */
+  private readonly pendingPaths = new Map<string, string>();
 
   add(id: string, label: string, sessionStartedAt?: number): Session {
     const resolvedLabel = this.resolveLabel(label);
     const session: Session = { id, label: resolvedLabel, status: "active", sessionStartedAt };
+    // Inherit any transcript path stored by a hook before the bridge registered.
+    const pendingPath = this.pendingPaths.get(id);
+    if (pendingPath) {
+      session.transcriptPath = pendingPath;
+    }
     this.sessions.set(id, session);
     return session;
   }
@@ -33,6 +40,10 @@ export class SessionRegistry {
   }
 
   setTranscriptPath(id: string, path: string): void {
+    // Always store in pendingPaths so the path survives registry.add() which
+    // creates a fresh Session. The hook fires before the bridge registers, so
+    // the session may not exist yet.
+    this.pendingPaths.set(id, path);
     const session = this.sessions.get(id);
     if (session) {
       session.transcriptPath = path;
@@ -40,7 +51,7 @@ export class SessionRegistry {
   }
 
   getTranscriptPath(id: string): string | undefined {
-    return this.sessions.get(id)?.transcriptPath;
+    return this.sessions.get(id)?.transcriptPath ?? this.pendingPaths.get(id);
   }
 
   private resolveLabel(base: string): string {

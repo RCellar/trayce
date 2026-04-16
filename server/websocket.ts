@@ -392,16 +392,13 @@ export class WebSocketHub {
     ws.data.sessionId = sessionId;
     this.bridges.set(sessionId, ws);
     this.sessionToBridgeId.set(sessionId, ws.data.id);
-
-    // Capture any transcript path stored by hook ingress before registry.add()
-    // overwrites the session record (add() creates a fresh Session object).
-    const storedPath = this.registry.getTranscriptPath(sessionId);
-
     this.registry.add(sessionId, label, msg.sessionStartedAt);
     this.broadcastSessions();
 
-    // If a transcript path was stored by hook ingress before the bridge
-    // connected, replay it now so the bridge can start its watcher.
+    // If a transcript path was stored by hook ingress (possibly before the
+    // session existed), replay it now so the bridge can start its watcher.
+    // registry.add() inherits pending paths, so getTranscriptPath works here.
+    const storedPath = this.registry.getTranscriptPath(sessionId);
     if (storedPath) {
       safeSend(ws, JSON.stringify({
         type: "session-context",
