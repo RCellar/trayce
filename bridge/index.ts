@@ -6,13 +6,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { z } from "zod";
 import { defaultStateFile } from "../shared/paths";
 import type { Annotation } from "../shared/protocol";
-import {
-  discoverTranscriptByBirthtime,
-  discoverTranscriptPath,
-  type TranscriptEntry,
-  TranscriptWatcher,
-  type UsageData,
-} from "./transcript-watcher";
+import { type TranscriptEntry, TranscriptWatcher } from "./transcript-watcher";
 
 // Zod schemas for MCP SDK ≥1.27 (requires method literal)
 const ChannelNotificationSchema = z
@@ -412,27 +406,19 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 function startTranscriptWatcher(ws: WebSocket): number | undefined {
-  // On reconnect, reuse the previously discovered path if it still exists.
-  // Otherwise: birthtime correlation (cwd-independent), then cwd-based fallback.
-  let discoveredByBirthtime = false;
-  let transcriptPath =
+  // Transcript path is provided externally via session-context message or
+  // carried over from a previous connection. No discovery heuristics.
+  const transcriptPath =
     lastTranscriptPath && existsSync(lastTranscriptPath) ? lastTranscriptPath : null;
-  if (!transcriptPath) {
-    transcriptPath = discoverTranscriptByBirthtime(bridgeStartTime);
-    if (transcriptPath) discoveredByBirthtime = true;
-  }
-  if (!transcriptPath) {
-    transcriptPath = discoverTranscriptPath(projectDir);
-  }
+
   console.error(
-    `[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"} birthtime=${discoveredByBirthtime}`,
+    `[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"}`,
   );
+
   if (!transcriptPath) {
     ws.send(JSON.stringify({ type: "transcript-status", available: false }));
     return undefined;
   }
-
-  lastTranscriptPath = transcriptPath;
 
   // Use bridge connection time, not file birthtime — this gives the toggle
   // a useful meaning: "since you connected" vs "full transcript history"
@@ -447,40 +433,21 @@ function startTranscriptWatcher(ws: WebSocket): number | undefined {
     }),
   );
 
-  transcriptWatcher = new TranscriptWatcher(
-    transcriptPath,
-    projectDir,
-    bridgeStartTime,
-    (entry: TranscriptEntry) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: "transcript-entry", entry }));
-      if (entry.type === "response") {
-        ws.send(
-          JSON.stringify({
-            type: "response",
-            content: entry.content,
-            timestamp: entry.timestamp,
-            format: "markdown",
-            final: true,
-          }),
-        );
-      }
-    },
-    (usage: UsageData) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-      ws.send(JSON.stringify({ type: "usage-update", usage }));
-    },
-    discoveredByBirthtime,
-  );
-
-  transcriptWatcher.onFileSwitch = (newPath: string) => {
-    lastTranscriptPath = newPath;
-    if (ws.readyState === WebSocket.OPEN) {
+  transcriptWatcher = new TranscriptWatcher(transcriptPath, (entry: TranscriptEntry) => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "transcript-entry", entry }));
+    if (entry.type === "response") {
       ws.send(
-        JSON.stringify({ type: "register", sessionId, label, sessionStartedAt: bridgeStartTime }),
+        JSON.stringify({
+          type: "response",
+          content: entry.content,
+          timestamp: entry.timestamp,
+          format: "markdown",
+          final: true,
+        }),
       );
     }
-  };
+  });
 
   transcriptWatcher.start();
   return sessionStartedAt;
@@ -521,6 +488,15 @@ function connect() {
             behavior: msg.behavior,
           },
         });
+        return;
+      }
+      if (msg.type === "session-context" && typeof msg.transcriptPath === "string") {
+        // Server sends the active transcript path (from a SessionStart hook).
+        // Start (or restart) the watcher if we don't already have one running.
+        lastTranscriptPath = msg.transcriptPath;
+        if (!transcriptWatcher) {
+          startTranscriptWatcher(ws);
+        }
         return;
       }
       if (msg.type === "submission") {
