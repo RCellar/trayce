@@ -5,7 +5,9 @@ import { dirname, resolve } from "node:path";
 import { defaultLogFile } from "../shared/paths";
 import { generateToken, validateToken } from "./auth";
 import { getConfig } from "./config";
+import { createHookIngress } from "./hook-ingress";
 import { createHttpHandler } from "./http";
+import { createOtelIngress } from "./otel-ingress";
 import { SessionRegistry } from "./sessions";
 import { SubmissionStore } from "./submissions";
 import { WebSocketHub, type WsData } from "./websocket";
@@ -35,7 +37,30 @@ const submissions = new SubmissionStore(config.submissionsDir, config.maxSubmiss
 const hub = new WebSocketHub(registry, submissions, config, (opts) => {
   void initiateShutdown(opts);
 });
-const httpHandler = createHttpHandler(config.clientDir);
+
+const hookHandler = createHookIngress({
+  validateToken: (t) => config.noAuth || validateToken(t, token),
+  sendToBridge: (sid, payload) => hub.sendToBridge(sid, payload),
+  broadcastToWatchers: (sid, payload) => hub.broadcastToSession(sid, payload),
+  storeTranscriptPath: (sid, path) => registry.setTranscriptPath(sid, path),
+});
+
+const otelIngress = createOtelIngress({
+  broadcastUsage: (sid, payload) => hub.broadcastToSession(sid, payload),
+  resolveSessionId: (_attrs) => {
+    // v1: single-session assumption. If only one session is registered,
+    // route all OTEL data to it. Multi-session requires discovering the
+    // actual session ID from OTEL resource attributes.
+    const sessions = registry.list();
+    return sessions.length === 1 ? sessions[0]!.id : null;
+  },
+});
+
+const httpHandler = createHttpHandler(config.clientDir, {
+  "/hook": hookHandler,
+  "/otlp/v1/metrics": otelIngress.handleMetrics,
+  "/otlp/v1/logs": otelIngress.handleLogs,
+});
 
 const server = Bun.serve<WsData>({
   hostname: config.host,

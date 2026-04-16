@@ -308,4 +308,235 @@ suite("integration", () => {
       await res.body?.cancel();
     });
   });
+
+  describe("Hook ingress — SessionStart delivers session-context to bridge", () => {
+    it("bridge receives session-context after SessionStart POST", async () => {
+      const sessionId = crypto.randomUUID();
+
+      // Connect bridge WebSocket
+      const bridge = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
+      await new Promise<void>((res, rej) => {
+        bridge.onopen = () => res();
+        bridge.onerror = () => rej(new Error("bridge connect failed"));
+        setTimeout(() => rej(new Error("bridge connect timeout")), 10_000);
+      });
+
+      // Collect incoming bridge messages
+      const bridgeMessages: any[] = [];
+      bridge.addEventListener("message", (ev) => {
+        bridgeMessages.push(JSON.parse(ev.data as string));
+      });
+
+      // Register the bridge
+      bridge.send(JSON.stringify({ type: "register", sessionId, label: "hook-test" }));
+
+      // POST SessionStart hook payload with Bearer auth
+      const hookRes = await fetch(`${baseUrl}/hook`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          hook_event_name: "SessionStart",
+          transcript_path: "/tmp/test-transcript.jsonl",
+          cwd: "/home/user/project",
+        }),
+      });
+      expect(hookRes.status).toBe(200);
+      await hookRes.body?.cancel();
+
+      // Allow the server to process and deliver the WebSocket message
+      await new Promise((r) => setTimeout(r, 50));
+
+      const sessionContextMsg = bridgeMessages.find((m) => m.type === "session-context");
+      expect(sessionContextMsg).toBeDefined();
+      expect(sessionContextMsg.sessionId).toBe(sessionId);
+      expect(sessionContextMsg.transcriptPath).toBe("/tmp/test-transcript.jsonl");
+
+      bridge.close();
+    }, 15_000);
+  });
+
+  describe("Hook ingress — PostToolUse broadcasts transcript-entry to browser", () => {
+    it("browser receives transcript-entry after PostToolUse POST", async () => {
+      const sessionId = crypto.randomUUID();
+
+      // Connect bridge
+      const bridge = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
+      await new Promise<void>((res, rej) => {
+        bridge.onopen = () => res();
+        bridge.onerror = () => rej(new Error("bridge connect failed"));
+        setTimeout(() => rej(new Error("bridge connect timeout")), 10_000);
+      });
+
+      // Connect browser and consume initial server-info + sessions messages
+      const { ws: browser, firstMessage: serverInfo } = await connectWs(
+        `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
+      );
+      expect((serverInfo as any).type).toBe("server-info");
+      const sessionsMsg = await nextMessage(browser);
+      expect(sessionsMsg.type).toBe("sessions");
+
+      // Register bridge and wait for the resulting sessions broadcast to browser
+      const sessionsBroadcast = new Promise<void>((res, rej) => {
+        const timer = setTimeout(() => rej(new Error("no sessions broadcast")), 10_000);
+        browser.addEventListener("message", function handler(ev) {
+          const msg = JSON.parse(ev.data as string);
+          if (msg.type === "sessions" && msg.sessions.some((s: any) => s.id === sessionId)) {
+            clearTimeout(timer);
+            browser.removeEventListener("message", handler);
+            res();
+          }
+        });
+      });
+      bridge.send(JSON.stringify({ type: "register", sessionId, label: "hook-broadcast-test" }));
+      await sessionsBroadcast;
+
+      // Browser watches the session so broadcastToSession routes to it
+      browser.send(JSON.stringify({ type: "watch-session", sessionId }));
+
+      // Collect incoming browser messages after watch-session
+      const browserMessages: any[] = [];
+      browser.addEventListener("message", (ev) => {
+        browserMessages.push(JSON.parse(ev.data as string));
+      });
+
+      // Small delay so the watch-session is processed server-side
+      await new Promise((r) => setTimeout(r, 50));
+
+      // POST PostToolUse hook payload
+      const hookRes = await fetch(`${baseUrl}/hook`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          hook_event_name: "PostToolUse",
+          tool_name: "Bash",
+          tool_input: { command: "ls -la" },
+          tool_output: { stdout: "file.txt" },
+        }),
+      });
+      expect(hookRes.status).toBe(200);
+      await hookRes.body?.cancel();
+
+      // Allow the server to process and deliver the WebSocket message
+      await new Promise((r) => setTimeout(r, 50));
+
+      const transcriptMsg = browserMessages.find((m) => m.type === "transcript-entry");
+      expect(transcriptMsg).toBeDefined();
+      expect(transcriptMsg.entry.toolName).toBe("Bash");
+
+      browser.close();
+      bridge.close();
+    }, 15_000);
+  });
+
+  describe("OTEL ingress — metrics broadcast usage-update to browser", () => {
+    it("browser receives usage-update after OTLP metrics POST", async () => {
+      const sessionId = crypto.randomUUID();
+
+      // Connect bridge
+      const bridge = new WebSocket(`ws://127.0.0.1:${state.port}/bridge?token=${state.token}`);
+      await new Promise<void>((res, rej) => {
+        bridge.onopen = () => res();
+        bridge.onerror = () => rej(new Error("bridge connect failed"));
+        setTimeout(() => rej(new Error("bridge connect timeout")), 10_000);
+      });
+
+      // Connect browser and consume initial server-info + sessions messages
+      const { ws: browser, firstMessage: serverInfo } = await connectWs(
+        `ws://127.0.0.1:${state.port}/canvas?token=${state.token}`,
+      );
+      expect((serverInfo as any).type).toBe("server-info");
+      const sessionsMsg = await nextMessage(browser);
+      expect(sessionsMsg.type).toBe("sessions");
+
+      // Register bridge (exactly one session so OTEL single-session resolution works)
+      // and wait for the resulting sessions broadcast to browser
+      const sessionsBroadcast = new Promise<void>((res, rej) => {
+        const timer = setTimeout(() => rej(new Error("no sessions broadcast")), 10_000);
+        browser.addEventListener("message", function handler(ev) {
+          const msg = JSON.parse(ev.data as string);
+          if (msg.type === "sessions" && msg.sessions.some((s: any) => s.id === sessionId)) {
+            clearTimeout(timer);
+            browser.removeEventListener("message", handler);
+            res();
+          }
+        });
+      });
+      bridge.send(JSON.stringify({ type: "register", sessionId, label: "otel-test" }));
+      await sessionsBroadcast;
+
+      // Browser watches the session so broadcastUsage routes to it
+      browser.send(JSON.stringify({ type: "watch-session", sessionId }));
+
+      // Collect incoming browser messages after watch-session
+      const browserMessages: any[] = [];
+      browser.addEventListener("message", (ev) => {
+        browserMessages.push(JSON.parse(ev.data as string));
+      });
+
+      // Small delay so the watch-session is processed server-side
+      await new Promise((r) => setTimeout(r, 50));
+
+      // POST OTLP metrics payload — no auth required
+      const otlpRes = await fetch(`${baseUrl}/otlp/v1/metrics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resourceMetrics: [
+            {
+              resource: {
+                attributes: [{ key: "service.name", value: { stringValue: "claude-code" } }],
+              },
+              scopeMetrics: [
+                {
+                  metrics: [
+                    {
+                      name: "claude_code.token.usage",
+                      sum: {
+                        dataPoints: [
+                          {
+                            asInt: "1000",
+                            attributes: [
+                              { key: "type", value: { stringValue: "input" } },
+                              { key: "model", value: { stringValue: "claude-sonnet-4-6" } },
+                            ],
+                          },
+                          {
+                            asInt: "500",
+                            attributes: [
+                              { key: "type", value: { stringValue: "output" } },
+                              { key: "model", value: { stringValue: "claude-sonnet-4-6" } },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }),
+      });
+      expect(otlpRes.status).toBe(200);
+      await otlpRes.body?.cancel();
+
+      // Allow the server to process and deliver the WebSocket message
+      await new Promise((r) => setTimeout(r, 50));
+
+      const usageUpdateMsg = browserMessages.find((m) => m.type === "usage-update");
+      expect(usageUpdateMsg).toBeDefined();
+      expect(usageUpdateMsg.usage.inputTokens).toBe(1000);
+
+      browser.close();
+      bridge.close();
+    }, 15_000);
+  });
 }); // end integration

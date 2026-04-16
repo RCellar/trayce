@@ -327,7 +327,17 @@ export interface SubmissionMessage {
   annotations?: Annotation[] | undefined;
 }
 
-export type ServerToBridgeMessage = HeartbeatMessage | SubmissionMessage | PermissionVerdictMessage;
+export interface SessionContextMessage {
+  type: "session-context";
+  sessionId: string;
+  transcriptPath: string;
+}
+
+export type ServerToBridgeMessage =
+  | HeartbeatMessage
+  | SubmissionMessage
+  | PermissionVerdictMessage
+  | SessionContextMessage;
 
 // ────────────────────────────────────────────────────────────────────────────
 // Exhaustiveness helper

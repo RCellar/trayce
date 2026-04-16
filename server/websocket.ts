@@ -394,6 +394,21 @@ export class WebSocketHub {
     this.sessionToBridgeId.set(sessionId, ws.data.id);
     this.registry.add(sessionId, label, msg.sessionStartedAt);
     this.broadcastSessions();
+
+    // If a transcript path was stored by hook ingress (possibly before the
+    // session existed), replay it now so the bridge can start its watcher.
+    // registry.add() inherits pending paths, so getTranscriptPath works here.
+    const storedPath = this.registry.getTranscriptPath(sessionId);
+    if (storedPath) {
+      safeSend(
+        ws,
+        JSON.stringify({
+          type: "session-context",
+          sessionId,
+          transcriptPath: storedPath,
+        }),
+      );
+    }
   }
 
   private async handleSubmit(ws: Ws, msg: SubmitMessage): Promise<void> {
@@ -483,6 +498,23 @@ export class WebSocketHub {
         status: delivered ? "delivered" : "queued",
       }),
     );
+  }
+
+  // -- Targeted send helpers --
+
+  sendToBridge(sessionId: string, payload: string): boolean {
+    const bridge = this.bridges.get(sessionId);
+    if (!bridge) return false;
+    safeSend(bridge, payload);
+    return true;
+  }
+
+  broadcastToSession(sessionId: string, payload: string): void {
+    for (const [browserId, browser] of this.browsers) {
+      if (this.browserWatchSession.get(browserId) === sessionId) {
+        safeSend(browser, payload);
+      }
+    }
   }
 
   // -- Broadcasting --

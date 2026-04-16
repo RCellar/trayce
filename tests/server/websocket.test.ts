@@ -1466,3 +1466,209 @@ describe("server-info on connect", () => {
     expect(typeof infoMessages[0]!.containerMode).toBe("boolean");
   });
 });
+
+// -- sendToBridge --
+
+describe("sendToBridge", () => {
+  it("sends payload to the registered bridge for a session", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+    bridge.sent.length = 0;
+
+    const result = hub.sendToBridge("s1", JSON.stringify({ type: "custom", data: "hello" }));
+    expect(result).toBe(true);
+    expect(bridge.sent).toHaveLength(1);
+    expect(JSON.parse(bridge.sent[0]!)).toEqual({ type: "custom", data: "hello" });
+  });
+
+  it("returns false and sends nothing when no bridge is registered for the session", () => {
+    const { hub } = makeFixture();
+    const result = hub.sendToBridge("nonexistent", JSON.stringify({ type: "custom" }));
+    expect(result).toBe(false);
+  });
+
+  it("sends to the correct bridge when multiple sessions are registered", async () => {
+    const { hub } = makeFixture();
+    const bridge1 = bridgeWs();
+    const bridge2 = bridgeWs();
+    hub.addBridge(bridge1 as any);
+    hub.addBridge(bridge2 as any);
+    await hub.handleMessage(
+      bridge1 as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app-1" }),
+    );
+    await hub.handleMessage(
+      bridge2 as any,
+      JSON.stringify({ type: "register", sessionId: "s2", label: "app-2" }),
+    );
+    bridge1.sent.length = 0;
+    bridge2.sent.length = 0;
+
+    hub.sendToBridge("s1", JSON.stringify({ type: "ping" }));
+    expect(bridge1.sent).toHaveLength(1);
+    expect(bridge2.sent).toHaveLength(0);
+  });
+});
+
+// -- broadcastToSession --
+
+describe("broadcastToSession", () => {
+  it("sends payload to browsers watching the given session", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    const browser = browserWs();
+    hub.addBridge(bridge as any);
+    hub.addBrowser(browser as any);
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
+    browser.sent.length = 0;
+
+    hub.broadcastToSession("s1", JSON.stringify({ type: "custom", data: "world" }));
+    expect(browser.sent).toHaveLength(1);
+    expect(JSON.parse(browser.sent[0]!)).toEqual({ type: "custom", data: "world" });
+  });
+
+  it("does not send to browsers watching a different session", async () => {
+    const { hub } = makeFixture();
+    const bridge1 = bridgeWs();
+    const bridge2 = bridgeWs();
+    const browser = browserWs();
+    hub.addBridge(bridge1 as any);
+    hub.addBridge(bridge2 as any);
+    hub.addBrowser(browser as any);
+    await hub.handleMessage(
+      bridge1 as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app-1" }),
+    );
+    await hub.handleMessage(
+      bridge2 as any,
+      JSON.stringify({ type: "register", sessionId: "s2", label: "app-2" }),
+    );
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s2" }),
+    );
+    browser.sent.length = 0;
+
+    hub.broadcastToSession("s1", JSON.stringify({ type: "custom" }));
+    expect(browser.sent).toHaveLength(0);
+  });
+
+  it("is no-op when no browsers are watching the session", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+
+    expect(() => hub.broadcastToSession("s1", JSON.stringify({ type: "custom" }))).not.toThrow();
+  });
+
+  it("sends to multiple browsers all watching the same session", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    const b1 = browserWs();
+    const b2 = browserWs();
+    hub.addBridge(bridge as any);
+    hub.addBrowser(b1 as any);
+    hub.addBrowser(b2 as any);
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+    await hub.handleMessage(b1 as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    await hub.handleMessage(b2 as any, JSON.stringify({ type: "watch-session", sessionId: "s1" }));
+    b1.sent.length = 0;
+    b2.sent.length = 0;
+
+    hub.broadcastToSession("s1", JSON.stringify({ type: "custom", data: "both" }));
+    expect(b1.sent).toHaveLength(1);
+    expect(b2.sent).toHaveLength(1);
+  });
+});
+
+// -- handleRegister session-context replay --
+
+describe("register session-context replay", () => {
+  it("sends session-context to bridge when transcriptPath is stored before register", async () => {
+    const { hub, registry } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+
+    // Simulate hook ingress storing the transcript path before the bridge connects:
+    // manually add the session with a transcript path already set
+    registry.add("s1", "app");
+    registry.setTranscriptPath("s1", "/tmp/claude/sessions/s1.jsonl");
+
+    bridge.sent.length = 0;
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+
+    const contextMsgs = bridge.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "session-context");
+    expect(contextMsgs).toHaveLength(1);
+    expect(contextMsgs[0]!.sessionId).toBe("s1");
+    expect(contextMsgs[0]!.transcriptPath).toBe("/tmp/claude/sessions/s1.jsonl");
+  });
+
+  it("does not send session-context when no transcriptPath is stored", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+    bridge.sent.length = 0;
+
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+
+    const contextMsgs = bridge.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "session-context");
+    expect(contextMsgs).toHaveLength(0);
+  });
+
+  it("replays transcriptPath set on the session after a re-register", async () => {
+    const { hub, registry } = makeFixture();
+    const bridge = bridgeWs();
+    hub.addBridge(bridge as any);
+
+    // First register — no path yet
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+
+    // Path arrives after first register
+    registry.setTranscriptPath("s1", "/tmp/claude/sessions/s1.jsonl");
+
+    bridge.sent.length = 0;
+    // Bridge re-registers (e.g. after /clear)
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "app" }),
+    );
+
+    const contextMsgs = bridge.sent
+      .map((s) => JSON.parse(s) as Record<string, unknown>)
+      .filter((m) => m.type === "session-context");
+    expect(contextMsgs).toHaveLength(1);
+    expect(contextMsgs[0]!.transcriptPath).toBe("/tmp/claude/sessions/s1.jsonl");
+  });
+});

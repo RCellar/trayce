@@ -69,6 +69,26 @@ if (uninstall) {
   } else {
     console.log(`No MCP config found at ${mcpFile}`);
   }
+
+  // Also clean up OTEL env vars
+  const settingsDir = scope === "global" ? join(homedir(), ".claude") : ".claude";
+  const settingsFile = join(settingsDir, "settings.local.json");
+  if (existsSync(settingsFile)) {
+    try {
+      const settings = JSON.parse(readFileSync(settingsFile, "utf-8"));
+      if (settings.env) {
+        delete settings.env.CLAUDE_CODE_ENABLE_TELEMETRY;
+        delete settings.env.OTEL_EXPORTER_OTLP_ENDPOINT;
+        delete settings.env.OTEL_METRICS_EXPORTER;
+        delete settings.env.OTEL_LOGS_EXPORTER;
+        delete settings.env.OTEL_METRIC_EXPORT_INTERVAL;
+        if (Object.keys(settings.env).length === 0) delete settings.env;
+      }
+      writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
+      console.log(`OTEL env vars removed from ${settingsFile}`);
+    } catch {}
+  }
+
   process.exit(0);
 }
 
@@ -142,6 +162,30 @@ if (scope === "global") {
 }
 
 writeFileSync(mcpFile, `${JSON.stringify(config, null, 2)}\n`);
+
+// Write OTEL env vars to .claude/settings.local.json
+const settingsDir = scope === "global" ? join(homedir(), ".claude") : ".claude";
+const settingsFile = join(settingsDir, "settings.local.json");
+
+let settings: Record<string, any> = {};
+if (existsSync(settingsFile)) {
+  try {
+    settings = JSON.parse(readFileSync(settingsFile, "utf-8"));
+  } catch {
+    settings = {};
+  }
+}
+
+if (!settings.env) settings.env = {};
+settings.env.CLAUDE_CODE_ENABLE_TELEMETRY = "1";
+settings.env.OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:9740/otlp";
+settings.env.OTEL_METRICS_EXPORTER = "otlp";
+settings.env.OTEL_LOGS_EXPORTER = "otlp";
+settings.env.OTEL_METRIC_EXPORT_INTERVAL = "10000";
+
+mkdirSync(settingsDir, { recursive: true });
+writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
+console.log(`OTEL telemetry configured in ${settingsFile}`);
 
 console.log();
 console.log(`Trayce configured in ${mcpFile}`);
