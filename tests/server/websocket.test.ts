@@ -1280,6 +1280,52 @@ describe("canvas-push buffering", () => {
     expect(pushMsgs.length).toBe(1);
     expect(pushMsgs[0]!.label).toBe("test-image");
   });
+
+  // Regression for the /clear duplicate-layer bug. Scenario:
+  //  1. Bridge pushes canvas images (buffered on server, forwarded to browser)
+  //  2. Browser receives live pushes and is watching session s1
+  //  3. User types /clear in Claude Code → new transcript file → bridge's
+  //     TranscriptWatcher.onFileSwitch fires → bridge re-registers for s1 →
+  //     server broadcasts `sessions` → browser re-sends `watch-session` s1
+  //  4. Server must NOT replay the buffer again — the browser already has
+  //     those canvas-push events, and a replay turns each one into a new layer
+  //     (regenerating deleted layers and duplicating kept ones).
+  it("does not replay canvas-push when browser re-watches the same session", async () => {
+    const { hub } = makeFixture();
+    const bridge = bridgeWs();
+    const browser = browserWs();
+    hub.addBridge(bridge as any);
+    hub.addBrowser(browser as any);
+
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "register", sessionId: "s1", label: "test" }),
+    );
+
+    // Browser starts watching first — empty buffer, live events will follow.
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
+
+    // Live canvas-push — the browser sees it as it arrives.
+    await hub.handleMessage(
+      bridge as any,
+      JSON.stringify({ type: "canvas-push", image: "b64", label: "live" }),
+    );
+    expect(allSentOfType(browser, "canvas-push").length).toBe(1);
+
+    // Browser re-sends watch-session for the same session (this is what
+    // happens after /clear triggers a sessions re-broadcast).
+    browser.sent.length = 0;
+    await hub.handleMessage(
+      browser as any,
+      JSON.stringify({ type: "watch-session", sessionId: "s1" }),
+    );
+
+    // No replay — the browser already has the live canvas-push.
+    expect(allSentOfType(browser, "canvas-push").length).toBe(0);
+  });
 });
 
 describe("shutdown-request", () => {
