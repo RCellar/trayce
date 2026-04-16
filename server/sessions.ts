@@ -3,6 +3,7 @@ export interface Session {
   label: string;
   status: "active";
   sessionStartedAt?: number | undefined;
+  transcriptPath?: string | undefined;
 }
 
 export class SessionRegistry {
@@ -29,6 +30,17 @@ export class SessionRegistry {
 
   list(): Session[] {
     return Array.from(this.sessions.values());
+  }
+
+  setTranscriptPath(id: string, path: string): void {
+    const session = this.sessions.get(id);
+    if (session) {
+      session.transcriptPath = path;
+    }
+  }
+
+  getTranscriptPath(id: string): string | undefined {
+    return this.sessions.get(id)?.transcriptPath;
   }
 
   private resolveLabel(base: string): string {
