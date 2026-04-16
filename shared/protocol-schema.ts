@@ -244,6 +244,12 @@ export const AnnotationsPushSchema = z.object({
   annotations: z.array(AnnotationSchema).min(1),
 });
 
+export const SessionContextSchema = z.object({
+  type: z.literal("session-context"),
+  sessionId: z.string().min(1),
+  transcriptPath: z.string().min(1),
+});
+
 export const BridgeToServerSchema = z.discriminatedUnion("type", [
   HeartbeatSchema,
   RegisterSchema,
