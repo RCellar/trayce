@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -50,18 +50,6 @@ export function formatAnnotationsForNotification(annotations: Annotation[]): str
   return lines.join("\n");
 }
 
-/** Resolve the project directory. The bridge is spawned as an MCP subprocess —
- *  its own cwd may not match the project. On Linux, read the parent process
- *  (Claude Code) cwd from /proc as the authoritative source. */
-function resolveProjectDir(): string {
-  try {
-    const parentCwd = readlinkSync(`/proc/${process.ppid}/cwd`);
-    if (parentCwd) return parentCwd;
-  } catch {
-    // Not on Linux or /proc unavailable — fall through
-  }
-  return process.cwd();
-}
 
 // Discover connection info from env or state.json
 function readState(): { host: string; port: string; token: string } {
@@ -87,9 +75,8 @@ function readState(): { host: string; port: string; token: string } {
 
 let { host, port, token } = readState();
 
-const projectDir = resolveProjectDir();
 const bridgeStartTime = Date.now();
-const label = process.env.TRAYCE_LABEL ?? basename(projectDir);
+const label = process.env.TRAYCE_LABEL ?? basename(process.cwd());
 const sessionId = crypto.randomUUID();
 
 // MCP Channel server
@@ -405,33 +392,15 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
   return { content: [{ type: "text", text: `Unknown tool: ${name}` }] };
 });
 
-function startTranscriptWatcher(ws: WebSocket): number | undefined {
-  // Transcript path is provided externally via session-context message or
-  // carried over from a previous connection. No discovery heuristics.
-  const transcriptPath =
-    lastTranscriptPath && existsSync(lastTranscriptPath) ? lastTranscriptPath : null;
-
-  console.error(
-    `[trayce bridge] projectDir=${projectDir} cwd=${process.cwd()} label=${label} transcript=${transcriptPath ?? "null"}`,
-  );
-
-  if (!transcriptPath) {
-    ws.send(JSON.stringify({ type: "transcript-status", available: false }));
-    return undefined;
+/** Start a prose-only transcript watcher on the given path.
+ *  Called when the server delivers a session-context message. */
+function startWatcherForPath(ws: WebSocket, transcriptPath: string): void {
+  if (transcriptWatcher) {
+    transcriptWatcher.stop();
+    transcriptWatcher = null;
   }
-
-  // Use bridge connection time, not file birthtime — this gives the toggle
-  // a useful meaning: "since you connected" vs "full transcript history"
-  const sessionStartedAt: number = bridgeStartTime;
-
-  ws.send(
-    JSON.stringify({
-      type: "transcript-status",
-      available: true,
-      transcriptPath,
-      projectDir,
-    }),
-  );
+  lastTranscriptPath = transcriptPath;
+  console.error(`[trayce bridge] started watcher on ${transcriptPath}`);
 
   transcriptWatcher = new TranscriptWatcher(transcriptPath, (entry: TranscriptEntry) => {
     if (ws.readyState !== WebSocket.OPEN) return;
@@ -450,7 +419,6 @@ function startTranscriptWatcher(ws: WebSocket): number | undefined {
   });
 
   transcriptWatcher.start();
-  return sessionStartedAt;
 }
 
 // WebSocket connection to trayce server
@@ -465,10 +433,13 @@ function connect() {
   ws.onopen = () => {
     reconnectDelay = 1000;
     currentWs = ws;
-    const sessionStartedAt = startTranscriptWatcher(ws);
-    ws.send(JSON.stringify({ type: "register", sessionId, label, sessionStartedAt }));
+    // Register with the server. Don't start the transcript watcher here —
+    // wait for a session-context message from the server (triggered by
+    // a SessionStart hook) which provides the authoritative path.
+    ws.send(
+      JSON.stringify({ type: "register", sessionId, label, sessionStartedAt: bridgeStartTime }),
+    );
 
-    // Clear any prior heartbeat
     if (heartbeatInterval) clearInterval(heartbeatInterval);
     heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -491,12 +462,9 @@ function connect() {
         return;
       }
       if (msg.type === "session-context" && typeof msg.transcriptPath === "string") {
-        // Server sends the active transcript path (from a SessionStart hook).
-        // Start (or restart) the watcher if we don't already have one running.
-        lastTranscriptPath = msg.transcriptPath;
-        if (!transcriptWatcher) {
-          startTranscriptWatcher(ws);
-        }
+        // Server delivers the transcript path from a SessionStart hook.
+        // Start (or restart) the watcher on the new path.
+        startWatcherForPath(ws, msg.transcriptPath);
         return;
       }
       if (msg.type === "submission") {
