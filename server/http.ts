@@ -14,7 +14,12 @@ const MIME_TYPES: Record<string, string> = {
 
 const FALLBACK_MIME = "application/octet-stream";
 
-export function createHttpHandler(clientDir: string): (req: Request) => Promise<Response> {
+type RouteHandler = (req: Request) => Promise<Response>;
+
+export function createHttpHandler(
+  clientDir: string,
+  routes?: Record<string, RouteHandler>,
+): (req: Request) => Promise<Response> {
   const resolvedClientDir = resolve(clientDir);
 
   // Build CSP once at construction, incorporating hashes of any inline scripts in index.html.
@@ -89,6 +94,16 @@ export function createHttpHandler(clientDir: string): (req: Request) => Promise<
   return async function handler(req: Request): Promise<Response> {
     try {
       const url = new URL(req.url);
+
+      // Check registered routes first
+      if (routes) {
+        for (const [path, routeHandler] of Object.entries(routes)) {
+          if (url.pathname === path || url.pathname.startsWith(path + "/")) {
+            return await routeHandler(req);
+          }
+        }
+      }
+
       const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
 
       let decodedPathname: string;
